@@ -58,6 +58,23 @@ export async function getProductByBarcode(barcode: string): Promise<Product | nu
   });
 }
 
+export async function getVariantsByProductId(productId: string): Promise<ProductVariant[]> {
+  return await runInDbQueue(async (db) => {
+    const prod = await db.getFirstAsync<Product>(
+      "SELECT variants_json FROM products WHERE id = ?",
+      [productId]
+    );
+    if (prod && prod.variants_json) {
+      try {
+        return JSON.parse(prod.variants_json);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+}
+
 export async function createProduct(input: ProductInput): Promise<Product> {
   return await runInDbQueue(async (db) => {
     const id = `PRD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;

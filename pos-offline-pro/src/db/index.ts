@@ -11,19 +11,6 @@ let dbInstance: SQLite.SQLiteDatabase | null = null;
 let dbInitPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let queuePromise: Promise<any> = Promise.resolve();
 
-/**
- * Sequential execution queue to prevent OPFS access handle collisions on Web
- */
-export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
-  const db = await getDatabase();
-  const next = queuePromise.then(
-    () => task(db),
-    () => task(db)
-  );
-  queuePromise = next.catch(() => {});
-  return next;
-}
-
 export interface ProductVariant {
   id: string;
   name: string;
@@ -91,11 +78,29 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (!dbInitPromise) {
     dbInitPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await setupDatabaseSchema(db);
       dbInstance = db;
       return db;
     })();
   }
   return dbInitPromise;
+}
+
+export async function initDatabase(): Promise<void> {
+  await getDatabase();
+}
+
+/**
+ * Sequential execution queue to prevent OPFS access handle collisions on Web
+ */
+export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
+  const db = await getDatabase();
+  const next = queuePromise.then(
+    () => task(db),
+    () => task(db)
+  );
+  queuePromise = next.catch(() => {});
+  return next;
 }
 
 export async function closeDatabase(): Promise<void> {
@@ -115,9 +120,7 @@ export async function reloadDatabase(): Promise<void> {
   await initDatabase();
 }
 
-export async function initDatabase(): Promise<void> {
-  const db = await getDatabase();
-
+async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   // Enable WAL mode only on native mobile (Android/iOS)
   if (Platform.OS !== "web") {
     try {
@@ -248,7 +251,7 @@ async function seedRealisticProducts(db: SQLite.SQLiteDatabase): Promise<void> {
       modal_hpp: 32000,
       stock: 50,
       unit: "kg",
-      is_decimal: 1, // Supports Volume & Nominal popup!
+      is_decimal: 1,
       barcode: "8992761002",
       image_uri: "https://images.unsplash.com/photo-1596363505729-4190a9506133?w=300&q=80",
       category: "Buah",
@@ -322,7 +325,7 @@ async function seedRealisticProducts(db: SQLite.SQLiteDatabase): Promise<void> {
       barcode: "8992761007",
       image_uri: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&q=80",
       category: "Makanan",
-      has_variants: 1, // Has variants: Ayam & Rendang matching screenshot 170329.png!
+      has_variants: 1,
       variants_json: JSON.stringify([
         { id: "VAR-1", name: "Ayam", harga_jual: 15000, modal_hpp: 8000, stock: 80 },
         { id: "VAR-2", name: "Rendang", harga_jual: 18000, modal_hpp: 10000, stock: 50 },

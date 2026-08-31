@@ -13,10 +13,6 @@ import {
 } from "react-native";
 import { Product, ProductVariant } from "@/db";
 import { ProductInput } from "@/db/productRepository";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { formatRupiah } from "@/util/formatters";
 import {
   X,
@@ -199,66 +195,114 @@ export function ProductFormModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/60">
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.65)" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          className="bg-white dark:bg-zinc-900 rounded-t-3xl max-h-[92%] overflow-hidden border-t border-zinc-200 dark:border-zinc-800"
+          style={{
+            backgroundColor: "#ffffff",
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            maxHeight: "92%",
+            overflow: "hidden",
+          }}
         >
           {/* Header */}
-          <View className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View className="w-8 h-8 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 items-center justify-center mr-2.5">
-                <Package size={17} color="#0097A7" />
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: "#e5e7eb",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  backgroundColor: "#ecfeff",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 10,
+                }}
+              >
+                <Package size={18} color="#0097A7" />
               </View>
-              <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
                 {productToEdit ? "Edit Data Produk" : "Tambah Produk Baru"}
               </Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
-              className="w-8 h-8 rounded-full items-center justify-center bg-zinc-100 dark:bg-zinc-800"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#f4f4f5",
+              }}
             >
-              <X size={15} color="#71717a" />
+              <X size={16} color="#71717a" />
             </TouchableOpacity>
           </View>
 
           {/* Form Content */}
           <ScrollView
-            className="px-5 py-4"
+            style={{ paddingHorizontal: 20, paddingVertical: 16 }}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 30 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
           >
-            {/* Input: Nama Produk */}
-            <View className="mb-3">
-              <Input
-                label="Nama Produk *"
+            {/* Nama Produk */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>Nama Produk *</Text>
+              <TextInput
                 placeholder="Contoh: Nasi Kuning, Anggur, Apel..."
                 value={name}
                 onChangeText={setName}
-                error={errors.name}
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#f4f4f5",
+                  borderWidth: 1,
+                  borderColor: errors.name ? "#ef4444" : "#e4e4e7",
+                  fontSize: 13,
+                  color: "#18181b",
+                }}
               />
+              {errors.name && <Text style={{ fontSize: 10, color: "#ef4444", marginTop: 2 }}>{errors.name}</Text>}
             </View>
 
             {/* Category selector */}
-            <View className="mb-3">
-              <Text className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 6 }}>
                 Kategori
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
                 {CATEGORIES.map((cat, idx) => (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => setCategory(cat)}
-                    className={`mr-2 px-3 py-1.5 rounded-xl border transition-all ${
-                      category === cat
-                        ? "bg-[#0097A7] border-[#0097A7]"
-                        : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
-                    }`}
+                    style={{
+                      marginRight: 8,
+                      paddingHorizontal: 14,
+                      paddingVertical: 6,
+                      borderRadius: 12,
+                      backgroundColor: category === cat ? "#0097A7" : "#f4f4f5",
+                      borderWidth: 1,
+                      borderColor: category === cat ? "#0097A7" : "#e4e4e7",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        category === cat ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                      }`}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: category === cat ? "#ffffff" : "#52525b",
+                      }}
                     >
                       {cat}
                     </Text>
@@ -268,11 +312,20 @@ export function ProductFormModal({
             </View>
 
             {/* Unit & Decimal Mode Row */}
-            <View className="mb-3 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-              <View className="flex-row items-center justify-between mb-2.5">
-                <View className="flex-row items-center">
-                  <Scale size={15} color="#0097A7" />
-                  <Text className="text-xs font-bold text-zinc-800 dark:text-zinc-200 ml-1.5">
+            <View
+              style={{
+                marginBottom: 12,
+                padding: 14,
+                backgroundColor: "#f9fafb",
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Scale size={16} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginLeft: 6 }}>
                     Mode Timbangan (Desimal / kg)
                   </Text>
                 </View>
@@ -286,22 +339,28 @@ export function ProductFormModal({
                 />
               </View>
 
-              <Text className="text-[11px] text-zinc-400 mb-2">Satuan Unit Penjualan</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 6 }}>Satuan Unit Penjualan</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
                 {UNITS.map((u, idx) => (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => setUnit(u)}
-                    className={`mr-2 px-3 py-1 rounded-lg border ${
-                      unit === u
-                        ? "bg-[#0097A7] border-[#0097A7]"
-                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
-                    }`}
+                    style={{
+                      marginRight: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                      backgroundColor: unit === u ? "#0097A7" : "#ffffff",
+                      borderWidth: 1,
+                      borderColor: unit === u ? "#0097A7" : "#e4e4e7",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        unit === u ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                      }`}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: unit === u ? "#ffffff" : "#52525b",
+                      }}
                     >
                       {u}
                     </Text>
@@ -311,77 +370,139 @@ export function ProductFormModal({
             </View>
 
             {/* Pricing Section */}
-            <View className="flex-row space-x-3 mb-3">
-              <View className="flex-1 mr-2">
-                <Input
-                  label={`Harga Jual (Rp / ${unit}) *`}
+            <View style={{ flexDirection: "row", marginBottom: 12 }}>
+              <View style={{ flex: 1, marginRight: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+                  Harga Jual (Rp / {unit}) *
+                </Text>
+                <TextInput
                   placeholder="50000"
                   keyboardType="numeric"
                   value={hargaJual}
                   onChangeText={setHargaJual}
-                  error={errors.hargaJual}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: errors.hargaJual ? "#ef4444" : "#e4e4e7",
+                    fontSize: 13,
+                    color: "#18181b",
+                  }}
                 />
               </View>
 
-              <View className="flex-1 ml-2">
-                <Input
-                  label="Modal HPP (Rp)"
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+                  Modal HPP (Rp)
+                </Text>
+                <TextInput
                   placeholder="35000"
                   keyboardType="numeric"
                   value={modalHpp}
                   onChangeText={setModalHpp}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: "#e4e4e7",
+                    fontSize: 13,
+                    color: "#18181b",
+                  }}
                 />
               </View>
             </View>
 
             {/* Live Profit Preview */}
-            <Card className="mb-3 bg-cyan-50/50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-900/50 p-3">
-              <View className="flex-row items-center justify-between mb-1">
-                <View className="flex-row items-center">
-                  <TrendingUp size={14} color="#0097A7" />
-                  <Text className="text-xs font-semibold text-cyan-900 dark:text-cyan-300 ml-1.5">
+            <View
+              style={{
+                marginBottom: 12,
+                padding: 12,
+                backgroundColor: "#ecfeff",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#a5f3fc",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <TrendingUp size={15} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
                     Live Profit Margin
                   </Text>
                 </View>
-                <Badge variant="success">Margin: {marginPercent}%</Badge>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
+                  Margin: {marginPercent}%
+                </Text>
               </View>
-              <View className="flex-row items-center justify-between">
-                <Text className="text-xs text-zinc-500">Laba Bersih per {unit}:</Text>
-                <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 11, color: "#52525b" }}>Laba Bersih per {unit}:</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: "#16a34a" }}>
                   +{formatRupiah(labaKotor)}
                 </Text>
               </View>
-            </Card>
+            </View>
 
             {/* Stock & Barcode */}
-            <View className="flex-row space-x-3 mb-3">
-              <View className="w-1/3 mr-2">
-                <Input
-                  label={`Stok (${unit}) *`}
+            <View style={{ flexDirection: "row", marginBottom: 12 }}>
+              <View style={{ width: "35%", marginRight: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+                  Stok ({unit}) *
+                </Text>
+                <TextInput
                   placeholder="50"
                   keyboardType="numeric"
                   value={stock}
                   onChangeText={setStock}
-                  error={errors.stock}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: errors.stock ? "#ef4444" : "#e4e4e7",
+                    fontSize: 13,
+                    color: "#18181b",
+                  }}
                 />
               </View>
 
-              <View className="flex-1 ml-2">
-                <Input
-                  label="Barcode / SKU"
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+                  Barcode / SKU
+                </Text>
+                <TextInput
                   placeholder="899..."
                   value={barcode}
                   onChangeText={setBarcode}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: "#e4e4e7",
+                    fontSize: 13,
+                    color: "#18181b",
+                  }}
                 />
               </View>
             </View>
 
             {/* Variants Toggle & Section */}
-            <View className="mb-4 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-              <View className="flex-row items-center justify-between mb-2">
-                <View className="flex-row items-center">
-                  <Layers size={15} color="#0097A7" />
-                  <Text className="text-xs font-bold text-zinc-800 dark:text-zinc-200 ml-1.5">
+            <View
+              style={{
+                marginBottom: 16,
+                padding: 14,
+                backgroundColor: "#f9fafb",
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Layers size={16} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginLeft: 6 }}>
                     Produk Memiliki Varian (Rasa / Ukuran)
                   </Text>
                 </View>
@@ -393,41 +514,57 @@ export function ProductFormModal({
               </View>
 
               {hasVariants && (
-                <View className="mt-2">
-                  {variants.map((v, idx) => (
+                <View style={{ marginTop: 8 }}>
+                  {variants.map((v) => (
                     <View
                       key={v.id}
-                      className="p-2.5 mb-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700"
+                      style={{
+                        padding: 10,
+                        marginBottom: 8,
+                        backgroundColor: "#ffffff",
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: "#e5e7eb",
+                      }}
                     >
-                      <View className="flex-row items-center justify-between mb-2">
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                         <TextInput
                           value={v.name}
                           onChangeText={(t) => handleUpdateVariant(v.id, "name", t)}
                           placeholder="Nama Varian (mis. Ayam, Rendang)"
-                          className="flex-1 font-bold text-xs text-zinc-900 dark:text-zinc-100 p-1 border-b border-zinc-200 dark:border-zinc-700 mr-2"
+                          style={{
+                            flex: 1,
+                            fontWeight: "700",
+                            fontSize: 12,
+                            color: "#18181b",
+                            paddingBottom: 4,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#e5e7eb",
+                            marginRight: 8,
+                          }}
                         />
                         <TouchableOpacity onPress={() => handleRemoveVariant(v.id)}>
-                          <Trash2 size={14} color="#ef4444" />
+                          <Trash2 size={15} color="#ef4444" />
                         </TouchableOpacity>
                       </View>
 
-                      <View className="flex-row space-x-2">
-                        <View className="flex-1 mr-1">
-                          <Text className="text-[10px] text-zinc-400">Harga Jual</Text>
+                      <View style={{ flexDirection: "row" }}>
+                        <View style={{ flex: 1, marginRight: 4 }}>
+                          <Text style={{ fontSize: 10, color: "#71717a" }}>Harga Jual</Text>
                           <TextInput
                             value={String(v.harga_jual)}
                             onChangeText={(t) => handleUpdateVariant(v.id, "harga_jual", Number(t) || 0)}
                             keyboardType="numeric"
-                            className="bg-zinc-50 dark:bg-zinc-700 text-xs p-1.5 rounded"
+                            style={{ backgroundColor: "#f4f4f5", fontSize: 12, padding: 6, borderRadius: 8 }}
                           />
                         </View>
-                        <View className="w-16 ml-1">
-                          <Text className="text-[10px] text-zinc-400">Stok</Text>
+                        <View style={{ width: 70, marginLeft: 4 }}>
+                          <Text style={{ fontSize: 10, color: "#71717a" }}>Stok</Text>
                           <TextInput
                             value={String(v.stock)}
                             onChangeText={(t) => handleUpdateVariant(v.id, "stock", Number(t) || 0)}
                             keyboardType="numeric"
-                            className="bg-zinc-50 dark:bg-zinc-700 text-xs p-1.5 rounded text-center"
+                            style={{ backgroundColor: "#f4f4f5", fontSize: 12, padding: 6, borderRadius: 8, textAlign: "center" }}
                           />
                         </View>
                       </View>
@@ -437,10 +574,20 @@ export function ProductFormModal({
                   <TouchableOpacity
                     onPress={handleAddVariant}
                     activeOpacity={0.8}
-                    className="py-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-dashed border-[#0097A7] items-center justify-center flex-row"
+                    style={{
+                      paddingVertical: 10,
+                      borderRadius: 14,
+                      backgroundColor: "#ecfeff",
+                      borderWidth: 1,
+                      borderColor: "#0097A7",
+                      borderStyle: "dashed",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "row",
+                    }}
                   >
-                    <Plus size={14} color="#0097A7" />
-                    <Text className="text-xs font-bold text-[#0097A7] ml-1">
+                    <Plus size={15} color="#0097A7" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
                       Tambah Varian
                     </Text>
                   </TouchableOpacity>
@@ -449,13 +596,23 @@ export function ProductFormModal({
             </View>
 
             {/* Action Buttons */}
-            <View className="flex-row space-x-3 pt-2">
+            <View style={{ flexDirection: "row", marginTop: 8 }}>
               <TouchableOpacity
                 onPress={onClose}
                 activeOpacity={0.7}
-                className="flex-1 py-3.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-2 border border-zinc-200 dark:border-zinc-700"
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 16,
+                  backgroundColor: "#f4f4f5",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 6,
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                }}
               >
-                <Text className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#52525b" }}>
                   Batal
                 </Text>
               </TouchableOpacity>
@@ -464,9 +621,17 @@ export function ProductFormModal({
                 onPress={handleSubmit}
                 disabled={isSubmitting}
                 activeOpacity={0.8}
-                className="flex-1 py-3.5 rounded-2xl bg-[#0097A7] items-center justify-center ml-2 shadow-sm"
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 16,
+                  backgroundColor: "#0097A7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: 6,
+                }}
               >
-                <Text className="text-xs font-bold text-white">
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>
                   {productToEdit ? "Simpan Perubahan" : "Tambah Produk"}
                 </Text>
               </TouchableOpacity>

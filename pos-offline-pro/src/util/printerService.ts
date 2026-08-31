@@ -40,63 +40,53 @@ export class PrinterService {
     return this.isConnected;
   }
 
-  /**
-   * Formats a complete text representation of the receipt for 58mm (32 characters per line)
-   * Matching screenshot 170931.png
-   */
   static async generateReceiptText(data: ReceiptData): Promise<string> {
-    const storeName = data.storeName || (await getSetting("store_name", "POS Offline Pro"));
-    const businessType = data.businessType || (await getSetting("store_business_type", "Jenis toko"));
-    const storeAddress = data.storeAddress || (await getSetting("store_address", "Jl. Alamat No 99 Makassar"));
-    const storePhone = data.storePhone || (await getSetting("store_phone", "08111111111"));
-    const logoUri = data.storeLogoUri ?? (await getSetting("store_logo", ""));
-
     const width = this.LINE_WIDTH;
     const divider = "-".repeat(width);
     const doubleDivider = "=".repeat(width);
 
     const center = (text: string): string => {
-      if (!text) return "";
-      const trimmed = text.trim().slice(0, width);
-      const pad = Math.max(0, Math.floor((width - trimmed.length) / 2));
-      return " ".repeat(pad) + trimmed;
+      if (text.length >= width) return text.substring(0, width);
+      const spaces = Math.floor((width - text.length) / 2);
+      return " ".repeat(spaces) + text;
     };
 
     const row = (left: string, right: string): string => {
-      const l = left.trim();
-      const r = right.trim();
-      const space = Math.max(1, width - l.length - r.length);
-      return l + " ".repeat(space) + r;
+      const available = width - right.length;
+      if (left.length > available - 1) {
+        left = left.substring(0, available - 2) + ".";
+      }
+      const spaces = width - left.length - right.length;
+      return left + " ".repeat(Math.max(1, spaces)) + right;
     };
 
     const lines: string[] = [];
 
-    // Store Logo indication
-    if (logoUri) {
-      lines.push(center("[ LOGO STORE ]"));
-      lines.push("");
+    // Header matching screenshot 170931.png
+    lines.push(doubleDivider);
+    lines.push(center((data.storeName || "POS OFFLINE PRO").toUpperCase()));
+    if (data.storeAddress) {
+      lines.push(center(data.storeAddress));
     }
+    if (data.storePhone) {
+      lines.push(center(`Telp: ${data.storePhone}`));
+    }
+    lines.push(doubleDivider);
 
-    lines.push(center(storeName));
-    if (businessType) lines.push(center(businessType));
-    if (storeAddress) lines.push(center(storeAddress));
-    if (storePhone) lines.push(center(storePhone));
+    // Meta
+    lines.push(row("No. Struk:", data.invoiceNumber));
+    lines.push(row("Waktu:", data.date));
+    if (data.cashierName) {
+      lines.push(row("Kasir:", data.cashierName));
+    }
     lines.push(divider);
 
-    // Invoice & Date
-    lines.push(center(data.invoiceNumber));
-    lines.push(center(data.date));
-    lines.push(divider);
-
-    // Items list matching screenshot 170931
+    // Items
     data.items.forEach((item) => {
-      const isKg = item.unit === "kg";
-      const rightQty = isKg ? `${item.qty} kg` : `${item.qty}x`;
-      lines.push(row(item.name.slice(0, 20), rightQty));
-
-      const leftPrice = isKg ? `  Rp ${item.price.toLocaleString("id-ID")}/kg` : `  Rp ${item.price.toLocaleString("id-ID")}`;
-      const rightSubtotal = `Rp ${item.subtotal.toLocaleString("id-ID")}`;
-      lines.push(row(leftPrice, rightSubtotal));
+      lines.push(item.name.substring(0, width));
+      const qtyStr = `${item.qty} ${item.unit || "pcs"} x ${item.price.toLocaleString("id-ID")}`;
+      const subtotalStr = `Rp ${item.subtotal.toLocaleString("id-ID")}`;
+      lines.push(row(`  ${qtyStr}`, subtotalStr));
     });
 
     lines.push(divider);
@@ -137,3 +127,8 @@ export class PrinterService {
     }
   }
 }
+
+export const printBluetoothReceipt58mm = async (data: ReceiptData): Promise<boolean> => {
+  const res = await PrinterService.printReceipt(data);
+  return res.success;
+};

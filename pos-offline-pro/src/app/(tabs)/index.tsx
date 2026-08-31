@@ -18,13 +18,12 @@ import {
 } from "@/db/reportRepository";
 import { getAllProducts } from "@/db/productRepository";
 import { getSetting } from "@/db/settingsRepository";
-import { formatRupiah, formatNumber } from "@/util/formatters";
+import { formatRupiah } from "@/util/formatters";
 import {
   ShoppingCart,
   ChevronRight,
   Package,
   BarChart2,
-  TrendingUp,
 } from "lucide-react-native";
 
 export default function DashboardScreen() {
@@ -89,7 +88,6 @@ export default function DashboardScreen() {
       const thirtyDays = await getFinancialSummary("30days");
       setMonthStats(thirtyDays);
 
-      // Top products sold count
       const topProds = await getTopProducts("today", 100);
       const totalSold = topProds.reduce((acc, p) => acc + p.totalQty, 0);
       setTotalItemsSold(totalSold);
@@ -110,36 +108,45 @@ export default function DashboardScreen() {
     loadData();
   };
 
-  // 7 Days Chart Mock & Real data distribution
   const daysLabels = ["Sab", "Min", "Sen", "Sel", "Rab", "Kam", "Hr Ini"];
-  const maxBarValue = Math.max(todayStats.omset, sevenDaysStats.omset / 7, 1000);
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       <ScrollView
-        className="flex-1 px-4 pt-3"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Top Header matching screenshot 170105 */}
-        <View className="flex-row items-center justify-between mb-4">
-          <View className="flex-row items-center">
-            <View className="w-12 h-12 rounded-2xl bg-[#0097A7] items-center justify-center shadow-sm mr-3 overflow-hidden">
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 16,
+                backgroundColor: "#0097A7",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 12,
+                overflow: "hidden",
+              }}
+            >
               {storeLogo ? (
-                <Image source={{ uri: storeLogo }} className="w-full h-full" resizeMode="cover" />
+                <Image source={{ uri: storeLogo }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
               ) : (
-                <View className="items-center justify-center">
-                  <Text className="text-[10px] font-black text-white leading-none">POS</Text>
-                  <Text className="text-[8px] font-bold text-cyan-100 leading-none">Offline</Text>
+                <View style={{ alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 10, fontWeight: "900", color: "#ffffff", lineHeight: 12 }}>POS</Text>
+                  <Text style={{ fontSize: 8, fontWeight: "700", color: "#e0f2fe", lineHeight: 10 }}>Offline</Text>
                 </View>
               )}
             </View>
             <View>
-              <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
                 {storeName}
               </Text>
-              <Text className="text-xs text-zinc-400">
+              <Text style={{ fontSize: 12, color: "#71717a", marginTop: 1 }}>
                 {businessType}
               </Text>
             </View>
@@ -150,95 +157,196 @@ export default function DashboardScreen() {
         <TouchableOpacity
           onPress={() => router.push("/modal-pos")}
           activeOpacity={0.85}
-          className="w-full p-4 rounded-3xl bg-[#0097A7] flex-row items-center justify-between shadow-md mb-4"
+          style={{
+            width: "100%",
+            padding: 16,
+            borderRadius: 24,
+            backgroundColor: "#0097A7",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+            shadowColor: "#0097A7",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
         >
-          <View className="flex-row items-center flex-1 pr-2">
-            <View className="w-11 h-11 rounded-2xl bg-white/20 items-center justify-center mr-3">
-              <ShoppingCart size={20} color="#ffffff" />
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 8 }}>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 16,
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 12,
+              }}
+            >
+              <ShoppingCart size={22} color="#ffffff" />
             </View>
             <View>
-              <Text className="text-base font-bold text-white">
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#ffffff" }}>
                 Mulai Menjual
               </Text>
-              <Text className="text-xs text-cyan-100 mt-0.5">
+              <Text style={{ fontSize: 12, color: "#e0f7fa", marginTop: 2 }}>
                 Buka mode kasir untuk bertransaksi
               </Text>
             </View>
           </View>
-          <ChevronRight size={20} color="#ffffff" />
+          <ChevronRight size={22} color="#ffffff" />
         </TouchableOpacity>
 
         {/* 3 Top Summary Boxes matching screenshot 170105 */}
-        <View className="flex-row space-x-2.5 mb-4">
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 16 }}>
           {/* Box 1: Produk */}
-          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm mr-1.5">
-            <Package size={18} color="#0097A7" />
-            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+          <View
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              paddingHorizontal: 8,
+              borderRadius: 18,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 6,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <Package size={20} color="#0097A7" />
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#18181b", marginTop: 4 }}>
               {totalProductCount}
             </Text>
-            <Text className="text-[11px] text-zinc-400">Produk</Text>
+            <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>Produk</Text>
           </View>
 
           {/* Box 2: Transaksi */}
-          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm mx-1">
-            <ShoppingCart size={18} color="#0097A7" />
-            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+          <View
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              paddingHorizontal: 8,
+              borderRadius: 18,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              alignItems: "center",
+              justifyContent: "center",
+              marginHorizontal: 4,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <ShoppingCart size={20} color="#0097A7" />
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#18181b", marginTop: 4 }}>
               {todayStats.totalTransactions}
             </Text>
-            <Text className="text-[11px] text-zinc-400">Transaksi</Text>
+            <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>Transaksi</Text>
           </View>
 
           {/* Box 3: Item Terjual */}
-          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm ml-1.5">
-            <BarChart2 size={18} color="#0097A7" />
-            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+          <View
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              paddingHorizontal: 8,
+              borderRadius: 18,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              alignItems: "center",
+              justifyContent: "center",
+              marginLeft: 6,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <BarChart2 size={20} color="#0097A7" />
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#18181b", marginTop: 4 }}>
               {totalItemsSold}
             </Text>
-            <Text className="text-[11px] text-zinc-400">Item Terjual</Text>
+            <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>Item Terjual</Text>
           </View>
         </View>
 
         {/* "Penjualan Hari Ini" Card matching screenshot 170105 & 170111 */}
-        <View className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm mb-4">
-          <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-xs text-zinc-400">Penjualan Hari Ini</Text>
-            <View className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40">
-              <Text className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 24,
+            backgroundColor: "#ffffff",
+            borderWidth: 1,
+            borderColor: "#e5e7eb",
+            marginBottom: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 1,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, color: "#71717a", fontWeight: "500" }}>Penjualan Hari Ini</Text>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#f0fdf4" }}>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
                 + 100.0%
               </Text>
             </View>
           </View>
 
-          <Text className="text-2xl font-black text-zinc-900 dark:text-zinc-50">
+          <Text style={{ fontSize: 24, fontWeight: "900", color: "#18181b", marginVertical: 4 }}>
             {formatRupiah(todayStats.omset)}
           </Text>
 
-          <View className="flex-row items-center justify-between mt-1 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
-            <Text className="text-[11px] text-zinc-400">Kemarin: Rp 0</Text>
-            <Text className="text-[11px] text-zinc-400">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: "#f4f4f5",
+            }}
+          >
+            <Text style={{ fontSize: 11, color: "#71717a" }}>Kemarin: Rp 0</Text>
+            <Text style={{ fontSize: 11, color: "#71717a" }}>
               Rata-rata: {formatRupiah(todayStats.avgPerTransaction)}/trx
             </Text>
           </View>
 
           {/* 3 Metric Columns: Modal HPP, Laba Hr Ini, Margin */}
-          <View className="flex-row justify-between pt-3">
-            <View className="flex-1">
-              <Text className="text-[11px] text-zinc-400">Modal (HPP)</Text>
-              <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5">
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: "#71717a" }}>Modal (HPP)</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: "#27272a", marginTop: 2 }}>
                 {formatRupiah(todayStats.modalHpp)}
               </Text>
             </View>
 
-            <View className="flex-1 items-center">
-              <Text className="text-[11px] text-emerald-600 dark:text-emerald-400">Laba Hr Ini</Text>
-              <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600" }}>Laba Hr Ini</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#16a34a", marginTop: 2 }}>
                 {formatRupiah(todayStats.labaKotor)}
               </Text>
             </View>
 
-            <View className="flex-1 items-end">
-              <Text className="text-[11px] text-zinc-400">Margin</Text>
-              <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5">
+            <View style={{ flex: 1, alignItems: "flex-end" }}>
+              <Text style={{ fontSize: 11, color: "#71717a" }}>Margin</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: "#27272a", marginTop: 2 }}>
                 {todayStats.marginPercent}%
               </Text>
             </View>
@@ -246,41 +354,56 @@ export default function DashboardScreen() {
         </View>
 
         {/* "Tren 7 Hari" Chart Card matching screenshot 170105 & 170111 */}
-        <View className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm mb-4">
-          <Text className="text-xs font-bold text-zinc-800 dark:text-zinc-200 mb-4">
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 24,
+            backgroundColor: "#ffffff",
+            borderWidth: 1,
+            borderColor: "#e5e7eb",
+            marginBottom: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 1,
+          }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b", marginBottom: 16 }}>
             Tren 7 Hari
           </Text>
 
-          <View className="h-28 flex-row items-end justify-between px-1 pb-1">
+          <View style={{ height: 110, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 4 }}>
             {daysLabels.map((day, idx) => {
               const isToday = idx === 6;
               const barHeightPct = isToday
                 ? todayStats.omset > 0
                   ? 75
-                  : 10
-                : Math.max(8, (idx * 12) % 30);
+                  : 12
+                : Math.max(10, ((idx + 2) * 12) % 35);
 
               return (
-                <View key={idx} className="items-center flex-1">
+                <View key={idx} style={{ alignItems: "center", flex: 1 }}>
                   {isToday && todayStats.omset > 0 && (
-                    <Text className="text-[10px] text-zinc-400 mb-1 font-mono">
+                    <Text style={{ fontSize: 10, color: "#71717a", marginBottom: 4, fontFamily: "monospace" }}>
                       {todayStats.omset >= 1000 ? `${Math.round(todayStats.omset / 1000)} rb` : todayStats.omset}
                     </Text>
                   )}
                   <View
-                    className={`w-7 rounded-lg ${
-                      isToday
-                        ? "bg-[#0097A7]"
-                        : "bg-emerald-100/60 dark:bg-emerald-950/30"
-                    }`}
-                    style={{ height: `${barHeightPct}%` }}
+                    style={{
+                      width: 28,
+                      height: `${barHeightPct}%`,
+                      borderRadius: 8,
+                      backgroundColor: isToday ? "#0097A7" : "#ccfbf1",
+                    }}
                   />
                   <Text
-                    className={`text-[10px] mt-2 font-medium ${
-                      isToday
-                        ? "text-[#0097A7] font-bold"
-                        : "text-zinc-400"
-                    }`}
+                    style={{
+                      fontSize: 10,
+                      marginTop: 8,
+                      fontWeight: isToday ? "700" : "500",
+                      color: isToday ? "#0097A7" : "#71717a",
+                    }}
                   >
                     {day}
                   </Text>
@@ -291,38 +414,98 @@ export default function DashboardScreen() {
         </View>
 
         {/* 2x2 Performance Grid matching screenshot 170111 */}
-        <View className="space-y-3">
-          <View className="flex-row space-x-3">
+        <View style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", marginBottom: 12 }}>
             {/* 7 Hari */}
-            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 mr-1.5 shadow-sm">
-              <Text className="text-[11px] text-zinc-400">7 Hari</Text>
-              <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+            <View
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: "#ffffff",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                marginRight: 6,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: "#71717a" }}>7 Hari</Text>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 4 }}>
                 {formatRupiah(sevenDaysStats.omset)}
               </Text>
             </View>
 
             {/* Bulan Ini */}
-            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 ml-1.5 shadow-sm">
-              <Text className="text-[11px] text-zinc-400">Bulan Ini</Text>
-              <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+            <View
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: "#ffffff",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                marginLeft: 6,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: "#71717a" }}>Bulan Ini</Text>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 4 }}>
                 {formatRupiah(monthStats.omset)}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row space-x-3 mt-3">
+          <View style={{ flexDirection: "row" }}>
             {/* Laba 7 Hari */}
-            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 mr-1.5 shadow-sm">
-              <Text className="text-[11px] text-zinc-400">Laba 7 Hari</Text>
-              <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+            <View
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: "#ffffff",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                marginRight: 6,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: "#71717a" }}>Laba 7 Hari</Text>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#16a34a", marginTop: 4 }}>
                 {formatRupiah(sevenDaysStats.labaKotor)}
               </Text>
             </View>
 
             {/* Laba Bulan Ini */}
-            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 ml-1.5 shadow-sm">
-              <Text className="text-[11px] text-zinc-400">Laba Bulan Ini</Text>
-              <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+            <View
+              style={{
+                flex: 1,
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: "#ffffff",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                marginLeft: 6,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: "#71717a" }}>Laba Bulan Ini</Text>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#16a34a", marginTop: 4 }}>
                 {formatRupiah(monthStats.labaKotor)}
               </Text>
             </View>

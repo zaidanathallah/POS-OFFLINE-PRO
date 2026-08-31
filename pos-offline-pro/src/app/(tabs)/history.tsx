@@ -9,10 +9,6 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Header } from "@/components/Header";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { Transaction } from "@/db";
 import {
@@ -22,19 +18,14 @@ import {
 } from "@/db/transactionRepository";
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
-import { formatRupiah, formatDateTime } from "@/util/formatters";
+import { formatRupiah } from "@/util/formatters";
 import {
   Receipt,
   Printer,
-  Calendar,
-  CreditCard,
-  Banknote,
-  TrendingUp,
   Inbox,
 } from "lucide-react-native";
 
 export default function HistoryScreen() {
-  const [filterPeriod, setFilterPeriod] = useState<"today" | "week" | "month">("today");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,43 +113,52 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
-      <View className="px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800">
-        <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+      {/* Header */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          backgroundColor: "#ffffff",
+          borderBottomWidth: 1,
+          borderBottomColor: "#e5e7eb",
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
           Riwayat Transaksi
         </Text>
-        <Text className="text-xs text-zinc-400">
+        <Text style={{ fontSize: 12, color: "#71717a", marginTop: 1 }}>
           Daftar Struk Penjualan & Cetak Ulang (58mm)
         </Text>
       </View>
 
       {/* Transaction List */}
       <ScrollView
-        className="flex-1 px-4 pt-3"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <Text style={{ fontSize: 12, fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
             Daftar Struk ({transactions.length})
           </Text>
-          <Text className="text-xs text-zinc-400">
+          <Text style={{ fontSize: 12, color: "#71717a" }}>
             Total Omset: {formatRupiah(summary.totalOmset)}
           </Text>
         </View>
 
         {loading ? (
-          <View className="py-16 items-center justify-center">
+          <View style={{ paddingVertical: 60, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator size="large" color="#0097A7" />
           </View>
         ) : transactions.length === 0 ? (
-          <View className="py-16 items-center justify-center px-4">
-            <Inbox size={36} color="#9ca3af" />
-            <Text className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-2 mb-1">
+          <View style={{ paddingVertical: 60, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 }}>
+            <Inbox size={40} color="#9ca3af" />
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 10, marginBottom: 4 }}>
               Belum Ada Transaksi
             </Text>
-            <Text className="text-xs text-zinc-400 text-center">
+            <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>
               Transaksi kasir yang telah selesai akan otomatis tercatat di sini dan tersimpan di database SQLite lokal.
             </Text>
           </View>
@@ -166,26 +166,47 @@ export default function HistoryScreen() {
           transactions.map((trx) => (
             <View
               key={trx.id}
-              className="mb-3 p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm"
+              style={{
+                marginBottom: 12,
+                padding: 16,
+                borderRadius: 22,
+                backgroundColor: "#ffffff",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
             >
               {/* Header Struk: Invoice & Method */}
-              <View className="flex-row items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800/80">
-                <View className="flex-row items-center">
-                  <Receipt size={15} color="#0097A7" />
-                  <Text className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100 ml-1.5">
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingBottom: 8,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#f4f4f5",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Receipt size={16} color="#0097A7" />
+                  <Text style={{ fontSize: 13, fontWeight: "700", fontFamily: "monospace", color: "#18181b", marginLeft: 6 }}>
                     {trx.invoice_no || trx.id}
                   </Text>
                 </View>
-                <View className="px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-950/40">
-                  <Text className="text-[10px] font-bold text-[#0097A7]">
+                <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, backgroundColor: "#ecfeff" }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
                     {trx.payment_method || "CASH"}
                   </Text>
                 </View>
               </View>
 
               {/* Body Struk */}
-              <View className="py-2 flex-row items-center justify-between">
-                <Text className="text-[11px] text-zinc-400">
+              <View style={{ paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 11, color: "#71717a" }}>
                   {new Date(trx.created_at).toLocaleString("id-ID", {
                     day: "numeric",
                     month: "short",
@@ -195,19 +216,28 @@ export default function HistoryScreen() {
                   })}
                 </Text>
                 {trx.ppn_amount && trx.ppn_amount > 0 ? (
-                  <Text className="text-[10px] text-zinc-400 font-mono">
+                  <Text style={{ fontSize: 10, color: "#71717a", fontFamily: "monospace" }}>
                     PPN {trx.ppn_percent}%: {formatRupiah(trx.ppn_amount)}
                   </Text>
                 ) : null}
               </View>
 
               {/* Financial Breakdown & Print Button */}
-              <View className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex-row items-center justify-between">
+              <View
+                style={{
+                  paddingTop: 10,
+                  borderTopWidth: 1,
+                  borderTopColor: "#f4f4f5",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <View>
-                  <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#18181b" }}>
                     {formatRupiah(trx.omset)}
                   </Text>
-                  <Text className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                  <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600", marginTop: 1 }}>
                     Laba: +{formatRupiah(trx.laba_kotor)}
                   </Text>
                 </View>
@@ -215,10 +245,19 @@ export default function HistoryScreen() {
                 <TouchableOpacity
                   onPress={() => handlePrintReceipt(trx)}
                   activeOpacity={0.7}
-                  className="flex-row items-center px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "#d4d4d8",
+                    backgroundColor: "#ffffff",
+                  }}
                 >
-                  <Printer size={13} color="#0097A7" />
-                  <Text className="text-xs font-bold text-zinc-700 dark:text-zinc-200 ml-1.5">
+                  <Printer size={14} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginLeft: 6 }}>
                     Cetak 58mm
                   </Text>
                 </TouchableOpacity>

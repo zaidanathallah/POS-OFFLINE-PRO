@@ -17,12 +17,13 @@ export default function TabLayout() {
   const activeColor = "#0097A7"; // Cyan Teal Accent matching design system
   const inactiveColor = activeDark ? "#71717a" : "#9ca3af";
   const bgColor = activeDark ? "#09090b" : "#ffffff";
-  const borderColor = activeDark ? "#27272a" : "#f1f5f9";
+  const borderColor = activeDark ? "#27272a" : "#e5e7eb";
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarPosition: "bottom",
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
         tabBarStyle: {
@@ -32,6 +33,7 @@ export default function TabLayout() {
           height: 64,
           paddingBottom: 10,
           paddingTop: 8,
+          position: "relative",
         },
         tabBarLabelStyle: {
           fontSize: 11,

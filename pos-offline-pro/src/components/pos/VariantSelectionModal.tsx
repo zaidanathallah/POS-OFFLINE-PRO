@@ -1,6 +1,14 @@
-import React from "react";
-import { View, Text, Modal, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { Product, ProductVariant } from "@/db";
+import { getVariantsByProductId } from "@/db/productRepository";
 import { formatRupiah } from "@/util/formatters";
 import { X } from "lucide-react-native";
 
@@ -17,73 +25,111 @@ export function VariantSelectionModal({
   onClose,
   onSelectVariant,
 }: VariantSelectionModalProps) {
-  if (!product) return null;
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  let variants: ProductVariant[] = [];
-  try {
-    if (product.variants_json) {
-      variants = JSON.parse(product.variants_json);
+  useEffect(() => {
+    if (visible && product) {
+      if (product.variants_json) {
+        try {
+          const parsed = JSON.parse(product.variants_json);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setVariants(parsed);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      setLoading(true);
+      getVariantsByProductId(product.id)
+        .then((vars) => setVariants(vars))
+        .catch((err) => console.log("Load variants error:", err))
+        .finally(() => setLoading(false));
     }
-  } catch (e) {
-    console.log("Parse variants error:", e);
-  }
+  }, [visible, product]);
 
-  if (variants.length === 0) {
-    // Fallback default
-    variants = [
-      { id: "VAR-1", name: "Standar", harga_jual: product.harga_jual, modal_hpp: product.modal_hpp, stock: product.stock }
-    ];
-  }
+  if (!product) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 justify-center items-center bg-black/60 px-5">
-        <View className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-2xl border border-zinc-100 dark:border-zinc-800">
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 20 }}>
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 380,
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            padding: 20,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 5,
+          }}
+        >
           {/* Header */}
-          <View className="flex-row items-center justify-between pb-2">
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <View>
-              <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50">
-                {product.name}
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
+                Pilih Varian
               </Text>
-              <Text className="text-xs text-zinc-400 mt-0.5">
-                Pilih varian untuk ditambahkan ke keranjang
-              </Text>
+              <Text style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>{product.name}</Text>
             </View>
-            <TouchableOpacity
-              onPress={onClose}
-              className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 items-center justify-center"
-            >
-              <X size={14} color="#71717a" />
+            <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+              <X size={18} color="#71717a" />
             </TouchableOpacity>
           </View>
 
-          {/* List of Variants */}
-          <ScrollView className="max-h-72 mt-2" showsVerticalScrollIndicator={false}>
-            {variants.map((v) => (
-              <TouchableOpacity
-                key={v.id}
-                onPress={() => {
-                  onSelectVariant(product, v);
-                  onClose();
-                }}
-                activeOpacity={0.7}
-                className="my-1.5 p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 flex-row items-center justify-between"
-              >
-                <View>
-                  <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    {v.name}
-                  </Text>
-                  <Text className="text-[11px] text-zinc-400 mt-0.5">
-                    Stok: {v.stock}
-                  </Text>
-                </View>
+          {/* Variants List */}
+          {loading ? (
+            <View style={{ paddingVertical: 30, alignItems: "center" }}>
+              <ActivityIndicator size="small" color="#0097A7" />
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {variants.map((v) => {
+                const isOutOfStock = v.stock <= 0;
+                const price = v.harga_jual || (v as any).price || 0;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    onPress={() => {
+                      onSelectVariant(product, v);
+                      onClose();
+                    }}
+                    disabled={isOutOfStock}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 12,
+                      paddingHorizontal: 14,
+                      borderRadius: 16,
+                      backgroundColor: "#f9fafb",
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      marginBottom: 8,
+                      opacity: isOutOfStock ? 0.45 : 1,
+                    }}
+                  >
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                        {v.name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
+                        {isOutOfStock ? "Habis" : `Stok: ${v.stock}`}
+                      </Text>
+                    </View>
 
-                <Text className="text-sm font-bold text-[#0097A7]">
-                  {formatRupiah(v.harga_jual)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#0097A7" }}>
+                      {formatRupiah(price)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
       </View>
     </Modal>

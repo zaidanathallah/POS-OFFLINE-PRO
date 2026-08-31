@@ -6,11 +6,18 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
+  useWindowDimensions,
 } from "react-native";
 import { CartItem } from "@/stores/useCartStore";
 import { formatRupiah } from "@/util/formatters";
-import { ArrowLeft, CreditCard, CheckCircle2 } from "lucide-react-native";
+import {
+  X,
+  CreditCard,
+  Banknote,
+  QrCode,
+  CheckCircle2,
+  Delete,
+} from "lucide-react-native";
 
 interface CheckoutLandscapeModalProps {
   visible: boolean;
@@ -39,329 +46,316 @@ export function CheckoutLandscapeModal({
   onClose,
   onConfirmPayment,
 }: CheckoutLandscapeModalProps) {
+  const { width } = useWindowDimensions();
+  const isLandscape = width >= 768;
+
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("CASH");
-  const [typedAmount, setTypedAmount] = useState<string>("0");
+  const [cashTenderedStr, setCashTenderedStr] = useState("");
 
   useEffect(() => {
     if (visible) {
       setPaymentMethod("CASH");
-      setTypedAmount("0");
+      setCashTenderedStr(grandTotal.toString());
     }
-  }, [visible]);
+  }, [visible, grandTotal]);
 
-  const cashTendered = paymentMethod === "CASH" ? Number(typedAmount) || 0 : grandTotal;
+  const cashTendered = parseInt(cashTenderedStr, 10) || 0;
   const changeAmount = Math.max(0, cashTendered - grandTotal);
-  const isSufficient = cashTendered >= grandTotal;
+  const isPaymentValid = paymentMethod === "QRIS" || cashTendered >= grandTotal;
 
-  // Keypad Handlers
-  const handleDigit = (digit: string) => {
-    if (typedAmount === "0") {
-      setTypedAmount(digit);
-    } else if (typedAmount.length < 10) {
-      setTypedAmount(typedAmount + digit);
+  const quickNominals = [
+    { label: "Uang Pas", value: grandTotal },
+    { label: "10.000", value: 10000 },
+    { label: "20.000", value: 20000 },
+    { label: "50.000", value: 50000 },
+    { label: "100.000", value: 100000 },
+  ].filter((q) => q.value >= grandTotal || q.label === "Uang Pas");
+
+  const handleKeypadPress = (val: string) => {
+    if (val === "DEL") {
+      setCashTenderedStr((prev) => prev.slice(0, -1));
+    } else if (val === "000") {
+      setCashTenderedStr((prev) => (prev ? prev + "000" : ""));
+    } else {
+      setCashTenderedStr((prev) => prev + val);
     }
   };
-
-  const handleClear = () => {
-    setTypedAmount("0");
-  };
-
-  const handleExactAmount = () => {
-    setTypedAmount(String(grandTotal));
-  };
-
-  const handleQuickNominal = (amount: number) => {
-    setTypedAmount(String(amount));
-  };
-
-  const handleConfirm = () => {
-    if (paymentMethod === "CASH" && cashTendered < grandTotal) {
-      Alert.alert(
-        "Pembayaran Kurang",
-        `Jumlah uang tunai yang dimasukkan (${formatRupiah(cashTendered)}) kurang dari total belanja (${formatRupiah(grandTotal)}).`
-      );
-      return;
-    }
-    onConfirmPayment(paymentMethod, cashTendered, changeAmount);
-  };
-
-  const quickNominals = [100000, 50000, 20000, 10000, 5000];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-white dark:bg-zinc-950 flex-row">
-        {/* Left Side: Order Summary matching screenshot 170515 */}
-        <View className="w-1/2 p-6 border-r border-zinc-200 dark:border-zinc-800 flex-col justify-between bg-zinc-50/70 dark:bg-zinc-900/50">
-          <View className="flex-1">
-            {/* Back Button */}
-            <TouchableOpacity
-              onPress={onClose}
-              activeOpacity={0.7}
-              className="flex-row items-center mb-4"
-            >
-              <ArrowLeft size={17} color="#0097A7" />
-              <Text className="text-sm font-bold text-[#0097A7] ml-1.5">
-                Kembali
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 16 }}>
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 720,
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            overflow: "hidden",
+            maxHeight: "92%",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 5,
+          }}
+        >
+          {/* Header */}
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 14,
+              backgroundColor: "#ffffff",
+              borderBottomWidth: 1,
+              borderBottomColor: "#e5e7eb",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
+                Pembayaran Transaksi
               </Text>
+              <Text style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>
+                Pilih metode bayar & masukkan nominal tunai
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+              <X size={20} color="#71717a" />
             </TouchableOpacity>
-
-            <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50 mb-3">
-              Ringkasan Pesanan
-            </Text>
-
-            {/* Table Header */}
-            <View className="flex-row items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800">
-              <Text className="text-[11px] font-semibold text-zinc-400 w-1/2">
-                Produk
-              </Text>
-              <Text className="text-[11px] font-semibold text-zinc-400 text-center w-1/4">
-                Qty
-              </Text>
-              <Text className="text-[11px] font-semibold text-zinc-400 text-right w-1/4">
-                Subtotal
-              </Text>
-            </View>
-
-            {/* Items List */}
-            <ScrollView className="flex-1 mt-1" showsVerticalScrollIndicator={false}>
-              {items.map((item) => (
-                <View
-                  key={item.id}
-                  className="flex-row items-center justify-between py-2 border-b border-zinc-100 dark:border-zinc-800/50"
-                >
-                  <View className="w-1/2 pr-1">
-                    <Text
-                      className="text-xs font-semibold text-zinc-800 dark:text-zinc-200"
-                      numberOfLines={1}
-                    >
-                      {item.product.name}
-                      {item.variant ? ` (${item.variant.name})` : ""}
-                    </Text>
-                    <Text className="text-[10px] text-zinc-400">
-                      {formatRupiah(item.unitPrice)}
-                      {item.unit === "kg" ? "/kg" : ""}
-                    </Text>
-                  </View>
-
-                  <Text className="text-xs text-zinc-600 dark:text-zinc-400 text-center w-1/4">
-                    {item.qty} {item.unit}
-                  </Text>
-
-                  <Text className="text-xs font-bold text-zinc-900 dark:text-zinc-100 text-right w-1/4">
-                    {formatRupiah(item.subtotal)}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
           </View>
 
-          {/* Totals Section matching screenshot 170515 */}
-          <View className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-xs text-zinc-500 dark:text-zinc-400">Subtotal</Text>
-              <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                {formatRupiah(subtotal)}
+          {/* Main Dual Grid View */}
+          <View style={{ flexDirection: isLandscape ? "row" : "column" }}>
+            {/* Left Column: Order Summary */}
+            <View
+              style={{
+                width: isLandscape ? 300 : "100%",
+                backgroundColor: "#f9fafb",
+                borderRightWidth: isLandscape ? 1 : 0,
+                borderRightColor: "#e5e7eb",
+                padding: 16,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>
+                Ringkasan Pesanan ({items.length} Item)
               </Text>
-            </View>
 
-            {ppnAmount > 0 && (
-              <View className="flex-row items-center justify-between mb-1.5">
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                  PPN {ppnPercent}%
-                </Text>
-                <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                  {formatRupiah(ppnAmount)}
-                </Text>
-              </View>
-            )}
+              <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+                {items.map((item) => {
+                  const unitPrice =
+                    item.variant?.harga_jual ??
+                    item.product.harga_jual ??
+                    (item.qty > 0 ? item.subtotal / item.qty : 0);
 
-            <View className="flex-row items-center justify-between pt-2 border-t border-dashed border-zinc-200 dark:border-zinc-700">
-              <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50">
-                Grand Total
-              </Text>
-              <Text className="text-xl font-extrabold text-[#16a34a]">
-                {formatRupiah(grandTotal)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Right Side: Payment Methods & Keypad matching screenshot 170515 & 170857 */}
-        <View className="w-1/2 p-6 flex-col justify-between bg-white dark:bg-zinc-950">
-          <View>
-            <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50 mb-3">
-              Pembayaran
-            </Text>
-
-            {/* Method Tabs */}
-            <View className="flex-row p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl mb-4">
-              <TouchableOpacity
-                onPress={() => setPaymentMethod("CASH")}
-                activeOpacity={0.8}
-                className={`flex-1 py-2.5 rounded-lg items-center justify-center ${
-                  paymentMethod === "CASH" ? "bg-[#0097A7] shadow-sm" : "bg-transparent"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    paymentMethod === "CASH" ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                  }`}
-                >
-                  Tunai
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setPaymentMethod("QRIS")}
-                activeOpacity={0.8}
-                className={`flex-1 py-2.5 rounded-lg items-center justify-center ${
-                  paymentMethod === "QRIS" ? "bg-[#0097A7] shadow-sm" : "bg-transparent"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    paymentMethod === "QRIS" ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                  }`}
-                >
-                  QRIS
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {paymentMethod === "CASH" ? (
-              <>
-                {/* Tendered Amount Input Box */}
-                <View className="p-3 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-                  <Text className="text-[11px] text-zinc-400">Jumlah Bayar</Text>
-                  <Text className="text-2xl font-black text-zinc-900 dark:text-zinc-50 mt-0.5">
-                    {formatRupiah(Number(typedAmount) || 0)}
-                  </Text>
-                  {cashTendered >= grandTotal && (
-                    <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                      Kembalian: {formatRupiah(changeAmount)}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Quick Amount Pills */}
-                <View className="flex-row space-x-1.5 my-3">
-                  {quickNominals.map((nom) => (
-                    <TouchableOpacity
-                      key={nom}
-                      onPress={() => handleQuickNominal(nom)}
-                      activeOpacity={0.7}
-                      className="px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 mr-1.5"
-                    >
-                      <Text className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                        {nom >= 1000 ? `${nom / 1000}rb` : nom}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Numeric Keypad Grid */}
-                <View className="space-y-1.5">
-                  <View className="flex-row space-x-1.5">
-                    {["1", "2", "3"].map((d) => (
-                      <TouchableOpacity
-                        key={d}
-                        onPress={() => handleDigit(d)}
-                        className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-1.5"
-                      >
-                        <Text className="text-base font-bold text-zinc-900 dark:text-zinc-100">{d}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View className="flex-row space-x-1.5 mt-1.5">
-                    {["4", "5", "6"].map((d) => (
-                      <TouchableOpacity
-                        key={d}
-                        onPress={() => handleDigit(d)}
-                        className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-1.5"
-                      >
-                        <Text className="text-base font-bold text-zinc-900 dark:text-zinc-100">{d}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View className="flex-row space-x-1.5 mt-1.5">
-                    {["7", "8", "9"].map((d) => (
-                      <TouchableOpacity
-                        key={d}
-                        onPress={() => handleDigit(d)}
-                        className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-1.5"
-                      >
-                        <Text className="text-base font-bold text-zinc-900 dark:text-zinc-100">{d}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <View className="flex-row space-x-1.5 mt-1.5">
-                    <TouchableOpacity
-                      onPress={handleClear}
-                      className="flex-1 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 items-center justify-center mr-1.5"
-                    >
-                      <Text className="text-base font-bold text-red-600">C</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => handleDigit("0")}
-                      className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-1.5"
-                    >
-                      <Text className="text-base font-bold text-zinc-900 dark:text-zinc-100">0</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleExactAmount}
-                      className="flex-1 py-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 items-center justify-center"
-                    >
-                      <Text className="text-xs font-bold text-[#0097A7]">Uang Pas</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </>
-            ) : (
-              /* QRIS View matching screenshot 170857 */
-              <View className="items-center justify-center py-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                {storeQrisImage ? (
-                  <Image
-                    source={{ uri: storeQrisImage }}
-                    className="w-40 h-40 rounded-xl"
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <View className="w-40 h-40 bg-white p-2 rounded-xl items-center justify-center border border-zinc-300">
-                    <Image
-                      source={{
-                        uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=00020101021226600016ID.CO.QRIS.WWW011893600999000000000002150000000000000000520458125303360540${grandTotal}5802ID5915POS_OFFLINE_PRO6008JAKARTA6304`,
+                  return (
+                    <View
+                      key={item.id}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingVertical: 6,
+                        borderBottomWidth: 1,
+                        borderBottomColor: "#f4f4f5",
                       }}
-                      className="w-36 h-36"
-                    />
+                    >
+                      <View style={{ flex: 1, paddingRight: 6 }}>
+                        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>
+                          {item.product.name}
+                          {item.variant ? ` (${item.variant.name})` : ""}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: "#71717a" }}>
+                          {item.qty} {item.unit} x {formatRupiah(unitPrice)}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
+                        {formatRupiah(item.subtotal)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Totals */}
+              <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
+                {ppnPercent > 0 && (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                    <Text style={{ fontSize: 11, color: "#71717a" }}>PPN {ppnPercent}%</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
                   </View>
                 )}
-                <Text className="text-xs text-zinc-500 text-center mt-3 px-4">
-                  Arahkan kamera aplikasi pembayaran pelanggan ke QRIS
-                </Text>
-              </View>
-            )}
-          </View>
 
-          {/* Confirm Button matching screenshot 170515 & 170857 */}
-          <TouchableOpacity
-            onPress={handleConfirm}
-            disabled={paymentMethod === "CASH" && !isSufficient}
-            activeOpacity={0.8}
-            className={`py-3.5 rounded-2xl items-center justify-center mt-4 ${
-              isSufficient || paymentMethod === "QRIS"
-                ? "bg-[#0097A7] shadow-md"
-                : "bg-zinc-200 dark:bg-zinc-800 opacity-60"
-            }`}
-          >
-            <Text className="text-sm font-bold text-white">
-              Konfirmasi & Bayar
-            </Text>
-          </TouchableOpacity>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>Total Bayar</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Right Column: Payment Input & Keypad */}
+            <View style={{ flex: 1, padding: 16 }}>
+              {/* Method Switcher */}
+              <View style={{ flexDirection: "row", marginBottom: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setPaymentMethod("CASH")}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: paymentMethod === "CASH" ? "#0097A7" : "#f4f4f5",
+                    marginRight: 6,
+                  }}
+                >
+                  <Banknote size={16} color={paymentMethod === "CASH" ? "#ffffff" : "#71717a"} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: paymentMethod === "CASH" ? "#ffffff" : "#52525b", marginLeft: 6 }}>
+                    Tunai (CASH)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setPaymentMethod("QRIS")}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: paymentMethod === "QRIS" ? "#0097A7" : "#f4f4f5",
+                    marginLeft: 6,
+                  }}
+                >
+                  <QrCode size={16} color={paymentMethod === "QRIS" ? "#ffffff" : "#71717a"} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: paymentMethod === "QRIS" ? "#ffffff" : "#52525b", marginLeft: 6 }}>
+                    QRIS Dinamis
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Mode Cash Keypad */}
+              {paymentMethod === "CASH" ? (
+                <View>
+                  {/* Display Nominal */}
+                  <View
+                    style={{
+                      padding: 10,
+                      borderRadius: 16,
+                      backgroundColor: "#f9fafb",
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, color: "#71717a" }}>Uang Diterima</Text>
+                    <Text style={{ fontSize: 20, fontWeight: "900", color: "#18181b", marginVertical: 2 }}>
+                      {formatRupiah(cashTendered)}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: cashTendered >= grandTotal ? "#16a34a" : "#ef4444" }}>
+                      {cashTendered >= grandTotal ? `Kembalian: ${formatRupiah(changeAmount)}` : `Kurang: ${formatRupiah(grandTotal - cashTendered)}`}
+                    </Text>
+                  </View>
+
+                  {/* Quick Nominals */}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8, gap: 6 }}>
+                    {quickNominals.map((q, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => setCashTenderedStr(q.value.toString())}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 10,
+                          backgroundColor: "#ecfeff",
+                          borderWidth: 1,
+                          borderColor: "#a5f3fc",
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>
+                          {q.label === "Uang Pas" ? "Uang Pas" : formatRupiah(q.value)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Keypad Grid */}
+                  <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                    {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "DEL"].map((k) => (
+                      <TouchableOpacity
+                        key={k}
+                        onPress={() => handleKeypadPress(k)}
+                        style={{
+                          width: "31%",
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          backgroundColor: "#f4f4f5",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {k === "DEL" ? (
+                          <Delete size={16} color="#ef4444" />
+                        ) : (
+                          <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b" }}>{k}</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                /* QRIS Mode View */
+                <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 18,
+                      backgroundColor: "#ffffff",
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Image
+                      source={{
+                        uri: storeQrisImage || "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=STORE_QRIS_OFFLINE_PRO",
+                      }}
+                      style={{ width: 160, height: 160 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#71717a", marginTop: 8 }}>
+                    Scan QRIS untuk menyelesaikan pembayaran
+                  </Text>
+                </View>
+              )}
+
+              {/* Submit Payment Button */}
+              <TouchableOpacity
+                onPress={() => onConfirmPayment(paymentMethod, cashTendered, changeAmount)}
+                disabled={!isPaymentValid}
+                activeOpacity={0.8}
+                style={{
+                  paddingVertical: 14,
+                  borderRadius: 16,
+                  backgroundColor: isPaymentValid ? "#0097A7" : "#e4e4e7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginTop: 10,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "700", color: isPaymentValid ? "#ffffff" : "#a1a1aa" }}>
+                  Selesaikan Transaksi ({formatRupiah(grandTotal)})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
     </Modal>

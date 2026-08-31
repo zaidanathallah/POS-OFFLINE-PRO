@@ -37,7 +37,7 @@ import {
 
 export default function PosModalScreen() {
   const { width } = useWindowDimensions();
-  const isLandscape = width >= 600;
+  const isLandscape = width >= 768;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,7 +214,7 @@ export default function PosModalScreen() {
       setCompletedReceipt(receipt);
       setReceiptModalVisible(true);
       clearCart();
-      loadSettingsAndProducts(); // refresh decremented stock
+      loadSettingsAndProducts();
     } catch (err: any) {
       Alert.alert("Gagal Checkout", err.message || "Terjadi kesalahan sistem saat menyimpan transaksi.");
     }
@@ -226,45 +226,70 @@ export default function PosModalScreen() {
   const totalItemCount = getTotalItemCount();
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       {/* Main Dual-Column Container */}
-      <View className="flex-1 flex-col md:flex-row">
+      <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
         {/* Left Column: Product Selection Area */}
-        <View className="flex-1 flex-col border-r border-zinc-200/80 dark:border-zinc-800">
+        <View style={{ flex: 1, borderRightWidth: isLandscape ? 1 : 0, borderRightColor: "#e5e7eb" }}>
           {/* Top Bar: Search button, Category pills, and Exit button */}
-          <View className="px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-2">
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              backgroundColor: "#ffffff",
+              borderBottomWidth: 1,
+              borderBottomColor: "#e5e7eb",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
               {/* Cari Button matching screenshot 170117 */}
               <TouchableOpacity
                 onPress={() => setSearchModalVisible(true)}
                 activeOpacity={0.8}
-                className="flex-row items-center bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-full mr-2 border border-zinc-200 dark:border-zinc-700"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#f4f4f5",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  marginRight: 8,
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                }}
               >
                 <Search size={14} color="#0097A7" />
-                <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 ml-1.5">
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#3f3f46", marginLeft: 6 }}>
                   Cari
                 </Text>
               </TouchableOpacity>
 
               {/* Category Pills */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
                 {categories.map((cat, idx) => (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => setSelectedCategory(cat)}
                     activeOpacity={0.8}
-                    className={`mr-2 px-3 py-1.5 rounded-full transition-all ${
-                      selectedCategory === cat
-                        ? "bg-[#0097A7] shadow-sm"
-                        : "bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
-                    }`}
+                    style={{
+                      marginRight: 8,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      backgroundColor: selectedCategory === cat ? "#0097A7" : "#f4f4f5",
+                      borderWidth: 1,
+                      borderColor: selectedCategory === cat ? "#0097A7" : "#e4e4e7",
+                    }}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        selectedCategory === cat
-                          ? "text-white"
-                          : "text-zinc-600 dark:text-zinc-400"
-                      }`}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: selectedCategory === cat ? "#ffffff" : "#52525b",
+                      }}
                     >
                       {cat}
                     </Text>
@@ -277,9 +302,21 @@ export default function PosModalScreen() {
             <TouchableOpacity
               onPress={() => router.back()}
               activeOpacity={0.7}
-              className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm"
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#d4d4d8",
+                backgroundColor: "#ffffff",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
             >
-              <Text className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46" }}>
                 Selesai Menjual
               </Text>
             </TouchableOpacity>
@@ -287,23 +324,23 @@ export default function PosModalScreen() {
 
           {/* Product Grid Area matching screenshot 170117 & 170213 */}
           <ScrollView
-            className="flex-1 p-4"
+            style={{ flex: 1, padding: 16 }}
             contentContainerStyle={{ paddingBottom: 60 }}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
-              <View className="py-20 items-center justify-center">
+              <View style={{ paddingVertical: 80, alignItems: "center", justifyContent: "center" }}>
                 <ActivityIndicator size="large" color="#0097A7" />
               </View>
             ) : products.length === 0 ? (
-              <View className="py-20 items-center justify-center">
-                <Inbox size={36} color="#9ca3af" />
-                <Text className="text-xs text-zinc-400 mt-2">
+              <View style={{ paddingVertical: 80, alignItems: "center", justifyContent: "center" }}>
+                <Inbox size={40} color="#9ca3af" />
+                <Text style={{ fontSize: 13, color: "#71717a", marginTop: 8 }}>
                   Belum ada produk di kategori ini
                 </Text>
               </View>
             ) : (
-              <View className="flex-row flex-wrap justify-between">
+              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
                 {products.map((product) => {
                   const inCart = items.find((i) => i.product.id === product.id);
                   const isOutOfStock = product.stock <= 0;
@@ -314,41 +351,70 @@ export default function PosModalScreen() {
                       onPress={() => handleProductPress(product)}
                       disabled={isOutOfStock}
                       activeOpacity={0.8}
-                      className={`w-[48.5%] mb-3.5 rounded-3xl p-3.5 bg-white dark:bg-zinc-900 border ${
-                        inCart
-                          ? "border-[#0097A7] bg-cyan-50/20"
-                          : "border-zinc-200/90 dark:border-zinc-800"
-                      } ${isOutOfStock ? "opacity-45" : ""} shadow-sm`}
+                      style={{
+                        width: isLandscape ? "23.5%" : "48%",
+                        marginBottom: 14,
+                        borderRadius: 22,
+                        padding: 12,
+                        backgroundColor: inCart ? "#ecfeff" : "#ffffff",
+                        borderWidth: 1,
+                        borderColor: inCart ? "#0097A7" : "#e5e7eb",
+                        opacity: isOutOfStock ? 0.45 : 1,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      }}
                     >
                       {/* Product Image / Icon */}
-                      <View className="w-full h-24 rounded-2xl bg-zinc-50 dark:bg-zinc-800 items-center justify-center overflow-hidden mb-2.5">
+                      <View
+                        style={{
+                          width: "100%",
+                          height: 90,
+                          borderRadius: 16,
+                          backgroundColor: "#f4f4f5",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          marginBottom: 10,
+                        }}
+                      >
                         {product.image_uri ? (
                           <Image
                             source={{ uri: product.image_uri }}
-                            className="w-full h-full"
+                            style={{ width: "100%", height: "100%" }}
                             resizeMode="cover"
                           />
                         ) : (
-                          <Package size={32} color="#9ca3af" />
+                          <Package size={34} color="#a1a1aa" />
                         )}
                       </View>
 
                       {/* Product Name */}
                       <Text
                         numberOfLines={1}
-                        className="text-sm font-bold text-zinc-900 dark:text-zinc-100 text-center"
+                        style={{ fontSize: 13, fontWeight: "700", color: "#18181b", textAlign: "center" }}
                       >
                         {product.name}
                       </Text>
 
                       {/* Price per unit */}
-                      <Text className="text-xs font-bold text-[#0097A7] text-center mt-1">
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "800",
+                          color: "#0097A7",
+                          textAlign: "center",
+                          marginTop: 3,
+                        }}
+                      >
                         {formatRupiah(product.harga_jual)}
                         {product.unit === "kg" ? " / kg" : ""}
                       </Text>
 
                       {/* Stock / Variant status */}
-                      <Text className="text-[11px] text-zinc-400 text-center mt-0.5">
+                      <Text style={{ fontSize: 10, color: "#71717a", textAlign: "center", marginTop: 2 }}>
                         {product.has_variants === 1
                           ? "PILIH VARIAN"
                           : product.stock > 500
@@ -364,29 +430,60 @@ export default function PosModalScreen() {
         </View>
 
         {/* Right Column: Cart Panel matching screenshot 170117 & 170213 */}
-        <View className="w-full md:w-80 lg:w-96 bg-white dark:bg-zinc-900 flex-col justify-between p-4 shadow-xl border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800">
-          <View className="flex-1">
+        <View
+          style={{
+            width: isLandscape ? 340 : "100%",
+            backgroundColor: "#ffffff",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: 16,
+            borderTopWidth: isLandscape ? 0 : 1,
+            borderTopColor: "#e5e7eb",
+            shadowColor: "#000",
+            shadowOffset: { width: -2, height: 0 },
+            shadowOpacity: 0.05,
+            shadowRadius: 5,
+            elevation: 3,
+          }}
+        >
+          <View style={{ flex: 1 }}>
             {/* Cart Header */}
-            <View className="flex-row items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <View className="flex-row items-center">
-                <ShoppingCart size={17} color="#0097A7" />
-                <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 ml-2">
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: "#f4f4f5",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <ShoppingCart size={18} color="#0097A7" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
                   Keranjang
                 </Text>
               </View>
 
-              <View className="flex-row items-center space-x-2">
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <TouchableOpacity
                   onPress={() => setBarcodeModalVisible(true)}
                   activeOpacity={0.7}
-                  className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 mr-2"
+                  style={{
+                    padding: 6,
+                    borderRadius: 10,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: "#e4e4e7",
+                    marginRight: 8,
+                  }}
                 >
-                  <Barcode size={15} color="#0097A7" />
+                  <Barcode size={16} color="#0097A7" />
                 </TouchableOpacity>
 
                 {items.length > 0 && (
                   <TouchableOpacity onPress={clearCart} activeOpacity={0.7}>
-                    <Text className="text-xs text-red-500 font-semibold">
+                    <Text style={{ fontSize: 12, color: "#ef4444", fontWeight: "600" }}>
                       Kosongkan
                     </Text>
                   </TouchableOpacity>
@@ -396,56 +493,85 @@ export default function PosModalScreen() {
 
             {/* Cart Content Area */}
             {items.length === 0 ? (
-              <View className="flex-1 items-center justify-center py-16">
-                <Text className="text-xs text-zinc-400">
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                <Text style={{ fontSize: 12, color: "#9ca3af" }}>
                   Keranjang masih kosong
                 </Text>
               </View>
             ) : (
-              <ScrollView className="flex-1 mt-2" showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flex: 1, marginTop: 8 }} showsVerticalScrollIndicator={false}>
                 {items.map((item) => (
                   <View
                     key={item.id}
-                    className="py-2.5 border-b border-zinc-100 dark:border-zinc-800/80 flex-row items-center justify-between"
+                    style={{
+                      paddingVertical: 10,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#f4f4f5",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
                   >
-                    <View className="flex-1 pr-2">
+                    <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text
-                        className="text-xs font-bold text-zinc-900 dark:text-zinc-100"
                         numberOfLines={1}
+                        style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}
                       >
                         {item.product.name}
                         {item.variant ? ` (${item.variant.name})` : ""}
                       </Text>
-                      <Text className="text-[11px] text-[#0097A7] font-semibold">
+                      <Text style={{ fontSize: 11, color: "#0097A7", fontWeight: "700", marginTop: 2 }}>
                         {formatRupiah(item.subtotal)}
                       </Text>
                     </View>
 
                     {/* Counter Buttons */}
-                    <View className="flex-row items-center space-x-1.5">
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
                       <TouchableOpacity
                         onPress={() => updateQty(item.id, item.qty - (item.unit === "kg" ? 0.5 : 1))}
-                        className="w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 items-center justify-center"
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          backgroundColor: "#f4f4f5",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
                       >
-                        <Minus size={11} color="#71717a" />
+                        <Minus size={12} color="#71717a" />
                       </TouchableOpacity>
 
-                      <Text className="w-8 text-center text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      <Text style={{ width: 34, textAlign: "center", fontSize: 12, fontWeight: "700", color: "#18181b" }}>
                         {item.qty}
                       </Text>
 
                       <TouchableOpacity
                         onPress={() => updateQty(item.id, item.qty + (item.unit === "kg" ? 0.5 : 1))}
-                        className="w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 items-center justify-center"
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          backgroundColor: "#f4f4f5",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
                       >
-                        <Plus size={11} color="#0097A7" />
+                        <Plus size={12} color="#0097A7" />
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         onPress={() => removeItem(item.id)}
-                        className="w-6 h-6 rounded-md bg-red-50 dark:bg-red-950/40 items-center justify-center ml-1"
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          backgroundColor: "#fef2f2",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginLeft: 6,
+                        }}
                       >
-                        <Trash2 size={11} color="#ef4444" />
+                        <Trash2 size={12} color="#ef4444" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -455,10 +581,10 @@ export default function PosModalScreen() {
           </View>
 
           {/* Cart Bottom Checkout Panel matching screenshot 170117 */}
-          <View className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-xs font-bold text-zinc-500">Total</Text>
-              <Text className="text-base font-extrabold text-zinc-900 dark:text-zinc-50">
+          <View style={{ paddingTop: 12, borderTopWidth: 1, borderTopColor: "#f4f4f5" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#71717a" }}>Total</Text>
+              <Text style={{ fontSize: 18, fontWeight: "900", color: "#18181b" }}>
                 {formatRupiah(grandTotal)}
               </Text>
             </View>
@@ -467,13 +593,21 @@ export default function PosModalScreen() {
               onPress={() => setCheckoutModalVisible(true)}
               disabled={items.length === 0}
               activeOpacity={0.8}
-              className={`w-full py-3 rounded-2xl items-center justify-center ${
-                items.length > 0
-                  ? "bg-[#0097A7] shadow-md"
-                  : "bg-zinc-200 dark:bg-zinc-800 opacity-50"
-              }`}
+              style={{
+                width: "100%",
+                paddingVertical: 14,
+                borderRadius: 18,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: items.length > 0 ? "#0097A7" : "#e4e4e7",
+                shadowColor: "#0097A7",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: items.length > 0 ? 0.25 : 0,
+                shadowRadius: 4,
+                elevation: items.length > 0 ? 2 : 0,
+              }}
             >
-              <Text className="text-xs font-bold text-white">
+              <Text style={{ fontSize: 13, fontWeight: "700", color: items.length > 0 ? "#ffffff" : "#a1a1aa" }}>
                 Lanjutkan ke Pembayaran
               </Text>
             </TouchableOpacity>

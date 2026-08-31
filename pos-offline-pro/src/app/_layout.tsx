@@ -24,10 +24,25 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <View className={`flex-1 ${isDark ? "dark bg-zinc-950" : "bg-zinc-50"}`}>
+    <View
+      style={{ flex: 1, width: "100%", height: "100%" }}
+      className={`flex-1 ${isDark ? "dark bg-zinc-950" : "bg-[#F9F7F4]"}`}
+    >
       <StatusBar style={isDark ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { flex: 1, backgroundColor: isDark ? "#09090b" : "#F9F7F4" },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="modal-pos"
+          options={{
+            headerShown: false,
+            presentation: "fullScreenModal",
+          }}
+        />
       </Stack>
     </View>
   );

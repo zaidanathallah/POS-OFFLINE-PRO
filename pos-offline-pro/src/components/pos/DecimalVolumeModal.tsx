@@ -41,7 +41,6 @@ export function DecimalVolumeModal({
   const unit = product.unit || "kg";
   const price = product.harga_jual;
 
-  // Calculations
   const numericVolume = parseFloat(volumeInput.replace(/,/g, ".")) || 0;
   const calculatedNominalFromVol = Math.round(numericVolume * price);
 
@@ -62,31 +61,57 @@ export function DecimalVolumeModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View className="flex-1 justify-center items-center bg-black/60 px-5">
-          <View className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-2xl border border-zinc-100 dark:border-zinc-800">
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 20 }}>
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              backgroundColor: "#ffffff",
+              borderRadius: 24,
+              padding: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 10,
+              elevation: 5,
+            }}
+          >
             {/* Title & Subtitle */}
-            <Text className="text-center text-lg font-bold text-zinc-900 dark:text-zinc-50">
+            <Text style={{ textAlign: "center", fontSize: 18, fontWeight: "700", color: "#18181b" }}>
               {product.name}
             </Text>
-            <Text className="text-center text-xs text-zinc-400 mt-0.5">
+            <Text style={{ textAlign: "center", fontSize: 12, color: "#71717a", marginTop: 2 }}>
               Stok tersedia: {product.stock} {unit}
             </Text>
 
             {/* Mode Switcher: Volume vs Nominal */}
-            <View className="flex-row mt-4 p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl">
+            <View
+              style={{
+                flexDirection: "row",
+                marginTop: 16,
+                padding: 4,
+                backgroundColor: "#f4f4f5",
+                borderRadius: 14,
+              }}
+            >
               <TouchableOpacity
                 onPress={() => setTab("volume")}
                 activeOpacity={0.8}
-                className={`flex-1 py-2 rounded-lg items-center justify-center transition-all ${
-                  tab === "volume"
-                    ? "bg-[#0097A7] shadow-sm"
-                    : "bg-transparent"
-                }`}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: tab === "volume" ? "#0097A7" : "transparent",
+                }}
               >
                 <Text
-                  className={`text-xs font-bold ${
-                    tab === "volume" ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                  }`}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: tab === "volume" ? "#ffffff" : "#52525b",
+                  }}
                 >
                   Volume
                 </Text>
@@ -95,16 +120,21 @@ export function DecimalVolumeModal({
               <TouchableOpacity
                 onPress={() => setTab("nominal")}
                 activeOpacity={0.8}
-                className={`flex-1 py-2 rounded-lg items-center justify-center transition-all ${
-                  tab === "nominal"
-                    ? "bg-[#0097A7] shadow-sm"
-                    : "bg-transparent"
-                }`}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: tab === "nominal" ? "#0097A7" : "transparent",
+                }}
               >
                 <Text
-                  className={`text-xs font-bold ${
-                    tab === "nominal" ? "text-white" : "text-zinc-600 dark:text-zinc-400"
-                  }`}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: tab === "nominal" ? "#ffffff" : "#52525b",
+                  }}
                 >
                   Nominal
                 </Text>
@@ -112,28 +142,48 @@ export function DecimalVolumeModal({
             </View>
 
             {/* Input Box */}
-            <View className="mt-4">
+            <View style={{ marginTop: 16 }}>
               {tab === "volume" ? (
-                <View className="bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 items-center justify-center">
+                <View
+                  style={{
+                    backgroundColor: "#f9fafb",
+                    borderWidth: 1,
+                    borderColor: "#e5e7eb",
+                    borderRadius: 16,
+                    padding: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <TextInput
                     value={volumeInput}
                     onChangeText={setVolumeInput}
                     keyboardType="numeric"
                     placeholder="cth: 0.5"
                     placeholderTextColor="#a1a1aa"
-                    className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 text-center w-full"
+                    style={{ fontSize: 24, fontWeight: "800", color: "#18181b", textAlign: "center", width: "100%" }}
                     autoFocus
                   />
                 </View>
               ) : (
-                <View className="bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-3 items-center justify-center">
+                <View
+                  style={{
+                    backgroundColor: "#f9fafb",
+                    borderWidth: 1,
+                    borderColor: "#e5e7eb",
+                    borderRadius: 16,
+                    padding: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <TextInput
                     value={nominalInput}
                     onChangeText={setNominalInput}
                     keyboardType="number-pad"
                     placeholder="cth: 20000"
                     placeholderTextColor="#a1a1aa"
-                    className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 text-center w-full"
+                    style={{ fontSize: 24, fontWeight: "800", color: "#18181b", textAlign: "center", width: "100%" }}
                     autoFocus
                   />
                 </View>
@@ -141,18 +191,28 @@ export function DecimalVolumeModal({
             </View>
 
             {/* Calculated Calculation Result Note */}
-            <View className="mt-3 py-2 px-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 items-center justify-center">
+            <View
+              style={{
+                marginTop: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                backgroundColor: "#ecfeff",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               {tab === "volume" ? (
-                <Text className="text-xs text-zinc-600 dark:text-zinc-300 font-medium">
+                <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
                   {volumeInput || "0"} {unit} x {formatRupiah(price)} ={" "}
-                  <Text className="font-bold text-[#0097A7]">
+                  <Text style={{ fontWeight: "800", color: "#0097A7" }}>
                     {formatRupiah(calculatedNominalFromVol)}
                   </Text>
                 </Text>
               ) : (
-                <Text className="text-xs text-zinc-600 dark:text-zinc-300 font-medium">
+                <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
                   {calculatedVolumeFromNom} {unit} x {formatRupiah(price)} ={" "}
-                  <Text className="font-bold text-[#0097A7]">
+                  <Text style={{ fontWeight: "800", color: "#0097A7" }}>
                     {formatRupiah(numericNominal)}
                   </Text>
                 </Text>
@@ -160,13 +220,23 @@ export function DecimalVolumeModal({
             </View>
 
             {/* Buttons */}
-            <View className="flex-row space-x-3 mt-5">
+            <View style={{ flexDirection: "row", marginTop: 20 }}>
               <TouchableOpacity
                 onPress={onClose}
                 activeOpacity={0.7}
-                className="flex-1 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 items-center justify-center mr-2 border border-zinc-200 dark:border-zinc-700"
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#f4f4f5",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 8,
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                }}
               >
-                <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#52525b" }}>
                   Batal
                 </Text>
               </TouchableOpacity>
@@ -174,9 +244,17 @@ export function DecimalVolumeModal({
               <TouchableOpacity
                 onPress={handleSave}
                 activeOpacity={0.8}
-                className="flex-1 py-3 rounded-xl bg-[#0097A7] items-center justify-center ml-2 shadow-sm"
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#0097A7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: 8,
+                }}
               >
-                <Text className="text-xs font-bold text-white">Simpan</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Simpan</Text>
               </TouchableOpacity>
             </View>
           </View>
