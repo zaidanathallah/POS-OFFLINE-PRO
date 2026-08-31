@@ -216,7 +216,13 @@ export default function PosModalScreen() {
       clearCart();
       loadSettingsAndProducts();
     } catch (err: any) {
-      Alert.alert("Gagal Checkout", err.message || "Terjadi kesalahan sistem saat menyimpan transaksi.");
+      console.error("Gagal Checkout:", err);
+      const errMsg = err?.message || "Terjadi kesalahan sistem saat menyimpan transaksi.";
+      if (typeof window !== "undefined" && window.alert) {
+        window.alert(`Gagal Checkout: ${errMsg}`);
+      } else {
+        Alert.alert("Gagal Checkout", errMsg);
+      }
     }
   };
 

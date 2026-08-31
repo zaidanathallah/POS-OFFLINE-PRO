@@ -48,15 +48,15 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
     const newTransaction: Transaction = {
       id: transactionId,
       invoice_no: invoiceNo,
-      omset: input.grand_total,
-      subtotal_before_tax: input.subtotal,
-      ppn_percent: input.ppn_percent,
-      ppn_amount: input.ppn_amount,
-      total_hpp: input.total_hpp,
-      laba_kotor: input.laba_kotor,
-      payment_method: input.payment_method,
-      cash_tendered: input.cash_tendered,
-      change_amount: input.change_amount,
+      omset: Number(input.grand_total) || 0,
+      subtotal_before_tax: Number(input.subtotal) || 0,
+      ppn_percent: Number(input.ppn_percent) || 0,
+      ppn_amount: Number(input.ppn_amount) || 0,
+      total_hpp: Number(input.total_hpp) || 0,
+      laba_kotor: Number(input.laba_kotor) || 0,
+      payment_method: input.payment_method || "CASH",
+      cash_tendered: Number(input.cash_tendered) || Number(input.grand_total) || 0,
+      change_amount: Number(input.change_amount) || 0,
       table_number: input.table_number || null,
       customer_name: input.customer_name || null,
       is_open_bill: input.is_open_bill || 0,
@@ -65,80 +65,91 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
 
     const detailedItems: (TransactionDetail & { product_name: string; harga_jual: number })[] = [];
 
-    // Execute atomic SQLite transaction
-    await db.withTransactionAsync(async () => {
-      // 1. Insert into transactions table
+    // 1. Insert into transactions table
+    await db.runAsync(
+      `INSERT INTO transactions (
+        id, invoice_no, omset, total_hpp, laba_kotor, 
+        subtotal_before_tax, ppn_percent, ppn_amount, 
+        payment_method, cash_tendered, change_amount, 
+        table_number, customer_name, is_open_bill, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        newTransaction.id,
+        newTransaction.invoice_no ?? null,
+        newTransaction.omset,
+        newTransaction.total_hpp,
+        newTransaction.laba_kotor,
+        newTransaction.subtotal_before_tax,
+        newTransaction.ppn_percent,
+        newTransaction.ppn_amount,
+        newTransaction.payment_method,
+        newTransaction.cash_tendered,
+        newTransaction.change_amount,
+        newTransaction.table_number ?? null,
+        newTransaction.customer_name ?? null,
+        newTransaction.is_open_bill,
+        newTransaction.created_at,
+      ]
+    );
+
+    // 2. Insert into transaction_details & decrement product / variant stock
+    for (let i = 0; i < input.items.length; i++) {
+      const item = input.items[i];
+      const detailId = `DTL-${transactionId}-${i + 1}`;
+      const displayName = item.variant
+        ? `${item.product?.name || "Produk"} (${item.variant.name})`
+        : (item.product?.name || "Produk");
+      const unitPrice = Number(item.unitPrice ?? item.variant?.harga_jual ?? item.product?.harga_jual ?? 0) || 0;
+      const modalHpp = Number(item.modalHpp ?? item.variant?.modal_hpp ?? item.product?.modal_hpp ?? 0) || 0;
+      const qty = Number(item.qty) || 1;
+      const subtotal = Number(item.subtotal) || Math.round(qty * unitPrice);
+      const unit = item.unit || item.product?.unit || "pcs";
+      const productId = item.product?.id || `PRD-${i + 1}`;
+
       await db.runAsync(
-        `INSERT INTO transactions (
-          id, invoice_no, omset, total_hpp, laba_kotor, 
-          subtotal_before_tax, ppn_percent, ppn_amount, 
-          payment_method, cash_tendered, change_amount, 
-          table_number, customer_name, is_open_bill, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transaction_details (
+          id, transaction_id, product_id, product_name, 
+          variant_name, unit, harga_jual, modal_hpp, qty, subtotal
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          newTransaction.id,
-          newTransaction.invoice_no ?? null,
-          newTransaction.omset,
-          newTransaction.total_hpp,
-          newTransaction.laba_kotor,
-          newTransaction.subtotal_before_tax,
-          newTransaction.ppn_percent,
-          newTransaction.ppn_amount,
-          newTransaction.payment_method,
-          newTransaction.cash_tendered,
-          newTransaction.change_amount,
-          newTransaction.table_number ?? null,
-          newTransaction.customer_name ?? null,
-          newTransaction.is_open_bill,
-          newTransaction.created_at,
+          detailId,
+          transactionId,
+          productId,
+          displayName,
+          item.variant?.name || null,
+          unit,
+          unitPrice,
+          modalHpp,
+          qty,
+          subtotal,
         ]
       );
 
-      // 2. Insert into transaction_details & decrement product / variant stock
-      for (let i = 0; i < input.items.length; i++) {
-        const item = input.items[i];
-        const detailId = `DTL-${transactionId}-${i + 1}`;
-        const displayName = item.variant ? `${item.product.name} (${item.variant.name})` : item.product.name;
-
-        await db.runAsync(
-          `INSERT INTO transaction_details (
-            id, transaction_id, product_id, product_name, 
-            variant_name, unit, harga_jual, modal_hpp, qty, subtotal
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            detailId,
-            transactionId,
-            item.product.id,
-            item.product.name,
-            item.variant ? item.variant.name : null,
-            item.unit || "pcs",
-            item.unitPrice,
-            item.modalHpp,
-            item.qty,
-            item.subtotal,
-          ]
-        );
-
-        // Decrement product stock
-        await db.runAsync(
-          `UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?`,
-          [item.qty, item.product.id]
-        );
-
-        detailedItems.push({
-          id: detailId,
-          transaction_id: transactionId,
-          product_id: item.product.id,
-          product_name: displayName,
-          variant_name: item.variant?.name || null,
-          unit: item.unit || "pcs",
-          harga_jual: item.unitPrice,
-          modal_hpp: item.modalHpp,
-          qty: item.qty,
-          subtotal: item.subtotal,
-        });
+      // Decrement product stock safely
+      if (item.product?.id) {
+        try {
+          await db.runAsync(
+            `UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?`,
+            [qty, item.product.id]
+          );
+        } catch (e) {
+          console.log("Stock decrement notice:", e);
+        }
       }
-    });
+
+      detailedItems.push({
+        id: detailId,
+        transaction_id: transactionId,
+        product_id: productId,
+        product_name: displayName,
+        variant_name: item.variant?.name || null,
+        unit: unit,
+        harga_jual: unitPrice,
+        modal_hpp: modalHpp,
+        qty: qty,
+        subtotal: subtotal,
+      });
+    }
 
     return {
       transaction: newTransaction,

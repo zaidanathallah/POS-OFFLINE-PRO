@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
 import { CartItem } from "@/stores/useCartStore";
@@ -32,7 +33,7 @@ interface CheckoutLandscapeModalProps {
     method: "CASH" | "QRIS",
     cashTendered: number,
     changeAmount: number
-  ) => void;
+  ) => Promise<void> | void;
 }
 
 export function CheckoutLandscapeModal({
@@ -51,11 +52,13 @@ export function CheckoutLandscapeModal({
 
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("CASH");
   const [cashTenderedStr, setCashTenderedStr] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setPaymentMethod("CASH");
       setCashTenderedStr(grandTotal.toString());
+      setIsProcessing(false);
     }
   }, [visible, grandTotal]);
 
@@ -81,9 +84,29 @@ export function CheckoutLandscapeModal({
     }
   };
 
+  const handleConfirm = async () => {
+    if (isProcessing) return;
+    if (!isPaymentValid) return;
+
+    setIsProcessing(true);
+    try {
+      await onConfirmPayment(paymentMethod, cashTendered, changeAmount);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 16 }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          padding: 16,
+        }}
+      >
         <View
           style={{
             width: "100%",
@@ -146,7 +169,7 @@ export function CheckoutLandscapeModal({
                 {items.map((item) => {
                   const unitPrice =
                     item.variant?.harga_jual ??
-                    item.product.harga_jual ??
+                    item.product?.harga_jual ??
                     (item.qty > 0 ? item.subtotal / item.qty : 0);
 
                   return (
@@ -163,7 +186,7 @@ export function CheckoutLandscapeModal({
                     >
                       <View style={{ flex: 1, paddingRight: 6 }}>
                         <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>
-                          {item.product.name}
+                          {item.product?.name || "Produk"}
                           {item.variant ? ` (${item.variant.name})` : ""}
                         </Text>
                         <Text style={{ fontSize: 10, color: "#71717a" }}>
@@ -336,23 +359,32 @@ export function CheckoutLandscapeModal({
                 </View>
               )}
 
-              {/* Submit Payment Button */}
+              {/* Submit Payment Button with isProcessing spinner */}
               <TouchableOpacity
-                onPress={() => onConfirmPayment(paymentMethod, cashTendered, changeAmount)}
-                disabled={!isPaymentValid}
+                onPress={handleConfirm}
+                disabled={!isPaymentValid || isProcessing}
                 activeOpacity={0.8}
                 style={{
                   paddingVertical: 14,
                   borderRadius: 16,
-                  backgroundColor: isPaymentValid ? "#0097A7" : "#e4e4e7",
+                  backgroundColor: isPaymentValid && !isProcessing ? "#0097A7" : "#a1a1aa",
                   alignItems: "center",
                   justifyContent: "center",
                   marginTop: 10,
                 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: "700", color: isPaymentValid ? "#ffffff" : "#a1a1aa" }}>
-                  Selesaikan Transaksi ({formatRupiah(grandTotal)})
-                </Text>
+                {isProcessing ? (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <ActivityIndicator size="small" color="#ffffff" />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
+                      Memproses Transaksi...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
+                    Selesaikan Transaksi ({formatRupiah(grandTotal)})
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
