@@ -13,11 +13,15 @@ import {
 import { router } from "expo-router";
 import { useCartStore, CartItem } from "@/stores/useCartStore";
 import { Product, ProductVariant } from "@/db";
-import { getAllProducts, getProductByBarcode } from "@/db/productRepository";
+import { getAllProducts, getProductByBarcode, createProduct } from "@/db/productRepository";
 import { processCheckout } from "@/db/transactionRepository";
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
 import { formatRupiah } from "@/util/formatters";
+import {
+  lookupSupermarketBarcode,
+  generateSmartSupermarketProduct,
+} from "@/util/supermarketBarcodeDb";
 import { DecimalVolumeModal } from "@/components/pos/DecimalVolumeModal";
 import { VariantSelectionModal } from "@/components/pos/VariantSelectionModal";
 import { ProductSearchModal } from "@/components/pos/ProductSearchModal";
@@ -33,6 +37,8 @@ import {
   Trash2,
   Inbox,
   Package,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react-native";
 
 export default function PosModalScreen() {
@@ -52,6 +58,9 @@ export default function PosModalScreen() {
   const [storeName, setStoreName] = useState("POS Offline Pro");
   const [storeAddress, setStoreAddress] = useState("Jl. Alamat No 99 Makassar");
   const [storePhone, setStorePhone] = useState("08111111111");
+
+  // Notification Banner
+  const [notificationBanner, setNotificationBanner] = useState<string>("");
 
   // Interactive Modals
   const [decimalModalVisible, setDecimalModalVisible] = useState(false);
@@ -148,14 +157,97 @@ export default function PosModalScreen() {
     }
   };
 
-  const handleBarcodeScanned = async (code: string) => {
-    const found = await getProductByBarcode(code);
-    if (found) {
-      handleProductPress(found);
-    } else {
-      Alert.alert("Barcode Tidak Ditemukan", `Tidak ada produk dengan barcode ${code}`);
+  /**
+   * Universal Barcode Scanner Handler
+   * Detects local products AND automatically identifies & registers external supermarket goods (FMCG).
+   */
+  const handleBarcodeScanned = useCallback(
+    async (code: string) => {
+      if (!code || !code.trim()) return;
+      const cleanCode = code.trim();
+
+      // 1. Check in local products catalog first
+      const found = await getProductByBarcode(cleanCode);
+      if (found) {
+        handleProductPress(found);
+        setNotificationBanner(`✓ ${found.name} dimasukkan ke keranjang`);
+        setTimeout(() => setNotificationBanner(""), 3500);
+        return;
+      }
+
+      // 2. Not in local catalog: Check offline supermarket FMCG database or generate smart product
+      const supermarketItem =
+        lookupSupermarketBarcode(cleanCode) ||
+        generateSmartSupermarketProduct(cleanCode);
+
+      if (supermarketItem) {
+        try {
+          // Auto create into local SQLite products table
+          const newProd = await createProduct({
+            name: supermarketItem.name,
+            harga_jual: supermarketItem.harga_jual,
+            modal_hpp: supermarketItem.modal_hpp,
+            stock: 100,
+            unit: supermarketItem.unit || "pcs",
+            is_decimal: 0,
+            barcode: cleanCode,
+            image_uri: supermarketItem.image_uri || null,
+            category: supermarketItem.category || "Retail",
+            has_variants: 0,
+          });
+
+          // Add to cart directly
+          addItem(newProd, 1);
+
+          // Refresh catalog in background
+          loadSettingsAndProducts();
+
+          // Show banner
+          setNotificationBanner(
+            `✨ ${supermarketItem.name} (${formatRupiah(supermarketItem.harga_jual)}) otomatis terdeteksi & masuk keranjang!`
+          );
+          setTimeout(() => setNotificationBanner(""), 4500);
+        } catch (err: any) {
+          console.error("Gagal auto-add supermarket product:", err);
+          Alert.alert("Gagal Tambah Produk", err.message || "Terjadi kesalahan.");
+        }
+      }
+    },
+    [addItem, loadSettingsAndProducts]
+  );
+
+  // Hardware USB/Bluetooth Barcode Scanner Gun Listener
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      let buffer = "";
+      let lastKeyTime = Date.now();
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+          return;
+        }
+
+        const now = Date.now();
+        if (now - lastKeyTime > 180) {
+          buffer = "";
+        }
+        lastKeyTime = now;
+
+        if (e.key === "Enter") {
+          if (buffer.length >= 4) {
+            handleBarcodeScanned(buffer);
+          }
+          buffer = "";
+        } else if (e.key.length === 1 && /[0-9a-zA-Z]/.test(e.key)) {
+          buffer += e.key;
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
     }
-  };
+  }, [handleBarcodeScanned]);
 
   const handleConfirmPayment = async (
     method: "CASH" | "QRIS",
@@ -233,6 +325,36 @@ export default function PosModalScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+      {/* Toast Notification Banner for Barcode Auto-Detection */}
+      {notificationBanner ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 12,
+            left: 20,
+            right: 20,
+            zIndex: 999,
+            backgroundColor: "#0097A7",
+            borderRadius: 14,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.2,
+            shadowRadius: 6,
+            elevation: 8,
+          }}
+        >
+          <Sparkles size={16} color="#ffffff" />
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 8, textAlign: "center" }}>
+            {notificationBanner}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Main Dual-Column Container */}
       <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
         {/* Left Column: Product Selection Area */}
@@ -251,7 +373,7 @@ export default function PosModalScreen() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
-              {/* Cari Button matching screenshot 170117 */}
+              {/* Cari Button */}
               <TouchableOpacity
                 onPress={() => setSearchModalVisible(true)}
                 activeOpacity={0.8}
@@ -304,130 +426,144 @@ export default function PosModalScreen() {
               </ScrollView>
             </View>
 
-            {/* Selesai Menjual Button matching screenshot 170117 */}
+            {/* Selesai Menjual Exit Button */}
             <TouchableOpacity
               onPress={() => router.back()}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
               style={{
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 14,
                 borderWidth: 1,
                 borderColor: "#d4d4d8",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 20,
                 backgroundColor: "#ffffff",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
-                shadowRadius: 2,
-                elevation: 1,
               }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46" }}>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#3f3f46" }}>
                 Selesai Menjual
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Product Grid Area matching screenshot 170117 & 170213 */}
+          {/* Product Grid Area */}
           <ScrollView
             style={{ flex: 1, padding: 16 }}
-            contentContainerStyle={{ paddingBottom: 60 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
-              <View style={{ paddingVertical: 80, alignItems: "center", justifyContent: "center" }}>
+              <View style={{ paddingVertical: 60, alignItems: "center" }}>
                 <ActivityIndicator size="large" color="#0097A7" />
               </View>
             ) : products.length === 0 ? (
-              <View style={{ paddingVertical: 80, alignItems: "center", justifyContent: "center" }}>
-                <Inbox size={40} color="#9ca3af" />
-                <Text style={{ fontSize: 13, color: "#71717a", marginTop: 8 }}>
+              <View style={{ paddingVertical: 60, alignItems: "center" }}>
+                <Package size={40} color="#a1a1aa" />
+                <Text style={{ fontSize: 14, color: "#71717a", marginTop: 8 }}>
                   Belum ada produk di kategori ini
                 </Text>
               </View>
             ) : (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -6 }}>
                 {products.map((product) => {
-                  const inCart = items.find((i) => i.product.id === product.id);
                   const isOutOfStock = product.stock <= 0;
-
                   return (
-                    <TouchableOpacity
+                    <View
                       key={product.id}
-                      onPress={() => handleProductPress(product)}
-                      disabled={isOutOfStock}
-                      activeOpacity={0.8}
                       style={{
-                        width: isLandscape ? "23.5%" : "48%",
-                        marginBottom: 14,
-                        borderRadius: 22,
-                        padding: 12,
-                        backgroundColor: inCart ? "#ecfeff" : "#ffffff",
-                        borderWidth: 1,
-                        borderColor: inCart ? "#0097A7" : "#e5e7eb",
-                        opacity: isOutOfStock ? 0.45 : 1,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.05,
-                        shadowRadius: 2,
-                        elevation: 1,
+                        width: isLandscape ? "25%" : "50%",
+                        paddingHorizontal: 6,
+                        marginBottom: 12,
                       }}
                     >
-                      {/* Product Image / Icon */}
-                      <View
+                      <TouchableOpacity
+                        onPress={() => handleProductPress(product)}
+                        disabled={isOutOfStock}
+                        activeOpacity={0.7}
                         style={{
-                          width: "100%",
-                          height: 90,
-                          borderRadius: 16,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          overflow: "hidden",
-                          marginBottom: 10,
+                          backgroundColor: "#ffffff",
+                          borderRadius: 20,
+                          padding: 12,
+                          borderWidth: 1,
+                          borderColor: product.has_variants ? "#0097A7" : "#e5e7eb",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 4,
+                          elevation: 2,
+                          opacity: isOutOfStock ? 0.5 : 1,
+                          minHeight: 180,
+                          justifyContent: "space-between",
                         }}
                       >
-                        {product.image_uri ? (
-                          <Image
-                            source={{ uri: product.image_uri }}
-                            style={{ width: "100%", height: "100%" }}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Package size={34} color="#a1a1aa" />
-                        )}
-                      </View>
+                        {/* Product Image Box */}
+                        <View
+                          style={{
+                            width: "100%",
+                            height: 100,
+                            borderRadius: 14,
+                            backgroundColor: "#f4f4f5",
+                            overflow: "hidden",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 8,
+                          }}
+                        >
+                          {product.image_uri ? (
+                            <Image
+                              source={{ uri: product.image_uri }}
+                              style={{ width: "100%", height: "100%" }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Package size={32} color="#a1a1aa" />
+                          )}
+                        </View>
 
-                      {/* Product Name */}
-                      <Text
-                        numberOfLines={1}
-                        style={{ fontSize: 13, fontWeight: "700", color: "#18181b", textAlign: "center" }}
-                      >
-                        {product.name}
-                      </Text>
+                        {/* Product Info */}
+                        <View style={{ alignItems: "center" }}>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "700",
+                              color: "#18181b",
+                              textAlign: "center",
+                            }}
+                          >
+                            {product.name}
+                          </Text>
 
-                      {/* Price per unit */}
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontWeight: "800",
-                          color: "#0097A7",
-                          textAlign: "center",
-                          marginTop: 3,
-                        }}
-                      >
-                        {formatRupiah(product.harga_jual)}
-                        {product.unit === "kg" ? " / kg" : ""}
-                      </Text>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "800",
+                              color: "#0097A7",
+                              marginTop: 2,
+                            }}
+                          >
+                            {formatRupiah(product.harga_jual)}
+                            {product.is_decimal ? ` / ${product.unit}` : ""}
+                          </Text>
 
-                      {/* Stock / Variant status */}
-                      <Text style={{ fontSize: 10, color: "#71717a", textAlign: "center", marginTop: 2 }}>
-                        {product.has_variants === 1
-                          ? "PILIH VARIAN"
-                          : product.stock > 500
-                          ? "Stok Tanpa Batas"
-                          : `Stok ${product.stock} ${product.unit || "pcs"}`}
-                      </Text>
-                    </TouchableOpacity>
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: isOutOfStock ? "#ef4444" : "#71717a",
+                              marginTop: 2,
+                              fontWeight: product.has_variants ? "700" : "400",
+                            }}
+                          >
+                            {product.has_variants
+                              ? "PILIH VARIAN"
+                              : isOutOfStock
+                              ? "Stok Habis"
+                              : product.stock > 500
+                              ? "Stok Tanpa Batas"
+                              : `Stok ${product.stock} ${product.unit}`}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
@@ -435,161 +571,157 @@ export default function PosModalScreen() {
           </ScrollView>
         </View>
 
-        {/* Right Column: Cart Panel matching screenshot 170117 & 170213 */}
+        {/* Right Column: Interactive Cart Panel matching screenshot 170117 */}
         <View
           style={{
-            width: isLandscape ? 340 : "100%",
+            width: isLandscape ? 360 : "100%",
             backgroundColor: "#ffffff",
+            borderLeftWidth: isLandscape ? 1 : 0,
+            borderLeftColor: "#e5e7eb",
+            display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            padding: 16,
-            borderTopWidth: isLandscape ? 0 : 1,
-            borderTopColor: "#e5e7eb",
-            shadowColor: "#000",
-            shadowOffset: { width: -2, height: 0 },
-            shadowOpacity: 0.05,
-            shadowRadius: 5,
-            elevation: 3,
           }}
         >
-          <View style={{ flex: 1 }}>
-            {/* Cart Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingBottom: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: "#f4f4f5",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <ShoppingCart size={18} color="#0097A7" />
-                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
-                  Keranjang
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <TouchableOpacity
-                  onPress={() => setBarcodeModalVisible(true)}
-                  activeOpacity={0.7}
-                  style={{
-                    padding: 6,
-                    borderRadius: 10,
-                    backgroundColor: "#f4f4f5",
-                    borderWidth: 1,
-                    borderColor: "#e4e4e7",
-                    marginRight: 8,
-                  }}
-                >
-                  <Barcode size={16} color="#0097A7" />
-                </TouchableOpacity>
-
-                {items.length > 0 && (
-                  <TouchableOpacity onPress={clearCart} activeOpacity={0.7}>
-                    <Text style={{ fontSize: 12, color: "#ef4444", fontWeight: "600" }}>
-                      Kosongkan
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+          {/* Cart Header */}
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: "#e5e7eb",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ShoppingCart size={18} color="#0097A7" />
+              <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
+                Keranjang
+              </Text>
             </View>
 
-            {/* Cart Content Area */}
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {/* Barcode Scanner Button */}
+              <TouchableOpacity
+                onPress={() => setBarcodeModalVisible(true)}
+                activeOpacity={0.7}
+                style={{
+                  padding: 6,
+                  borderRadius: 10,
+                  backgroundColor: "#ecfeff",
+                  marginRight: 8,
+                }}
+              >
+                <Barcode size={18} color="#0097A7" />
+              </TouchableOpacity>
+
+              {items.length > 0 && (
+                <TouchableOpacity onPress={clearCart} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: 11, color: "#ef4444", fontWeight: "600" }}>
+                    Kosongkan
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Cart Items List */}
+          <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
             {items.length === 0 ? (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
-                <Text style={{ fontSize: 12, color: "#9ca3af" }}>
+              <View style={{ paddingVertical: 80, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 12, color: "#a1a1aa" }}>
                   Keranjang masih kosong
                 </Text>
               </View>
             ) : (
-              <ScrollView style={{ flex: 1, marginTop: 8 }} showsVerticalScrollIndicator={false}>
-                {items.map((item) => (
-                  <View
-                    key={item.id}
-                    style={{
-                      paddingVertical: 10,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#f4f4f5",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <View style={{ flex: 1, paddingRight: 8 }}>
-                      <Text
-                        numberOfLines={1}
-                        style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}
-                      >
-                        {item.product.name}
-                        {item.variant ? ` (${item.variant.name})` : ""}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: "#0097A7", fontWeight: "700", marginTop: 2 }}>
-                        {formatRupiah(item.subtotal)}
-                      </Text>
-                    </View>
-
-                    {/* Counter Buttons */}
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <TouchableOpacity
-                        onPress={() => updateQty(item.id, item.qty - (item.unit === "kg" ? 0.5 : 1))}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 8,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Minus size={12} color="#71717a" />
-                      </TouchableOpacity>
-
-                      <Text style={{ width: 34, textAlign: "center", fontSize: 12, fontWeight: "700", color: "#18181b" }}>
-                        {item.qty}
-                      </Text>
-
-                      <TouchableOpacity
-                        onPress={() => updateQty(item.id, item.qty + (item.unit === "kg" ? 0.5 : 1))}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 8,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Plus size={12} color="#0097A7" />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        onPress={() => removeItem(item.id)}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 8,
-                          backgroundColor: "#fef2f2",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginLeft: 6,
-                        }}
-                      >
-                        <Trash2 size={12} color="#ef4444" />
-                      </TouchableOpacity>
-                    </View>
+              items.map((item) => (
+                <View
+                  key={item.id}
+                  style={{
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#f4f4f5",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                      {item.product.name}
+                      {item.variant ? ` (${item.variant.name})` : ""}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#0097A7", marginTop: 2 }}>
+                      {formatRupiah(item.subtotal)}
+                    </Text>
                   </View>
-                ))}
-              </ScrollView>
-            )}
-          </View>
 
-          {/* Cart Bottom Checkout Panel matching screenshot 170117 */}
-          <View style={{ paddingTop: 12, borderTopWidth: 1, borderTopColor: "#f4f4f5" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#71717a" }}>Total</Text>
+                  {/* Quantity Stepper */}
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <TouchableOpacity
+                      onPress={() => updateQty(item.id, item.qty - (item.unit === "kg" ? 0.5 : 1))}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 8,
+                        backgroundColor: "#f4f4f5",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Minus size={13} color="#71717a" />
+                    </TouchableOpacity>
+
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginHorizontal: 8 }}>
+                      {item.qty}
+                    </Text>
+
+                    <TouchableOpacity
+                      onPress={() => updateQty(item.id, item.qty + (item.unit === "kg" ? 0.5 : 1))}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 8,
+                        backgroundColor: "#f4f4f5",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Plus size={13} color="#71717a" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => removeItem(item.id)}
+                      style={{ marginLeft: 8, padding: 4 }}
+                    >
+                      <Trash2 size={14} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          {/* Cart Footer Total & Checkout Action */}
+          <View
+            style={{
+              padding: 16,
+              borderTopWidth: 1,
+              borderTopColor: "#e5e7eb",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <Text style={{ fontSize: 14, color: "#71717a" }}>Total</Text>
               <Text style={{ fontSize: 18, fontWeight: "900", color: "#18181b" }}>
                 {formatRupiah(grandTotal)}
               </Text>
@@ -600,20 +732,14 @@ export default function PosModalScreen() {
               disabled={items.length === 0}
               activeOpacity={0.8}
               style={{
-                width: "100%",
                 paddingVertical: 14,
-                borderRadius: 18,
+                borderRadius: 16,
+                backgroundColor: items.length > 0 ? "#0097A7" : "#d4d4d8",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: items.length > 0 ? "#0097A7" : "#e4e4e7",
-                shadowColor: "#0097A7",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: items.length > 0 ? 0.25 : 0,
-                shadowRadius: 4,
-                elevation: items.length > 0 ? 2 : 0,
               }}
             >
-              <Text style={{ fontSize: 13, fontWeight: "700", color: items.length > 0 ? "#ffffff" : "#a1a1aa" }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#ffffff" }}>
                 Lanjutkan ke Pembayaran
               </Text>
             </TouchableOpacity>
@@ -621,7 +747,7 @@ export default function PosModalScreen() {
         </View>
       </View>
 
-      {/* Popups & Modals */}
+      {/* --- ALL COMPONENT MODALS --- */}
       <DecimalVolumeModal
         visible={decimalModalVisible}
         product={selectedProductForModal}
@@ -640,9 +766,9 @@ export default function PosModalScreen() {
         visible={searchModalVisible}
         products={products}
         onClose={() => setSearchModalVisible(false)}
-        onSelectProduct={(p) => {
+        onSelectProduct={(prod) => {
           setSearchModalVisible(false);
-          handleProductPress(p);
+          handleProductPress(prod);
         }}
       />
 
@@ -668,11 +794,7 @@ export default function PosModalScreen() {
         visible={receiptModalVisible}
         receiptData={completedReceipt}
         onClose={() => setReceiptModalVisible(false)}
-        onNewTransaction={() => {
-          setReceiptModalVisible(false);
-          setCompletedReceipt(null);
-          clearCart();
-        }}
+        onNewTransaction={() => setReceiptModalVisible(false)}
       />
     </SafeAreaView>
   );

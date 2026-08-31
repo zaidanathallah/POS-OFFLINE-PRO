@@ -5,9 +5,11 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
+  ScrollView,
   Alert,
 } from "react-native";
-import { Zap, Keyboard as KeyboardIcon, Check, X, Camera } from "lucide-react-native";
+import { Zap, Keyboard as KeyboardIcon, Check, X, Camera, Sparkles } from "lucide-react-native";
+import { SUPERMARKET_BARCODE_DATABASE } from "@/util/supermarketBarcodeDb";
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -29,10 +31,16 @@ export function BarcodeScannerModal({
       Alert.alert("Perhatian", "Masukkan kode barcode terlebih dahulu.");
       return;
     }
-    onScan(manualCode.trim());
+    const code = manualCode.trim();
     setManualCode("");
     setIsManualInput(false);
     onClose();
+    onScan(code);
+  };
+
+  const handlePresetScan = (barcode: string) => {
+    onClose();
+    onScan(barcode);
   };
 
   return (
@@ -43,13 +51,13 @@ export function BarcodeScannerModal({
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "rgba(0, 0, 0, 0.8)",
-          padding: 20,
+          padding: 16,
         }}
       >
         <View
           style={{
             width: "100%",
-            maxWidth: 420,
+            maxWidth: 440,
             backgroundColor: "#18181b",
             borderRadius: 24,
             padding: 20,
@@ -68,12 +76,17 @@ export function BarcodeScannerModal({
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              marginBottom: 16,
+              marginBottom: 14,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: "#ffffff" }}>
-              Scan Barcode Produk
-            </Text>
+            <View>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#ffffff" }}>
+                Scan Barcode Produk
+              </Text>
+              <Text style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
+                Support Barcode Toko & Produk Supermarket / FMCG
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={onClose}
               style={{
@@ -89,10 +102,10 @@ export function BarcodeScannerModal({
             </TouchableOpacity>
           </View>
 
-          {/* Scanner Viewfinder Box matching screenshot 170459.png */}
+          {/* Scanner Viewfinder Box */}
           <View
             style={{
-              height: 220,
+              height: 200,
               backgroundColor: "#09090b",
               borderRadius: 18,
               borderWidth: 1,
@@ -105,13 +118,18 @@ export function BarcodeScannerModal({
           >
             {isManualInput ? (
               <View style={{ padding: 16, width: "100%", alignItems: "center" }}>
-                <Text style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 10 }}>
-                  Ketik Barcode / SKU Manual
+                <Text style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 8 }}>
+                  Ketik Barcode / SKU Produk (8 - 13 Digit)
                 </Text>
                 <TextInput
                   value={manualCode}
                   onChangeText={setManualCode}
-                  placeholder="899276100..."
+                  onChange={(e: any) => {
+                    if (e?.target?.value !== undefined) {
+                      setManualCode(e.target.value);
+                    }
+                  }}
+                  placeholder="8998866200224..."
                   placeholderTextColor="#71717a"
                   style={{
                     width: "100%",
@@ -119,24 +137,25 @@ export function BarcodeScannerModal({
                     color: "#ffffff",
                     fontFamily: "monospace",
                     textAlign: "center",
-                    fontSize: 18,
+                    fontSize: 16,
                     padding: 12,
                     borderRadius: 14,
                     borderWidth: 1,
                     borderColor: "#3f3f46",
                   }}
                   autoFocus
+                  keyboardType="numeric"
                   onSubmitEditing={handleConfirmManual}
                 />
               </View>
             ) : (
               <>
-                <Camera size={44} color="#3f3f46" />
-                {/* Laser scan rect */}
+                <Camera size={40} color="#3f3f46" />
+                {/* Laser guide */}
                 <View
                   style={{
-                    width: 240,
-                    height: 120,
+                    width: 220,
+                    height: 110,
                     borderWidth: 2,
                     borderStyle: "dashed",
                     borderColor: "#0097A7",
@@ -163,22 +182,53 @@ export function BarcodeScannerModal({
                     fontSize: 11,
                     color: "#71717a",
                     position: "absolute",
-                    bottom: 12,
+                    bottom: 10,
                   }}
                 >
-                  Arahkan garis kamera ke barcode produk
+                  Arahkan garis kamera ke barcode produk supermarket
                 </Text>
               </>
             )}
           </View>
 
-          {/* Bottom Action Buttons matching screenshot 170459 */}
+          {/* Quick Supermarket Barcode Presets */}
+          <View style={{ marginTop: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+              <Sparkles size={12} color="#0097A7" />
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#a1a1aa", marginLeft: 4 }}>
+                Deteksi Instan Produk Supermarket:
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
+              {SUPERMARKET_BARCODE_DATABASE.slice(0, 8).map((item) => (
+                <TouchableOpacity
+                  key={item.barcode}
+                  onPress={() => handlePresetScan(item.barcode)}
+                  style={{
+                    backgroundColor: "#27272a",
+                    borderRadius: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    marginRight: 6,
+                    borderWidth: 1,
+                    borderColor: "#3f3f46",
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: "600", color: "#e4e4e7" }}>
+                    {item.name.split(" ")[0]} {item.name.split(" ")[1]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Bottom Action Buttons */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              marginTop: 16,
+              marginTop: 14,
             }}
           >
             <View style={{ flexDirection: "row" }}>
@@ -239,7 +289,7 @@ export function BarcodeScannerModal({
             </View>
 
             <TouchableOpacity
-              onPress={isManualInput ? handleConfirmManual : () => onScan("8992761001")}
+              onPress={isManualInput ? handleConfirmManual : () => handlePresetScan("8998866200224")}
               activeOpacity={0.8}
               style={{
                 paddingHorizontal: 20,
