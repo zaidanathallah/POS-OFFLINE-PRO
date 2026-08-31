@@ -120,6 +120,24 @@ export async function reloadDatabase(): Promise<void> {
   await initDatabase();
 }
 
+async function ensureColumnExists(
+  db: SQLite.SQLiteDatabase,
+  tableName: string,
+  columnName: string,
+  columnTypeAndDefault: string
+): Promise<void> {
+  try {
+    const tableInfo = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${tableName});`);
+    const columnExists = tableInfo.some((col) => col.name.toLowerCase() === columnName.toLowerCase());
+    if (!columnExists) {
+      console.log(`[DB Migration] Adding missing column '${columnName}' to '${tableName}'`);
+      await db.execAsync(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnTypeAndDefault};`);
+    }
+  } catch (err) {
+    console.log(`[DB Migration] Notice for ${tableName}.${columnName}:`, err);
+  }
+}
+
 async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   // Enable WAL mode only on native mobile (Android/iOS)
   if (Platform.OS !== "web") {
@@ -130,7 +148,7 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 
-  // Create tables
+  // Create tables if they do not exist
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY NOT NULL,
@@ -185,6 +203,35 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
     );
   `);
+
+  // Run dynamic column migrations for existing databases
+  await ensureColumnExists(db, "transactions", "invoice_no", "TEXT");
+  await ensureColumnExists(db, "transactions", "subtotal_before_tax", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "ppn_percent", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "ppn_amount", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "payment_method", "TEXT NOT NULL DEFAULT 'CASH'");
+  await ensureColumnExists(db, "transactions", "cash_tendered", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "change_amount", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "table_number", "TEXT");
+  await ensureColumnExists(db, "transactions", "customer_name", "TEXT");
+  await ensureColumnExists(db, "transactions", "is_open_bill", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "omset", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "total_hpp", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "laba_kotor", "REAL NOT NULL DEFAULT 0");
+
+  await ensureColumnExists(db, "products", "modal_hpp", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "products", "unit", "TEXT NOT NULL DEFAULT 'pcs'");
+  await ensureColumnExists(db, "products", "is_decimal", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "products", "barcode", "TEXT");
+  await ensureColumnExists(db, "products", "image_uri", "TEXT");
+  await ensureColumnExists(db, "products", "category", "TEXT NOT NULL DEFAULT 'Umum'");
+  await ensureColumnExists(db, "products", "has_variants", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "products", "variants_json", "TEXT");
+
+  await ensureColumnExists(db, "transaction_details", "product_name", "TEXT NOT NULL DEFAULT 'Produk'");
+  await ensureColumnExists(db, "transaction_details", "variant_name", "TEXT");
+  await ensureColumnExists(db, "transaction_details", "unit", "TEXT NOT NULL DEFAULT 'pcs'");
+  await ensureColumnExists(db, "transaction_details", "modal_hpp", "REAL NOT NULL DEFAULT 0");
 
   // Default settings
   const defaultSettings: Record<string, string> = {
