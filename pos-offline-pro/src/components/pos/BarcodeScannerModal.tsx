@@ -37,43 +37,135 @@ export function BarcodeScannerModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 justify-center items-center bg-black/85 px-4">
-        <View className="w-full max-w-lg bg-zinc-900 rounded-3xl p-5 border border-zinc-800 shadow-2xl">
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          padding: 20,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            backgroundColor: "#18181b",
+            borderRadius: 24,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: "#27272a",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 8,
+          }}
+        >
           {/* Header */}
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-base font-bold text-white">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#ffffff" }}>
               Scan Barcode Produk
             </Text>
             <TouchableOpacity
               onPress={onClose}
-              className="w-8 h-8 rounded-full bg-zinc-800 items-center justify-center"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: "#27272a",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               <X size={16} color="#ffffff" />
             </TouchableOpacity>
           </View>
 
           {/* Scanner Viewfinder Box matching screenshot 170459.png */}
-          <View className="h-56 bg-zinc-950 rounded-2xl relative overflow-hidden items-center justify-center border border-zinc-800">
+          <View
+            style={{
+              height: 220,
+              backgroundColor: "#09090b",
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: "#27272a",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
             {isManualInput ? (
-              <View className="p-4 w-full items-center">
-                <Text className="text-xs text-zinc-400 mb-2">Ketik Barcode / SKU Manual</Text>
+              <View style={{ padding: 16, width: "100%", alignItems: "center" }}>
+                <Text style={{ fontSize: 12, color: "#a1a1aa", marginBottom: 10 }}>
+                  Ketik Barcode / SKU Manual
+                </Text>
                 <TextInput
                   value={manualCode}
                   onChangeText={setManualCode}
                   placeholder="899276100..."
                   placeholderTextColor="#71717a"
-                  className="w-full bg-zinc-800 text-white font-mono text-center text-lg p-3 rounded-xl border border-zinc-700"
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#27272a",
+                    color: "#ffffff",
+                    fontFamily: "monospace",
+                    textAlign: "center",
+                    fontSize: 18,
+                    padding: 12,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "#3f3f46",
+                  }}
                   autoFocus
                   onSubmitEditing={handleConfirmManual}
                 />
               </View>
             ) : (
               <>
-                <Camera size={48} color="#3f3f46" />
-                <View className="w-64 h-32 border-2 border-dashed border-[#0097A7] rounded-xl absolute items-center justify-center">
-                  <View className="w-full h-0.5 bg-[#0097A7] absolute shadow-lg" />
+                <Camera size={44} color="#3f3f46" />
+                {/* Laser scan rect */}
+                <View
+                  style={{
+                    width: 240,
+                    height: 120,
+                    borderWidth: 2,
+                    borderStyle: "dashed",
+                    borderColor: "#0097A7",
+                    borderRadius: 14,
+                    position: "absolute",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: "100%",
+                      height: 2,
+                      backgroundColor: "#0097A7",
+                      shadowColor: "#0097A7",
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 6,
+                    }}
+                  />
                 </View>
-                <Text className="text-[11px] text-zinc-500 absolute bottom-3">
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: "#71717a",
+                    position: "absolute",
+                    bottom: 12,
+                  }}
+                >
                   Arahkan garis kamera ke barcode produk
                 </Text>
               </>
@@ -81,17 +173,39 @@ export function BarcodeScannerModal({
           </View>
 
           {/* Bottom Action Buttons matching screenshot 170459 */}
-          <View className="flex-row items-center justify-between mt-4">
-            <View className="flex-row space-x-2">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row" }}>
               <TouchableOpacity
                 onPress={() => setFlashlight(!flashlight)}
                 activeOpacity={0.7}
-                className={`flex-row items-center px-3 py-2 rounded-xl mr-2 ${
-                  flashlight ? "bg-amber-500/20 border border-amber-500/40" : "bg-zinc-800 border border-zinc-700"
-                }`}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  marginRight: 8,
+                  backgroundColor: flashlight ? "rgba(245, 158, 11, 0.2)" : "#27272a",
+                  borderWidth: 1,
+                  borderColor: flashlight ? "#f59e0b" : "#3f3f46",
+                }}
               >
-                <Zap size={14} color={flashlight ? "#f59e0b" : "#9ca3af"} />
-                <Text className="text-xs font-semibold text-zinc-300 ml-1.5">
+                <Zap size={14} color={flashlight ? "#f59e0b" : "#a1a1aa"} />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: flashlight ? "#f59e0b" : "#d4d4d8",
+                    marginLeft: 6,
+                  }}
+                >
                   Senter
                 </Text>
               </TouchableOpacity>
@@ -99,10 +213,26 @@ export function BarcodeScannerModal({
               <TouchableOpacity
                 onPress={() => setIsManualInput(!isManualInput)}
                 activeOpacity={0.7}
-                className="flex-row items-center px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700"
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  backgroundColor: isManualInput ? "#0097A7" : "#27272a",
+                  borderWidth: 1,
+                  borderColor: isManualInput ? "#0097A7" : "#3f3f46",
+                }}
               >
-                <KeyboardIcon size={14} color="#9ca3af" />
-                <Text className="text-xs font-semibold text-zinc-300 ml-1.5">
+                <KeyboardIcon size={14} color={isManualInput ? "#ffffff" : "#a1a1aa"} />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: isManualInput ? "#ffffff" : "#d4d4d8",
+                    marginLeft: 6,
+                  }}
+                >
                   {isManualInput ? "Mode Kamera" : "Ketik barcode"}
                 </Text>
               </TouchableOpacity>
@@ -111,9 +241,16 @@ export function BarcodeScannerModal({
             <TouchableOpacity
               onPress={isManualInput ? handleConfirmManual : () => onScan("8992761001")}
               activeOpacity={0.8}
-              className="px-5 py-2 rounded-xl bg-[#0097A7] items-center justify-center shadow-sm"
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 12,
+                backgroundColor: "#0097A7",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              <Text className="text-xs font-bold text-white">OK</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>

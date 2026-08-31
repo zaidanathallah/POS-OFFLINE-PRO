@@ -34,44 +34,90 @@ export function ProductSearchModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 justify-center items-center bg-black/60 px-5">
-        <View className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-2xl border border-zinc-100 dark:border-zinc-800">
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          padding: 20,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 440,
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            padding: 20,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 6,
+          }}
+        >
           {/* Header */}
-          <View className="flex-row items-center justify-between pb-3">
-            <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingBottom: 12,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
               Cari Produk
             </Text>
             <TouchableOpacity
               onPress={onClose}
-              className="w-7 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 items-center justify-center"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: "#f4f4f5",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              <X size={14} color="#71717a" />
+              <X size={15} color="#71717a" />
             </TouchableOpacity>
           </View>
 
           {/* Search Input Box */}
-          <View className="flex-row items-center bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-2">
-            <Search size={16} color="#9ca3af" />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#f4f4f5",
+              borderWidth: 1,
+              borderColor: "#e4e4e7",
+              borderRadius: 14,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Search size={16} color="#71717a" />
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Ketik nama produk..."
-              placeholderTextColor="#9ca3af"
-              className="flex-1 ml-2 text-sm text-zinc-900 dark:text-zinc-100"
+              placeholder="Ketik nama produk atau barcode..."
+              placeholderTextColor="#a1a1aa"
+              style={{ flex: 1, marginLeft: 8, fontSize: 13, color: "#18181b" }}
               autoFocus
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => setQuery("")}>
-                <X size={14} color="#9ca3af" />
+                <X size={15} color="#71717a" />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Product Results */}
-          <ScrollView className="max-h-80 mt-3" showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ maxHeight: 300, marginTop: 12 }} showsVerticalScrollIndicator={false}>
             {filtered.length === 0 ? (
-              <View className="py-8 items-center justify-center">
-                <Text className="text-xs text-zinc-400">Tidak ada produk yang cocok</Text>
+              <View style={{ paddingVertical: 32, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 12, color: "#a1a1aa" }}>Tidak ada produk yang cocok</Text>
               </View>
             ) : (
               filtered.map((p) => {
@@ -79,13 +125,20 @@ export function ProductSearchModal({
                 return (
                   <View
                     key={p.id}
-                    className="py-2.5 border-b border-zinc-100 dark:border-zinc-800/80 flex-row items-center justify-between"
+                    style={{
+                      paddingVertical: 10,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#f4f4f5",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
                   >
-                    <View className="flex-1 pr-2">
-                      <Text className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
                         {p.name}
                       </Text>
-                      <Text className="text-xs text-zinc-400 mt-0.5">
+                      <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
                         {formatRupiah(p.harga_jual)} | {p.stock > 500 ? "Stok tanpa batas" : `Stok ${p.stock} ${p.unit || "pcs"}`}
                       </Text>
                     </View>
@@ -95,11 +148,14 @@ export function ProductSearchModal({
                         onSelectProduct(p);
                       }}
                       disabled={isOutOfStock}
-                      className={`w-8 h-8 rounded-full items-center justify-center ${
-                        isOutOfStock
-                          ? "bg-zinc-100 dark:bg-zinc-800"
-                          : "bg-[#0097A7] shadow-sm"
-                      }`}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isOutOfStock ? "#f4f4f5" : "#0097A7",
+                      }}
                     >
                       <Plus size={15} color={isOutOfStock ? "#a1a1aa" : "#ffffff"} />
                     </TouchableOpacity>

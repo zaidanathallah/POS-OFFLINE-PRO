@@ -4,19 +4,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
 } from "react-native";
 import { getSetting } from "@/db/settingsRepository";
-import { Button } from "@/components/ui/Button";
 import {
-  ShieldCheck,
   Lock,
   X,
   Delete,
-  KeyRound,
-  AlertTriangle,
 } from "lucide-react-native";
 
 interface PinPromptModalProps {
@@ -82,44 +75,95 @@ export function PinPromptModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-center items-center bg-black/75 px-5">
-        <View className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 p-5">
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0, 0, 0, 0.7)",
+          padding: 20,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 360,
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            padding: 20,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 10,
+            elevation: 8,
+          }}
+        >
           {/* Header */}
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center space-x-2">
-              <View className="w-8 h-8 rounded-lg bg-red-500/10 items-center justify-center">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  backgroundColor: "#fee2e2",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 8,
+                }}
+              >
                 <Lock size={16} color="#ef4444" />
               </View>
-              <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 ml-2">
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
                 Proteksi Data (PIN)
               </Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
-              className="w-7 h-7 rounded-full items-center justify-center bg-zinc-100 dark:bg-zinc-800"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: "#f4f4f5",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               <X size={14} color="#71717a" />
             </TouchableOpacity>
           </View>
 
-          <Text className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 text-center">
+          <Text style={{ fontSize: 12, color: "#71717a", marginBottom: 16, textAlign: "center" }}>
             {actionTitle}
           </Text>
 
           {/* 4-Digit Pin Dots */}
-          <View className="flex-row justify-center space-x-4 my-2">
+          <View style={{ flexDirection: "row", justifyContent: "center", marginVertical: 8 }}>
             {[0, 1, 2, 3].map((index) => {
               const isFilled = index < pin.length;
               return (
                 <View
                   key={index}
-                  className={`w-11 h-12 rounded-xl mx-1.5 items-center justify-center border-2 transition-all ${
-                    isFilled
-                      ? "border-blue-600 bg-blue-50 dark:bg-blue-950/40"
-                      : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60"
-                  }`}
+                  style={{
+                    width: 44,
+                    height: 48,
+                    borderRadius: 14,
+                    marginHorizontal: 6,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: isFilled ? "#0097A7" : "#e4e4e7",
+                    backgroundColor: isFilled ? "#ecfeff" : "#f9fafb",
+                  }}
                 >
-                  <Text className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#18181b" }}>
                     {isFilled ? "•" : ""}
                   </Text>
                 </View>
@@ -128,33 +172,40 @@ export function PinPromptModal({
           </View>
 
           {errorMsg ? (
-            <Text className="text-xs text-red-500 font-semibold text-center my-2">
+            <Text style={{ fontSize: 12, color: "#ef4444", fontWeight: "600", textAlign: "center", marginVertical: 8 }}>
               {errorMsg}
             </Text>
           ) : (
-            <Text className="text-[11px] text-zinc-400 text-center my-2">
+            <Text style={{ fontSize: 11, color: "#a1a1aa", textAlign: "center", marginVertical: 8 }}>
               Default PIN Supervisor: 1234
             </Text>
           )}
 
           {/* Keypad Grid */}
-          <View className="mt-3">
+          <View style={{ marginTop: 8 }}>
             {[
               ["1", "2", "3"],
               ["4", "5", "6"],
               ["7", "8", "9"],
               ["cancel", "0", "delete"],
             ].map((row, rIdx) => (
-              <View key={rIdx} className="flex-row justify-between mb-2">
+              <View key={rIdx} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
                 {row.map((item, cIdx) => {
                   if (item === "cancel") {
                     return (
                       <TouchableOpacity
                         key={cIdx}
                         onPress={onClose}
-                        className="w-[30%] h-12 rounded-xl items-center justify-center bg-zinc-100 dark:bg-zinc-800/80 active:opacity-70"
+                        style={{
+                          width: "31%",
+                          height: 48,
+                          borderRadius: 14,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#f4f4f5",
+                        }}
                       >
-                        <Text className="text-xs font-semibold text-zinc-500">
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#71717a" }}>
                           Batal
                         </Text>
                       </TouchableOpacity>
@@ -165,7 +216,14 @@ export function PinPromptModal({
                       <TouchableOpacity
                         key={cIdx}
                         onPress={handleDelete}
-                        className="w-[30%] h-12 rounded-xl items-center justify-center bg-zinc-100 dark:bg-zinc-800/80 active:opacity-70"
+                        style={{
+                          width: "31%",
+                          height: 48,
+                          borderRadius: 14,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#f4f4f5",
+                        }}
                       >
                         <Delete size={18} color="#71717a" />
                       </TouchableOpacity>
@@ -175,10 +233,19 @@ export function PinPromptModal({
                     <TouchableOpacity
                       key={cIdx}
                       onPress={() => handleKeyPress(item)}
-                      className="w-[30%] h-12 rounded-xl items-center justify-center bg-zinc-100 dark:bg-zinc-800 active:bg-blue-600 active:text-white border border-zinc-200 dark:border-zinc-700/60"
-                      activeOpacity={0.65}
+                      style={{
+                        width: "31%",
+                        height: 48,
+                        borderRadius: 14,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "#f4f4f5",
+                        borderWidth: 1,
+                        borderColor: "#e4e4e7",
+                      }}
+                      activeOpacity={0.7}
                     >
-                      <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                      <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
                         {item}
                       </Text>
                     </TouchableOpacity>
