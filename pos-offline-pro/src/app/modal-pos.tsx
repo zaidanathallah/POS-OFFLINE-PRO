@@ -428,7 +428,13 @@ export default function PosModalScreen() {
 
             {/* Selesai Menjual Exit Button */}
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/(tabs)");
+                }
+              }}
               activeOpacity={0.8}
               style={{
                 borderWidth: 1,
