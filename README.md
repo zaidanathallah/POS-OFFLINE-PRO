@@ -1,191 +1,122 @@
-# POS Offline Pro 📱💼
-> **"Satu Aplikasi, Semua Jenis Usaha"** — Aplikasi Point of Sales (POS) Kasir Multi-Platform 100% Offline-First Tanpa Server Luar & Tanpa Biaya Langganan.
+# POS-OFFLINE-PRO 📱⚡
 
-[![React Native](https://img.shields.io/badge/React_Native-0.86-blue.svg)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo_SDK-57-black.svg)](https://expo.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue.svg)](https://www.typescriptlang.org/)
-[![NativeWind](https://img.shields.io/badge/NativeWind-v4_(Tailwind)-38bdf8.svg)](https://www.nativewind.dev/)
-[![SQLite](https://img.shields.io/badge/Database-Expo_SQLite_(WAL)-003b57.svg)](https://docs.expo.dev/versions/latest/sdk/sqlite/)
-[![Offline](https://img.shields.io/badge/Architecture-100%25_Offline-emerald.svg)]()
+**Aplikasi Kasir (Point of Sale) Full Offline Pro & Super Cepat**  
+Dibuat khusus untuk pengusaha UMKM, Kafe, Resto, Toko Kelontong, dan Retail dengan dukungan penuh **100% Offline (SQLite Lokal murni tanpa internet)**, Bluetooth Thermal Printer ESC/POS 58mm, Sistem Keamanan PIN Supervisor, dan Tampilan UI Modern Dinamis.
 
 ---
 
-## 🚀 Gambaran Umum Produk (Product Overview)
+## 🌟 Fitur Unggulan Dinamis (Sesuai Referensi Pro)
 
-**POS Offline Pro** dirancang khusus untuk memenuhi kebutuhan berbagai sektor UMKM (Retail, F&B/Kafe, Jasa, Grosir) dengan arsitektur **Local-First (Pure Offline)**. Seluruh data transaksi, katalog produk, inventaris stok, dan laporan finansial tersimpan 100% di memori internal perangkat pengguna tanpa ketergantungan pada koneksi internet, server cloud eksternal, atau biaya langganan bulanan.
+### 1. ⚡ Layar Kasir POS Interaktif & Responsif
+- **Mode Timbangan (Volume vs Nominal)**: 
+  - Input jumlah desimal/berat (misal `0,5 kg` otomatis menghitung `Rp 25.000`).
+  - Input nominal uang belanja (misal `Rp 20.000` otomatis mengonversi ke `0,4 kg`).
+- **Pilihan Varian Produk**: Modal popup dinamis untuk produk dengan varian (misal `Nasi Kuning: Ayam Rp 15.000 (Stok 80)` vs `Rendang Rp 18.000 (Stok 50)`).
+- **Cari Produk Cepat**: Dialog modal pencarian produk real-time dengan filter instan.
+- **Scan Barcode / SKU**: Scanner kamera terintegrasi dengan tombol senter dan input manual.
+- **Split Screen / Landscape Layout**: Tampilan split view untuk layar tablet atau landscape dengan ringkasan pesanan di kiri dan panel pembayaran di kanan.
 
----
+### 2. 💳 Pembayaran & Struk Thermal 58mm
+- **Metode Pembayaran**: Tunai (Cash) dengan Keypad Numerik & Quick Nominal (Uang Pas, 100rb, 50rb, 20rb, 10rb, 5rb) serta pembayaran QRIS Statis.
+- **Kalkulasi Pajak PPN Dinamis**: PPN 11% otomatis terhitung dan tercetak pada struk.
+- **Format Struk 58mm Standar ESC/POS**: 
+  - Logo toko, Nama Usaha, Jenis Toko, Alamat, dan No. HP.
+  - Nomor Faktur `INV-YYMMDD-XXX` & Tanggal/Waktu transaksi.
+  - Rincian item belanja, Subtotal, PPN, Grand Total, Uang Tunai, dan Kembalian.
+  - Catatan kaki *"Terima Kasih! Silahkan Datang Kembali"*.
 
-## ✨ Fitur Unggulan (Core Features)
+### 3. 📊 Dashboard Finansial & Laporan Lengkap
+- **Banner "Mulai Menjual"**: Akses instan ke kasir POS.
+- **3 Kartu Ringkasan Cepat**: Total Produk, Total Transaksi, dan Total Item Terjual.
+- **Penjualan Hari Ini**: Total Omset, Perbandingan kemarin, Rata-rata/trx, Modal HPP, Laba Hari Ini (dalam warna hijau), dan Margin Profit (%).
+- **Grafik Tren 7 Hari**: Bar chart 7 hari (`Sab`, `Min`, `Sen`, `Sel`, `Rab`, `Kam`, `Hr Ini`).
+- **2x2 Kartu Kinerja**: 7 Hari, Bulan Ini, Laba 7 Hari, Laba Bulan Ini.
+- **Analisis Jam Sibuk (Peak Hours)**: Distribusi kepadatan transaksi per jam operasional.
+- **Top 5 Produk Terlaris**: Ranking produk berdasarkan kuantitas dan omset.
 
-### 1. 📊 Dashboard Finansial & Analisis Penjualan Dinamis
-- **Kalkulasi Otomatis**: Rekapitulasi Total Omset, Modal Pokok (HPP), Laba Kotor, dan Margin Keuntungan (%) secara real-time.
-- **Filter Waktu Cepat**: Analisis data *Hari Ini*, *7 Hari Terakhir*, dan *30 Hari Terakhir*.
-- **🏆 Top 5 Produk Terlaris**: Peringkat produk dengan visualisasi bar penjualan dan kontribusi laba.
-- **⏰ Analisis Jam Sibuk (Peak Hours)**: Horizontal bar chart yang memetakan jam operasional terpadat.
-
-### 2. 📦 Master Katalog Produk & Manajemen HPP
-- **Live Profit Preview**: Form tambah/edit produk menghitung estimasi Laba Kotor dan Margin (%) secara instan saat mengetik Harga Jual dan Modal HPP.
-- **Barcode & SKU Generator**: Dukungan pencarian cepat dan auto-generate kode barcode acak.
-- **Filter Kategori & Indikator Stok**: Klasifikasi kategori (*Makanan, Minuman, Retail, Jasa*) serta badge peringatan stok menipis.
-
-### 3. 🛒 Kasir POS & Transaksi Atomik
-- **Keranjang Belanja Reaktif (Zustand)**: Validasi otomatis agar kasir tidak dapat menjual barang melebihi stok yang tersedia di SQLite.
-- **Transaksi Database Atomik**: Eksekusi `db.withTransactionAsync` untuk pencatatan `transactions`, `transaction_details`, dan pemotongan stok produk secara simultan.
-- **Modal Pembayaran Lengkap**: Pilihan Tunai (Cash) & QRIS Offline, tombol nominal cepat (*Uang Pas, 20rb, 50rb, 100rb*), serta kalkulasi kembalian pelanggan.
-
-### 4. 🖨️ Cetak Struk Bluetooth Thermal 58mm (ESC/POS)
-- **Format Presisi 32 Karakter**: Tata letak struk kasir standar kertas 58mm.
-- **Header Logo Toko**: Konversi logo toko menjadi format monochrome bitmap di posisi tengah (align center).
-- **Preview & Cetak Ulang**: Cetak langsung setelah checkout atau cetak ulang transaksi lama dari tab Riwayat.
-
-### 5. 🔒 Keamanan & Proteksi PIN Supervisor
-- **Interseptor `useSecureAction`**: Mengunci tindakan sensitif (penghapusan produk, reset/restore database) dengan modal dialog PIN 4-digit.
-- **Pengaturan PIN**: Toggle aktivasi proteksi dan fitur ganti PIN supervisor.
-
-### 6. 💾 Backup & Restore Database Lokal (Pure Offline)
-- **Backup Data (Export)**: Mengekstrak file SQLite aktif menjadi file `Backup_POS_YYYYMMDD_HHMMSS.db` ke memori HP (Downloads/Documents) atau dapat dikirim via WhatsApp/Bluetooth/Email.
-- **Pulihkan Data (Import)**: Memulihkan seluruh data toko di HP baru dengan memilih file `.db` melalui File Picker tanpa perlu internet.
-
----
-
-## 🛠️ Tech Stack & Arsitektur
-
-- **Framework**: [Expo SDK 57](https://expo.dev/) (React Native 0.86, React 19)
-- **Routing**: [Expo Router](https://docs.expo.dev/router/introduction/) (File-based routing)
-- **Styling**: [NativeWind v4](https://www.nativewind.dev/) (Tailwind CSS) dengan Token HSL Shadcn (Dark/Light mode)
-- **Icons**: [Lucide React Native](https://lucide.dev/)
-- **Database**: [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/) (SQLite WAL Mode)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
-- **File System & Sharing**: `expo-file-system`, `expo-document-picker`, `expo-sharing`
-- **EAS Build ID**: `cc16a892-d276-49de-ba05-4994b1f89d40`
+### 4. ⚙️ Pengaturan Toko & Fitur Fleksibel
+- **Pengaturan Aplikasi (Toggle Dinamis)**:
+  - Fitur Nomor Meja (untuk resto/kafe)
+  - Fitur Pelanggan (data membership/kontak)
+  - Fitur Open Bill (simpan tagihan / piutang)
+  - Fitur Scan Barcode
+  - Fitur Varian Produk
+  - Cetak Struk Otomatis
+  - Pajak PPN
+- **Atur Toko**: Upload Logo Toko, Foto QRIS, Nama Toko, Jenis Usaha, Alamat, dan WhatsApp.
+- **Keamanan PIN Supervisor**: Proteksi 4-digit PIN saat menghapus data master atau memulihkan database.
+- **Backup & Restore Database (100% Offline)**: Ekspor & Impor file `.db` langsung ke memori internal perangkat tanpa cloud.
 
 ---
 
-## 📁 Struktur Direktori Project
+## 🛠️ Stack Teknologi
 
-```
-POS-OFFLINE-PRO/
-├── pos-offline-pro/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── (tabs)/
-│   │   │   │   ├── _layout.tsx       # Bottom Tabs Navigation Bar
-│   │   │   │   ├── index.tsx         # Dashboard & Analisis Laporan
-│   │   │   │   ├── products.tsx      # Katalog Produk & Master Data
-│   │   │   │   ├── history.tsx       # Riwayat Struk & Cetak Ulang
-│   │   │   │   └── settings.tsx      # Pengaturan Toko, PIN, & Backup/Restore
-│   │   │   ├── _layout.tsx           # Root Layout & Theme Provider
-│   │   │   └── modal-pos.tsx         # Layar Kasir POS & Checkout
-│   │   ├── components/
-│   │   │   ├── ui/                   # Shadcn UI Primitives (Button, Card, Badge, Input, Typography)
-│   │   │   ├── Header.tsx            # Top Bar (100% Offline Badge & Theme Switcher)
-│   │   │   ├── ProductFormModal.tsx  # Form Tambah/Edit Produk + Live Margin
-│   │   │   ├── CheckoutModal.tsx     # Modal Pembayaran & Kembalian
-│   │   │   ├── ReceiptModal.tsx      # Preview Struk Thermal 58mm & Bluetooth Print
-│   │   │   └── PinPromptModal.tsx    # Dialog Input PIN Supervisor
-│   │   ├── db/
-│   │   │   ├── index.ts              # Inisialisasi SQLite Schema & Seeding
-│   │   │   ├── productRepository.ts  # CRUD Master Produk
-│   │   │   ├── transactionRepository.ts # Transaksi Atomik & Stock Decrement
-│   │   │   ├── reportRepository.ts   # Query Agregasi Omset, HPP, & Jam Sibuk
-│   │   │   └── settingsRepository.ts # Key-Value Store Pengaturan
-│   │   ├── hooks/
-│   │   │   └── useSecureAction.ts    # Interseptor Keamanan PIN
-│   │   ├── stores/
-│   │   │   ├── useCartStore.ts       # Keranjang Kasir & Validasi Stok
-│   │   │   └── useThemeStore.ts      # Switcher Tema Gelap / Terang
-│   │   ├── util/
-│   │   │   ├── databaseSync.ts       # Export / Import File Database Lokal
-│   │   │   ├── printerService.ts     # Driver Struk ESC/POS 58mm
-│   │   │   └── formatters.ts         # Formatter Rupiah & Waktu
-│   │   └── global.css                # Tailwind Base & Shadcn HSL CSS Variables
-│   ├── app.json                      # Expo App Config & EAS Link
-│   ├── eas.json                      # EAS Build Profiles (APK & Production)
-│   ├── metro.config.js               # Metro Bundler Config
-│   ├── tailwind.config.js            # Tailwind Theme Config
-│   └── package.json
-├── planning.md                       # Task Breakdown & Tracking
-├── prd.md                            # Product Requirements Document
-├── sdd.md                            # System Design Document
-├── srs.md                            # Software Requirements Specification
-├── ui_ux_flow.md                     # UI/UX & Flow Specifications
-└── agentic.md                        # Panduan Prompt & Arsitektur AI
-```
+- **Framework**: React Native + Expo SDK 53 + Expo Router (File-based Routing)
+- **Styling**: NativeWind (Tailwind CSS v3) + Shadcn UI Design Tokens
+- **Database Lokal**: `expo-sqlite` dengan sequential query queue (`runInDbQueue`)
+- **State Management**: Zustand (Keranjang Belanja, Varian, Desimal, dan Pajak)
+- **Iconography**: Lucide React Native Icons
+- **Printer Service**: Raw ESC/POS 58mm Buffer & Bluetooth Thermal Handler
 
 ---
 
-## ⚡ Panduan Menjalankan Project
+## 🚀 Cara Menjalankan Project
 
-### 1. Prasyarat
-- Node.js versi 18+ (Disarankan v20 / v22)
-- npm atau yarn
-- HP Android/iOS dengan aplikasi **Expo Go** (tersedia di Play Store / App Store)
-
-### 2. Instalasi & Menjalankan Development Server
+### 1. Install Dependencies
 ```bash
-# 1. Masuk ke folder project
 cd pos-offline-pro
-
-# 2. Install dependensi
 npm install
+```
 
-# 3. Jalankan development server
+### 2. Jalankan Metro Bundler
+```bash
 npx expo start -c
 ```
-> Scan QR code yang tampil di terminal menggunakan aplikasi **Expo Go** pada HP Anda.
+- Tekan `w` untuk membuka di browser Web.
+- Tekan `a` untuk membuka di Android Emulator / Device via Expo Go.
 
----
-
-## 📦 Panduan Build Menjadi File APK (Standalone Android)
-
-Project telah terkonfigurasi dengan profil build APK pada `eas.json`.
-
+### 3. Build APK Preview Offline
 ```bash
-# Masuk ke folder project
-cd pos-offline-pro
-
-# Jalankan perintah build APK mandiri
 eas build --platform android --profile preview
 ```
-Setelah build selesai di cloud EAS, link download file `.apk` akan diberikan di terminal dan siap dipasang di HP Android tanpa perlu Expo Go.
 
 ---
 
-## 📋 Catatan Perubahan & Implementasi (Changelog)
+## 📂 Struktur Direktori
 
-### **Phase 1: Setup & UI Shell**
-- Menginisialisasi project Expo dengan TypeScript dan Expo Router.
-- Setup NativeWind v4 (Tailwind CSS) dengan dukungan Light & Dark Mode.
-- Membangun komponen UI Shadcn: `Button`, `Card`, `Badge`, `Input`, `Typography`, `Header`.
-- Membuat sistem navigasi 4 Bottom Tabs: Dashboard, Produk, Riwayat, Pengaturan.
-
-### **Phase 2: Database Lokal SQLite & Master Data**
-- Skema tabel relasional SQLite: `products`, `transactions`, `transaction_details`, `settings`.
-- Inisialisasi otomatis produk starter UMKM saat pertama kali dibuka.
-- Repository layer CRUD produk dan pencarian real-time.
-- Form modal Tambah/Edit Produk dengan kalkulasi **Live Profit & Margin Preview**.
-
-### **Phase 3: Transaksi Kasir & Bluetooth Printer 58mm**
-- State Management Keranjang Kasir (Zustand) dengan validasi batas stok inventaris.
-- Layar Kasir POS (`modal-pos.tsx`) dengan grid produk, pencarian barcode, dan drawer keranjang.
-- Checkout Modal dengan metode Tunai/QRIS dan tombol nominal cepat (*Uang Pas, 20rb, 50rb, 100rb*).
-- Transaksi database atomik SQLite yang otomatis memotong stok produk.
-- Engine Cetak Struk ESC/POS 58mm (32 kolom + logo monochrome bitmap).
-- Modal Preview Struk thermal dan cetak ulang dari tab Riwayat.
-
-### **Phase 4: Laporan Finansial Dinamis & Keamanan PIN**
-- Query agregasi SQLite untuk Omset, Modal (HPP), Laba Kotor, Margin %, dan Top 5 Produk Terlaris.
-- Visualisasi horizontal bar chart **Jam Sibuk (Peak Hours)**.
-- Interseptor keamanan `useSecureAction` dan `PinPromptModal` untuk proteksi penghapusan data dengan PIN supervisor.
-- Pengaturan PIN supervisor pada tab Settings.
-
-### **Phase 5: Backup & Restore File Lokal (Export / Import)**
-- Service `databaseSync.ts` untuk mengekstrak file `.db` aktif ke memori internal HP (`Backup_POS_YYYYMMDD_HHMMSS.db`).
-- Fitur Pulihkan Data (Import) dari File Manager HP dengan proteksi PIN dan reload database otomatis.
-- Konfigurasi build APK standalone melalui EAS CLI (`eas.json`).
-
----
-
-## 📄 Lisensi
-Hak Cipta © 2026 POS Offline Pro. Dikembangkan untuk solusi kasir UMKM offline mandiri.
+```
+pos-offline-pro/
+├── src/
+│   ├── app/
+│   │   ├── (tabs)/
+│   │   │   ├── _layout.tsx      # Tab bar navigation dengan tema Cyan Teal (#0097A7)
+│   │   │   ├── index.tsx        # Dashboard Finansial, Tren 7 Hari & Kinerja
+│   │   │   ├── products.tsx     # Master Katalog Produk, Desimal & Varian
+│   │   │   ├── history.tsx      # Riwayat Transaksi & Cetak Ulang Struk 58mm
+│   │   │   └── settings.tsx     # Menu Pengaturan, Profil Toko & Feature Toggles
+│   │   ├── modal-pos.tsx        # Layar Kasir POS Split Screen & Responsif
+│   │   └── _layout.tsx          # Root Layout & SQLite Initializer
+│   ├── components/
+│   │   ├── pos/
+│   │   │   ├── DecimalVolumeModal.tsx      # Modal Volume vs Nominal Timbangan
+│   │   │   ├── VariantSelectionModal.tsx  # Modal Pemilihan Varian Produk
+│   │   │   ├── ProductSearchModal.tsx     # Modal Pencarian Produk Cepat
+│   │   │   ├── BarcodeScannerModal.tsx    # Modal Scan Barcode & Manual Input
+│   │   │   └── CheckoutLandscapeModal.tsx # Modal Split Checkout & Keypad
+│   │   ├── ProductFormModal.tsx           # Form Tambah/Edit Produk & HPP
+│   │   ├── ReceiptModal.tsx               # Preview & Cetak Struk 58mm
+│   │   └── PinPromptModal.tsx             # Modal Input PIN Keamanan
+│   ├── db/
+│   │   ├── index.ts                       # Skema SQLite, Seeding, & Db Queue
+│   │   ├── productRepository.ts           # CRUD Produk & Varian
+│   │   ├── transactionRepository.ts       # Atomic Checkout & SQLite Queries
+│   │   ├── reportRepository.ts            # Agregasi Laba, Jam Sibuk & Top Produk
+│   │   └── settingsRepository.ts          # Key-Value Store Konfigurasi
+│   ├── stores/
+│   │   ├── useCartStore.ts                # Zustand Cart Store
+│   │   └── useThemeStore.ts               # Dark/Light Mode Store
+│   └── util/
+│       ├── databaseSync.ts                # Backup & Restore Database .db
+│       ├── printerService.ts              # ESC/POS 58mm Formatter & Service
+│       └── formatters.ts                  # Formatter Rupiah & Tanggal
+```

@@ -20,6 +20,7 @@ import {
   getTransactionDetailsWithProducts,
   getTransactionsSummary,
 } from "@/db/transactionRepository";
+import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
 import { formatRupiah, formatDateTime } from "@/util/formatters";
 import {
@@ -39,6 +40,11 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({ totalOmset: 0, totalLaba: 0 });
 
+  // Store profile
+  const [storeName, setStoreName] = useState("POS Offline Pro");
+  const [storeAddress, setStoreAddress] = useState("Jl. Alamat No 99 Makassar");
+  const [storePhone, setStorePhone] = useState("08111111111");
+
   // Receipt Modal for Re-printing
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
@@ -53,6 +59,13 @@ export default function HistoryScreen() {
         totalOmset: sum.totalOmset,
         totalLaba: sum.totalLaba,
       });
+
+      const sName = await getSetting("store_name", "POS Offline Pro");
+      const sAddr = await getSetting("store_address", "Jl. Alamat No 99 Makassar");
+      const sPhone = await getSetting("store_phone", "08111111111");
+      setStoreName(sName);
+      setStoreAddress(sAddr);
+      setStorePhone(sPhone);
     } catch (err) {
       console.error("Gagal load riwayat:", err);
     } finally {
@@ -74,18 +87,31 @@ export default function HistoryScreen() {
     try {
       const details = await getTransactionDetailsWithProducts(trx.id);
       const receiptData: ReceiptData = {
-        transactionId: trx.id,
-        date: formatDateTime(trx.created_at),
+        invoiceNumber: trx.invoice_no || trx.id,
+        date: new Date(trx.created_at).toLocaleString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        storeName: storeName,
+        storeAddress: storeAddress,
+        storePhone: storePhone,
         items: details.map((d) => ({
           name: d.product_name || "Produk",
           qty: d.qty,
-          price: d.harga_jual || d.subtotal / d.qty,
+          price: d.harga_jual || (d.qty > 0 ? d.subtotal / d.qty : 0),
           subtotal: d.subtotal,
+          unit: d.unit || "pcs",
         })),
-        totalOmset: trx.omset,
-        cashTendered: trx.omset,
-        changeAmount: 0,
-        paymentMethod: "CASH",
+        totalAmount: trx.omset,
+        subtotalBeforeTax: trx.subtotal_before_tax,
+        ppnPercent: trx.ppn_percent,
+        ppnAmount: trx.ppn_amount,
+        cashTendered: trx.cash_tendered || trx.omset,
+        changeAmount: trx.change_amount || 0,
+        paymentMethod: trx.payment_method || "CASH",
         cashierName: "Kasir 1",
       };
       setSelectedReceipt(receiptData);
@@ -96,155 +122,89 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-50 dark:bg-zinc-950">
-      <Header
-        title="Riwayat Transaksi"
-        subtitle="Daftar Struk Penjualan & Cetak Ulang"
-      />
-
-      {/* Date Filter Tabs */}
-      <View className="px-4 py-2.5 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800/60">
-        <View className="flex-row items-center justify-between bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl">
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("today")}
-            className={`flex-1 py-1.5 items-center rounded-lg ${
-              filterPeriod === "today"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "today"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500"
-              }`}
-            >
-              Hari Ini
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("week")}
-            className={`flex-1 py-1.5 items-center rounded-lg ${
-              filterPeriod === "week"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "week"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500"
-              }`}
-            >
-              7 Hari Terakhir
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("month")}
-            className={`flex-1 py-1.5 items-center rounded-lg ${
-              filterPeriod === "month"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "month"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500"
-              }`}
-            >
-              Bulan Ini
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Summary Banner */}
-        <View className="flex-row items-center justify-between mt-3 px-1">
-          <View>
-            <Text className="text-[11px] text-zinc-400">Total Penjualan</Text>
-            <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-              {formatRupiah(summary.totalOmset)}
-            </Text>
-          </View>
-          <View className="items-end">
-            <Text className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              Total Laba Bersih
-            </Text>
-            <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-              +{formatRupiah(summary.totalLaba)}
-            </Text>
-          </View>
-        </View>
+    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
+      <View className="px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800">
+        <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+          Riwayat Transaksi
+        </Text>
+        <Text className="text-xs text-zinc-400">
+          Daftar Struk Penjualan & Cetak Ulang (58mm)
+        </Text>
       </View>
 
       {/* Transaction List */}
       <ScrollView
         className="flex-1 px-4 pt-3"
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
             Daftar Struk ({transactions.length})
+          </Text>
+          <Text className="text-xs text-zinc-400">
+            Total Omset: {formatRupiah(summary.totalOmset)}
           </Text>
         </View>
 
         {loading ? (
           <View className="py-16 items-center justify-center">
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color="#0097A7" />
           </View>
         ) : transactions.length === 0 ? (
           <View className="py-16 items-center justify-center px-4">
-            <View className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 items-center justify-center mb-3">
-              <Inbox size={26} color="#71717a" />
-            </View>
-            <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-1">
+            <Inbox size={36} color="#9ca3af" />
+            <Text className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-2 mb-1">
               Belum Ada Transaksi
             </Text>
-            <Text className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
+            <Text className="text-xs text-zinc-400 text-center">
               Transaksi kasir yang telah selesai akan otomatis tercatat di sini dan tersimpan di database SQLite lokal.
             </Text>
           </View>
         ) : (
           transactions.map((trx) => (
-            <Card key={trx.id} className="mb-3 p-3.5">
-              {/* Header Struk: ID & Status */}
-              <View className="flex-row items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800/60">
-                <View className="flex-row items-center space-x-2">
-                  <Receipt size={15} color="#3b82f6" />
-                  <Text className="text-xs font-mono font-bold text-zinc-800 dark:text-zinc-200 ml-1.5">
-                    {trx.id}
+            <View
+              key={trx.id}
+              className="mb-3 p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm"
+            >
+              {/* Header Struk: Invoice & Method */}
+              <View className="flex-row items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800/80">
+                <View className="flex-row items-center">
+                  <Receipt size={15} color="#0097A7" />
+                  <Text className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100 ml-1.5">
+                    {trx.invoice_no || trx.id}
                   </Text>
                 </View>
-                <Badge variant="secondary">
-                  <View className="flex-row items-center">
-                    <Banknote size={11} color="#71717a" />
-                    <Text className="text-[10px] font-bold ml-1">
-                      CASH / QRIS
-                    </Text>
-                  </View>
-                </Badge>
+                <View className="px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-950/40">
+                  <Text className="text-[10px] font-bold text-[#0097A7]">
+                    {trx.payment_method || "CASH"}
+                  </Text>
+                </View>
               </View>
 
               {/* Body Struk */}
-              <View className="py-2.5">
+              <View className="py-2 flex-row items-center justify-between">
                 <Text className="text-[11px] text-zinc-400">
-                  {formatDateTime(trx.created_at)} WIB
+                  {new Date(trx.created_at).toLocaleString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </Text>
+                {trx.ppn_amount && trx.ppn_amount > 0 ? (
+                  <Text className="text-[10px] text-zinc-400 font-mono">
+                    PPN {trx.ppn_percent}%: {formatRupiah(trx.ppn_amount)}
+                  </Text>
+                ) : null}
               </View>
 
               {/* Financial Breakdown & Print Button */}
-              <View className="pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex-row items-center justify-between">
+              <View className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex-row items-center justify-between">
                 <View>
-                  <Text className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                  <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
                     {formatRupiah(trx.omset)}
                   </Text>
                   <Text className="text-[10px] text-emerald-600 dark:text-emerald-400">
@@ -252,16 +212,18 @@ export default function HistoryScreen() {
                   </Text>
                 </View>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Printer size={13} color="#a1a1aa" />}
+                <TouchableOpacity
                   onPress={() => handlePrintReceipt(trx)}
+                  activeOpacity={0.7}
+                  className="flex-row items-center px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm"
                 >
-                  Cetak 58mm
-                </Button>
+                  <Printer size={13} color="#0097A7" />
+                  <Text className="text-xs font-bold text-zinc-700 dark:text-zinc-200 ml-1.5">
+                    Cetak 58mm
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </Card>
+            </View>
           ))
         )}
       </ScrollView>

@@ -21,11 +21,7 @@ import {
   X,
   CreditCard,
   Banknote,
-  TrendingUp,
   CheckCircle2,
-  Receipt,
-  Sparkles,
-  DollarSign,
   Calculator,
 } from "lucide-react-native";
 
@@ -42,7 +38,9 @@ export function CheckoutModal({
 }: CheckoutModalProps) {
   const {
     items,
-    getTotalOmset,
+    getSubtotal,
+    getPpnAmount,
+    getGrandTotal,
     getTotalHpp,
     getTotalLabaKotor,
     clearCart,
@@ -52,26 +50,27 @@ export function CheckoutModal({
   const [cashTenderedStr, setCashTenderedStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const totalOmset = getTotalOmset();
+  const subtotal = getSubtotal();
+  const ppnAmount = getPpnAmount();
+  const grandTotal = getGrandTotal();
   const totalHpp = getTotalHpp();
   const totalLaba = getTotalLabaKotor();
-  const marginPercent = totalOmset > 0 ? ((totalLaba / totalOmset) * 100).toFixed(1) : "0.0";
+  const marginPercent = grandTotal > 0 ? ((totalLaba / grandTotal) * 100).toFixed(1) : "0.0";
 
   useEffect(() => {
     if (visible) {
       if (paymentMethod === "QRIS") {
-        setCashTenderedStr(totalOmset.toString());
+        setCashTenderedStr(grandTotal.toString());
       } else {
         setCashTenderedStr("");
       }
     }
-  }, [visible, paymentMethod, totalOmset]);
+  }, [visible, paymentMethod, grandTotal]);
 
   const cashTendered = parseFloat(cashTenderedStr) || 0;
-  const changeAmount = Math.max(0, cashTendered - totalOmset);
-  const isShortOfCash = paymentMethod === "CASH" && cashTendered < totalOmset;
+  const changeAmount = Math.max(0, cashTendered - grandTotal);
+  const isShortOfCash = paymentMethod === "CASH" && cashTendered < grandTotal;
 
-  // Quick Amount Handlers
   const handleQuickAmount = (amount: number) => {
     setCashTenderedStr(amount.toString());
   };
@@ -87,19 +86,22 @@ export function CheckoutModal({
       return;
     }
 
-    if (paymentMethod === "CASH" && cashTendered < totalOmset) {
+    if (paymentMethod === "CASH" && cashTendered < grandTotal) {
       Alert.alert("Nominal Kurang", "Uang yang diterima kurang dari total tagihan.");
       return;
     }
 
     setIsProcessing(true);
     try {
-      const finalTendered = paymentMethod === "QRIS" ? totalOmset : cashTendered;
+      const finalTendered = paymentMethod === "QRIS" ? grandTotal : cashTendered;
       const finalChange = paymentMethod === "QRIS" ? 0 : changeAmount;
 
       const result: CheckoutResult = await processCheckout({
         items,
-        omset: totalOmset,
+        subtotal,
+        ppn_percent: 11,
+        ppn_amount: ppnAmount,
+        grand_total: grandTotal,
         total_hpp: totalHpp,
         laba_kotor: totalLaba,
         payment_method: paymentMethod,
@@ -107,17 +109,20 @@ export function CheckoutModal({
         change_amount: finalChange,
       });
 
-      // Prepare Receipt Data
       const receipt: ReceiptData = {
-        transactionId: result.transaction.id,
+        invoiceNumber: result.transaction.invoice_no,
         date: formatDateTime(result.transaction.created_at),
         items: result.details.map((d) => ({
           name: d.product_name,
           qty: d.qty,
           price: d.harga_jual,
           subtotal: d.subtotal,
+          unit: d.unit,
         })),
-        totalOmset: result.transaction.omset,
+        totalAmount: result.transaction.omset,
+        subtotalBeforeTax: result.transaction.subtotal_before_tax,
+        ppnPercent: result.transaction.ppn_percent,
+        ppnAmount: result.transaction.ppn_amount,
         cashTendered: finalTendered,
         changeAmount: finalChange,
         paymentMethod,
@@ -135,12 +140,7 @@ export function CheckoutModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/60">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -149,8 +149,8 @@ export function CheckoutModal({
           {/* Header */}
           <View className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-row items-center justify-between">
             <View className="flex-row items-center space-x-2">
-              <View className="w-8 h-8 rounded-lg bg-blue-500/10 items-center justify-center">
-                <Calculator size={18} color="#3b82f6" />
+              <View className="w-8 h-8 rounded-lg bg-cyan-500/10 items-center justify-center">
+                <Calculator size={18} color="#0097A7" />
               </View>
               <Text className="text-base font-bold text-zinc-900 dark:text-zinc-50 ml-2">
                 Pembayaran Transaksi
@@ -170,16 +170,16 @@ export function CheckoutModal({
             contentContainerStyle={{ paddingBottom: 25 }}
           >
             {/* Total Bill Card */}
-            <Card className="mb-4 bg-zinc-900 dark:bg-zinc-950 border-blue-500/30 p-4">
+            <Card className="mb-4 bg-zinc-900 dark:bg-zinc-950 border-cyan-500/30 p-4">
               <View className="flex-row items-center justify-between mb-1">
-                <Text className="text-xs text-zinc-400">Total Tagihan (Omset)</Text>
+                <Text className="text-xs text-zinc-400">Total Tagihan (Grand Total)</Text>
                 <Badge variant="success">Laba: {formatRupiah(totalLaba)} ({marginPercent}%)</Badge>
               </View>
               <Text className="text-3xl font-extrabold text-white tracking-tight">
-                {formatRupiah(totalOmset)}
+                {formatRupiah(grandTotal)}
               </Text>
               <Text className="text-[11px] text-zinc-400 mt-1">
-                {items.length} jenis item ({items.reduce((a, b) => a + b.qty, 0)} total pcs)
+                {items.length} jenis item ({items.reduce((a, b) => a + b.qty, 0)} total)
               </Text>
             </Card>
 
@@ -193,7 +193,7 @@ export function CheckoutModal({
                   onPress={() => setPaymentMethod("CASH")}
                   className={`flex-1 flex-row items-center justify-center py-3 px-4 rounded-xl border transition-all mr-2 ${
                     paymentMethod === "CASH"
-                      ? "bg-blue-600 border-blue-600"
+                      ? "bg-[#0097A7] border-[#0097A7]"
                       : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
                   }`}
                   activeOpacity={0.7}
@@ -215,7 +215,7 @@ export function CheckoutModal({
                   onPress={() => setPaymentMethod("QRIS")}
                   className={`flex-1 flex-row items-center justify-center py-3 px-4 rounded-xl border transition-all ml-2 ${
                     paymentMethod === "QRIS"
-                      ? "bg-blue-600 border-blue-600"
+                      ? "bg-[#0097A7] border-[#0097A7]"
                       : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
                   }`}
                   activeOpacity={0.7}
@@ -235,7 +235,7 @@ export function CheckoutModal({
               </View>
             </View>
 
-            {/* Cash Input & Quick Buttons (When CASH selected) */}
+            {/* Cash Input & Quick Buttons */}
             {paymentMethod === "CASH" && (
               <View className="mb-4">
                 <Input
@@ -246,17 +246,16 @@ export function CheckoutModal({
                   onChangeText={setCashTenderedStr}
                 />
 
-                {/* Quick Nominal Buttons */}
                 <View className="mt-2.5">
                   <Text className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-1.5">
                     Nominal Cepat:
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     <TouchableOpacity
-                      onPress={() => handleQuickAmount(totalOmset)}
+                      onPress={() => handleQuickAmount(grandTotal)}
                       className="bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700"
                     >
-                      <Text className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                      <Text className="text-xs font-semibold text-[#0097A7]">
                         Uang Pas
                       </Text>
                     </TouchableOpacity>
@@ -287,24 +286,6 @@ export function CheckoutModal({
                         100.000
                       </Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => handleAddAmount(10000)}
-                      className="bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800"
-                    >
-                      <Text className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                        +10.000
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => handleAddAmount(50000)}
-                      className="bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800"
-                    >
-                      <Text className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                        +50.000
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -312,7 +293,7 @@ export function CheckoutModal({
                 <Card className="mt-3.5 p-3.5 bg-zinc-50 dark:bg-zinc-950/60 border-zinc-200 dark:border-zinc-800">
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      Kembalian Pelanggan:
+                      Kembalian:
                     </Text>
                     <Text
                       className={`text-lg font-bold ${
@@ -322,7 +303,7 @@ export function CheckoutModal({
                       }`}
                     >
                       {isShortOfCash
-                        ? `Kurang ${formatRupiah(totalOmset - cashTendered)}`
+                        ? `Kurang ${formatRupiah(grandTotal - cashTendered)}`
                         : formatRupiah(changeAmount)}
                     </Text>
                   </View>

@@ -31,11 +31,10 @@ import {
   Plus,
   Barcode,
   Package,
-  Layers,
   Edit2,
   Trash2,
-  AlertTriangle,
   Inbox,
+  Layers,
 } from "lucide-react-native";
 
 export default function ProductsScreen() {
@@ -58,7 +57,7 @@ export default function ProductsScreen() {
     handlePinClose,
   } = useSecureAction();
 
-  const categories = ["Semua", "Makanan", "Minuman", "Retail / Toko", "Jasa", "Lainnya"];
+  const categories = ["Semua", "Buah", "Makanan", "Minuman", "Retail", "Jasa", "Lainnya"];
 
   const loadProducts = useCallback(async () => {
     try {
@@ -101,7 +100,6 @@ export default function ProductsScreen() {
   };
 
   const handleDeleteProduct = (product: Product) => {
-    // Intercept with PIN security protection
     executeSecureAction(async () => {
       try {
         await deleteProduct(product.id);
@@ -114,55 +112,52 @@ export default function ProductsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-50 dark:bg-zinc-950">
-      <Header
-        title="Master Produk"
-        subtitle="Katalog & Input Modal (HPP)"
-        rightAction={
-          <Button
-            size="sm"
-            variant="default"
-            leftIcon={<Plus size={15} color="#ffffff" />}
-            onPress={handleOpenCreateModal}
-          >
-            Tambah
-          </Button>
-        }
-      />
+    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
+      <View className="px-4 py-3 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 flex-row items-center justify-between">
+        <View>
+          <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+            Master Produk
+          </Text>
+          <Text className="text-xs text-zinc-400">
+            Katalog & Manajemen HPP Lokal
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleOpenCreateModal}
+          activeOpacity={0.8}
+          className="flex-row items-center bg-[#0097A7] px-3 py-2 rounded-xl shadow-sm"
+        >
+          <Plus size={15} color="#ffffff" />
+          <Text className="text-xs font-bold text-white ml-1.5">
+            + Tambah
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Search & Category Filter Section */}
-      <View className="px-4 pt-3 pb-2 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800/60">
+      <View className="px-4 pt-3 pb-2 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800">
         <Input
           placeholder="Cari nama produk atau barcode..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          leftIcon={<Search size={17} color="#71717a" />}
-          rightIcon={
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                Alert.alert("Scan Barcode", "Arahkan kamera ke barcode produk.");
-              }}
-            >
-              <Barcode size={20} color="#3b82f6" />
-            </TouchableOpacity>
-          }
+          leftIcon={<Search size={16} color="#71717a" />}
         />
 
         {/* Category Pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-3 flex-row pb-1"
+          className="mt-2.5 flex-row pb-1"
         >
           {categories.map((cat, idx) => (
             <TouchableOpacity
               key={idx}
               onPress={() => setSelectedCategory(cat)}
-              className={`mr-2 px-3 py-1.5 rounded-lg border transition-all ${
+              className={`mr-2 px-3 py-1.5 rounded-full border transition-all ${
                 selectedCategory === cat
-                  ? "bg-blue-600 border-blue-600"
-                  : "bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+                  ? "bg-[#0097A7] border-[#0097A7]"
+                  : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
               }`}
             >
               <Text
@@ -182,47 +177,32 @@ export default function ProductsScreen() {
       {/* Product List Content */}
       <ScrollView
         className="flex-1 px-4 pt-3"
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            Daftar Produk ({products.length})
-          </Text>
-          <Text className="text-xs text-zinc-400">
-            Disimpan di SQLite Lokal
-          </Text>
-        </View>
-
         {loading ? (
-          <View className="py-12 items-center justify-center">
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text className="text-xs text-zinc-400 mt-2">Memuat produk dari database...</Text>
+          <View className="py-16 items-center justify-center">
+            <ActivityIndicator size="large" color="#0097A7" />
+            <Text className="text-xs text-zinc-400 mt-2">Memuat produk...</Text>
           </View>
         ) : products.length === 0 ? (
-          <View className="py-14 items-center justify-center px-4">
-            <View className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 items-center justify-center mb-3">
-              <Inbox size={26} color="#71717a" />
-            </View>
-            <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-1">
+          <View className="py-16 items-center justify-center px-4">
+            <Inbox size={36} color="#9ca3af" />
+            <Text className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-2 mb-1">
               Belum Ada Produk
             </Text>
-            <Text className="text-xs text-zinc-500 dark:text-zinc-400 text-center mb-4">
+            <Text className="text-xs text-zinc-400 text-center mb-4">
               {searchQuery
                 ? `Tidak ditemukan produk dengan kata kunci "${searchQuery}"`
-                : "Mulai tambahkan produk untuk mencatat inventaris dan HPP usaha Anda."}
+                : "Mulai tambahkan produk untuk mengelola katalog kasir offline Anda."}
             </Text>
-            <Button
-              variant="default"
-              size="sm"
-              leftIcon={<Plus size={15} color="#ffffff" />}
+            <TouchableOpacity
               onPress={handleOpenCreateModal}
+              className="px-4 py-2 bg-[#0097A7] rounded-xl shadow-sm"
             >
-              Tambah Produk Baru
-            </Button>
+              <Text className="text-xs font-bold text-white">+ Tambah Produk Baru</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           products.map((product) => {
@@ -233,23 +213,27 @@ export default function ProductsScreen() {
                 : "0";
 
             return (
-              <Card key={product.id} className="mb-3 p-3.5">
+              <View
+                key={product.id}
+                className="mb-3 p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm"
+              >
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1 pr-2">
                     <View className="flex-row items-center space-x-2 mb-1">
                       <Badge variant="secondary">{product.category}</Badge>
-                      {product.stock <= 10 ? (
-                        <Badge variant="warning" className="ml-1.5">
-                          <Text className="text-[10px]">Stok: {product.stock}</Text>
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="ml-1.5">
-                          <Text className="text-[10px]">Stok: {product.stock}</Text>
-                        </Badge>
+                      {product.has_variants === 1 && (
+                        <View className="ml-1.5 px-2 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-950/40">
+                          <Text className="text-[10px] font-bold text-[#0097A7]">Varian</Text>
+                        </View>
                       )}
+                      <View className="ml-1.5 px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800">
+                        <Text className="text-[10px] text-zinc-500">
+                          {product.stock > 500 ? "Stok tanpa batas" : `Stok: ${product.stock} ${product.unit || "pcs"}`}
+                        </Text>
+                      </View>
                     </View>
 
-                    <Text className="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                    <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                       {product.name}
                     </Text>
 
@@ -264,15 +248,15 @@ export default function ProductsScreen() {
                   <View className="flex-row items-center space-x-1.5">
                     <TouchableOpacity
                       onPress={() => handleOpenEditModal(product)}
-                      className="w-8 h-8 rounded-lg items-center justify-center bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
+                      className="w-8 h-8 rounded-xl items-center justify-center bg-zinc-100 dark:bg-zinc-800 mr-1"
                       activeOpacity={0.7}
                     >
-                      <Edit2 size={13} color="#3b82f6" />
+                      <Edit2 size={13} color="#0097A7" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleDeleteProduct(product)}
-                      className="w-8 h-8 rounded-lg items-center justify-center bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 ml-1"
+                      className="w-8 h-8 rounded-xl items-center justify-center bg-red-50 dark:bg-red-950/40"
                       activeOpacity={0.7}
                     >
                       <Trash2 size={13} color="#ef4444" />
@@ -281,11 +265,12 @@ export default function ProductsScreen() {
                 </View>
 
                 {/* Price, Cost, and Profit Matrix */}
-                <View className="mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/70 flex-row items-center justify-between">
+                <View className="mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex-row items-center justify-between">
                   <View>
                     <Text className="text-[11px] text-zinc-400">Harga Jual</Text>
                     <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                       {formatRupiah(product.harga_jual)}
+                      {product.unit === "kg" ? "/kg" : ""}
                     </Text>
                   </View>
 
@@ -305,7 +290,7 @@ export default function ProductsScreen() {
                     </Text>
                   </View>
                 </View>
-              </Card>
+              </View>
             );
           })
         )}

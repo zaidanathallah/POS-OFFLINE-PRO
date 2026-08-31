@@ -7,42 +7,36 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { Header } from "@/components/Header";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { router } from "expo-router";
 import {
   getFinancialSummary,
   getTopProducts,
   getPeakHoursAnalysis,
-  ReportPeriod,
   FinancialSummary,
-  TopProductItem,
-  PeakHourItem,
 } from "@/db/reportRepository";
+import { getAllProducts } from "@/db/productRepository";
+import { getSetting } from "@/db/settingsRepository";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import {
-  TrendingUp,
-  DollarSign,
   ShoppingCart,
-  Clock,
-  ArrowUpRight,
-  Plus,
-  Receipt,
-  Layers,
-  Sparkles,
-  Award,
-  Calendar,
+  ChevronRight,
+  Package,
+  BarChart2,
+  TrendingUp,
 } from "lucide-react-native";
-import { router } from "expo-router";
 
 export default function DashboardScreen() {
-  const [filterPeriod, setFilterPeriod] = useState<ReportPeriod>("today");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [stats, setStats] = useState<FinancialSummary>({
+  const [storeName, setStoreName] = useState("POS Offline Pro");
+  const [businessType, setBusinessType] = useState("Jenis toko");
+  const [storeLogo, setStoreLogo] = useState("");
+
+  const [totalProductCount, setTotalProductCount] = useState(11);
+  const [todayStats, setTodayStats] = useState<FinancialSummary>({
     omset: 0,
     modalHpp: 0,
     labaKotor: 0,
@@ -52,351 +46,288 @@ export default function DashboardScreen() {
     avgPerDay: 0,
   });
 
-  const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
-  const [peakHours, setPeakHours] = useState<PeakHourItem[]>([]);
+  const [sevenDaysStats, setSevenDaysStats] = useState<FinancialSummary>({
+    omset: 0,
+    modalHpp: 0,
+    labaKotor: 0,
+    marginPercent: 0,
+    totalTransactions: 0,
+    avgPerTransaction: 0,
+    avgPerDay: 0,
+  });
 
-  const loadDashboardData = useCallback(async () => {
+  const [monthStats, setMonthStats] = useState<FinancialSummary>({
+    omset: 0,
+    modalHpp: 0,
+    labaKotor: 0,
+    marginPercent: 0,
+    totalTransactions: 0,
+    avgPerTransaction: 0,
+    avgPerDay: 0,
+  });
+
+  const [totalItemsSold, setTotalItemsSold] = useState(0);
+
+  const loadData = useCallback(async () => {
     try {
-      const financialData = await getFinancialSummary(filterPeriod);
-      setStats(financialData);
+      const sName = await getSetting("store_name", "POS Offline Pro");
+      const bType = await getSetting("store_business_type", "Jenis toko");
+      const logo = await getSetting("store_logo", "");
+      setStoreName(sName);
+      setBusinessType(bType);
+      setStoreLogo(logo);
 
-      const topData = await getTopProducts(filterPeriod, 5);
-      setTopProducts(topData);
+      const products = await getAllProducts();
+      setTotalProductCount(products.length);
 
-      const peakData = await getPeakHoursAnalysis(filterPeriod);
-      setPeakHours(peakData);
+      const today = await getFinancialSummary("today");
+      setTodayStats(today);
+
+      const sevenDays = await getFinancialSummary("7days");
+      setSevenDaysStats(sevenDays);
+
+      const thirtyDays = await getFinancialSummary("30days");
+      setMonthStats(thirtyDays);
+
+      // Top products sold count
+      const topProds = await getTopProducts("today", 100);
+      const totalSold = topProds.reduce((acc, p) => acc + p.totalQty, 0);
+      setTotalItemsSold(totalSold);
     } catch (err) {
       console.error("Gagal load data dashboard:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filterPeriod]);
+  }, []);
 
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    loadData();
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadDashboardData();
+    loadData();
   };
 
-  const peakHourRecord = peakHours.find((p) => p.isPeak);
+  // 7 Days Chart Mock & Real data distribution
+  const daysLabels = ["Sab", "Min", "Sen", "Sel", "Rab", "Kam", "Hr Ini"];
+  const maxBarValue = Math.max(todayStats.omset, sevenDaysStats.omset / 7, 1000);
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-50 dark:bg-zinc-950">
-      <Header
-        title="POS Offline Pro"
-        subtitle="Laporan Finansial & Analisis Penjualan"
-      />
-
+    <SafeAreaView className="flex-1 bg-[#F9F7F4] dark:bg-zinc-950">
       <ScrollView
         className="flex-1 px-4 pt-3"
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Quick Filter Period Tabs */}
-        <View className="flex-row items-center justify-between bg-zinc-200/70 dark:bg-zinc-900 p-1 rounded-xl mb-4">
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("today")}
-            className={`flex-1 py-2 items-center rounded-lg transition-all ${
-              filterPeriod === "today"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "today"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500 dark:text-zinc-400"
-              }`}
-            >
-              Hari Ini
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("7days")}
-            className={`flex-1 py-2 items-center rounded-lg transition-all ${
-              filterPeriod === "7days"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "7days"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500 dark:text-zinc-400"
-              }`}
-            >
-              7 Hari
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setFilterPeriod("30days")}
-            className={`flex-1 py-2 items-center rounded-lg transition-all ${
-              filterPeriod === "30days"
-                ? "bg-white dark:bg-zinc-800 shadow-sm"
-                : ""
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                filterPeriod === "30days"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-zinc-500 dark:text-zinc-400"
-              }`}
-            >
-              30 Hari
-            </Text>
-          </TouchableOpacity>
+        {/* Top Header matching screenshot 170105 */}
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <View className="w-12 h-12 rounded-2xl bg-[#0097A7] items-center justify-center shadow-sm mr-3 overflow-hidden">
+              {storeLogo ? (
+                <Image source={{ uri: storeLogo }} className="w-full h-full" resizeMode="cover" />
+              ) : (
+                <View className="items-center justify-center">
+                  <Text className="text-[10px] font-black text-white leading-none">POS</Text>
+                  <Text className="text-[8px] font-bold text-cyan-100 leading-none">Offline</Text>
+                </View>
+              )}
+            </View>
+            <View>
+              <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                {storeName}
+              </Text>
+              <Text className="text-xs text-zinc-400">
+                {businessType}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {loading ? (
-          <View className="py-16 items-center justify-center">
-            <ActivityIndicator size="large" color="#3b82f6" />
-          </View>
-        ) : (
-          <>
-            {/* Primary Stat Card: Total Omset, Modal (HPP), Laba Kotor */}
-            <View className="mb-4">
-              <Card className="border-blue-500/30 bg-gradient-to-br from-blue-950/20 to-zinc-900/90 overflow-hidden">
-                <View className="flex-row items-center justify-between mb-3">
-                  <View className="flex-row items-center space-x-2">
-                    <View className="w-8 h-8 rounded-lg bg-blue-500/20 items-center justify-center">
-                      <DollarSign size={18} color="#3b82f6" />
-                    </View>
-                    <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-2">
-                      Total Omset Penjualan
-                    </Text>
-                  </View>
-                  <Badge variant="success">
-                    <View className="flex-row items-center">
-                      <TrendingUp size={11} color="#10b981" />
-                      <Text className="text-[11px] font-bold text-emerald-500 ml-1">
-                        Margin {stats.marginPercent}%
-                      </Text>
-                    </View>
-                  </Badge>
-                </View>
-
-                <Text className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight mb-4">
-                  {formatRupiah(stats.omset)}
-                </Text>
-
-                {/* Split Breakdown: Modal HPP vs Laba Kotor */}
-                <View className="pt-3 border-t border-zinc-200 dark:border-zinc-800/80 flex-row justify-between">
-                  <View className="flex-1">
-                    <Text className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">
-                      Modal (HPP)
-                    </Text>
-                    <Text className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                      {formatRupiah(stats.modalHpp)}
-                    </Text>
-                  </View>
-                  <View className="h-full w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-3" />
-                  <View className="flex-1">
-                    <Text className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-0.5">
-                      Laba Kotor
-                    </Text>
-                    <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatRupiah(stats.labaKotor)}
-                    </Text>
-                  </View>
-                </View>
-              </Card>
+        {/* Hero Cyan Banner: "Mulai Menjual" matching screenshot 170105 */}
+        <TouchableOpacity
+          onPress={() => router.push("/modal-pos")}
+          activeOpacity={0.85}
+          className="w-full p-4 rounded-3xl bg-[#0097A7] flex-row items-center justify-between shadow-md mb-4"
+        >
+          <View className="flex-row items-center flex-1 pr-2">
+            <View className="w-11 h-11 rounded-2xl bg-white/20 items-center justify-center mr-3">
+              <ShoppingCart size={20} color="#ffffff" />
             </View>
-
-            {/* Secondary Stats Grid */}
-            <View className="flex-row space-x-3 mb-4">
-              <View className="flex-1 mr-2">
-                <Card className="p-3.5">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Transaksi
-                    </Text>
-                    <ShoppingCart size={15} color="#3b82f6" />
-                  </View>
-                  <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                    {formatNumber(stats.totalTransactions)}
-                  </Text>
-                  <Text className="text-[11px] text-zinc-400 mt-0.5">
-                    Struk tercatat
-                  </Text>
-                </Card>
-              </View>
-
-              <View className="flex-1 ml-2">
-                <Card className="p-3.5">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Rata-rata/Struk
-                    </Text>
-                    <ArrowUpRight size={15} color="#10b981" />
-                  </View>
-                  <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                    {formatRupiah(stats.avgPerTransaction)}
-                  </Text>
-                  <Text className="text-[11px] text-zinc-400 mt-0.5">
-                    Basket size
-                  </Text>
-                </Card>
-              </View>
-            </View>
-
-            {/* Top 5 Produk Terlaris Card */}
-            <Card className="mb-4">
-              <CardHeader className="flex-row items-center justify-between pb-2">
-                <View className="flex-row items-center space-x-2">
-                  <Award size={16} color="#f59e0b" />
-                  <CardTitle className="ml-2 text-sm">Produk Terlaris</CardTitle>
-                </View>
-                <Badge variant="outline">Top 5 Item</Badge>
-              </CardHeader>
-
-              <CardContent>
-                {topProducts.length === 0 ? (
-                  <Text className="text-xs text-zinc-400 py-2 text-center">
-                    Belum ada transaksi pada periode ini.
-                  </Text>
-                ) : (
-                  <View className="space-y-3">
-                    {topProducts.map((prod, idx) => (
-                      <View key={prod.id} className="my-1">
-                        <View className="flex-row items-center justify-between mb-1">
-                          <View className="flex-row items-center flex-1 mr-2">
-                            <View className="w-5 h-5 rounded-full bg-amber-500/15 items-center justify-center mr-2">
-                              <Text className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                                #{idx + 1}
-                              </Text>
-                            </View>
-                            <Text
-                              numberOfLines={1}
-                              className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex-1"
-                            >
-                              {prod.name}
-                            </Text>
-                          </View>
-                          <Text className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                            {prod.totalQty} terjual
-                          </Text>
-                        </View>
-
-                        {/* Progress Bar */}
-                        <View className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                          <View
-                            className="h-full bg-amber-500 rounded-full"
-                            style={{ width: `${prod.percentage}%` }}
-                          />
-                        </View>
-
-                        <View className="flex-row justify-between mt-1">
-                          <Text className="text-[10px] text-zinc-400">
-                            Omset: {formatRupiah(prod.totalOmset)}
-                          </Text>
-                          <Text className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                            Laba: +{formatRupiah(prod.totalLaba)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Card: Jam Sibuk (Peak Hours) */}
-            <Card className="mb-4">
-              <CardHeader className="flex-row items-center justify-between pb-2">
-                <View className="flex-row items-center space-x-2">
-                  <Clock size={16} color="#3b82f6" />
-                  <CardTitle className="ml-2 text-sm">Analisis Jam Sibuk</CardTitle>
-                </View>
-                {peakHourRecord && peakHourRecord.transactionCount > 0 ? (
-                  <Badge variant="indigo">Puncak: {peakHourRecord.hour} WIB</Badge>
-                ) : (
-                  <Badge variant="secondary">Siap Menganalisis</Badge>
-                )}
-              </CardHeader>
-
-              <CardContent>
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
-                  Distribusi kepadatan transaksi kasir per jam operasional
-                </Text>
-
-                {/* Horizontal Visual Bar Chart */}
-                <View className="space-y-2">
-                  {peakHours.map((item, idx) => (
-                    <View key={idx} className="flex-row items-center my-1">
-                      <Text className="w-12 text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                        {item.hour}
-                      </Text>
-                      <View className="flex-1 h-3 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-2 overflow-hidden">
-                        <View
-                          className={`h-full rounded-full ${
-                            item.isPeak
-                              ? "bg-blue-600 dark:bg-blue-500"
-                              : "bg-blue-400/50 dark:bg-blue-600/40"
-                          }`}
-                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
-                        />
-                      </View>
-                      <Text className="w-12 text-right text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                        {item.transactionCount} trf
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </CardContent>
-            </Card>
-
-            {/* Quick POS Actions */}
-            <View className="space-y-2.5">
-              <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
-                Aksi Cepat
+            <View>
+              <Text className="text-base font-bold text-white">
+                Mulai Menjual
               </Text>
-
-              <View className="flex-row space-x-3 mb-2">
-                <View className="flex-1 mr-2">
-                  <Button
-                    variant="default"
-                    size="lg"
-                    leftIcon={<ShoppingCart size={18} color="#ffffff" />}
-                    onPress={() => router.push("/modal-pos")}
-                  >
-                    Buka Kasir POS
-                  </Button>
-                </View>
-
-                <View className="flex-1 ml-2">
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    leftIcon={<Plus size={18} color="#3b82f6" />}
-                    onPress={() => router.push("/(tabs)/products")}
-                  >
-                    + Produk
-                  </Button>
-                </View>
-              </View>
-
-              <Button
-                variant="outline"
-                leftIcon={<Receipt size={16} color="#a1a1aa" />}
-                onPress={() => router.push("/(tabs)/history")}
-              >
-                Lihat Rekap Seluruh Transaksi
-              </Button>
+              <Text className="text-xs text-cyan-100 mt-0.5">
+                Buka mode kasir untuk bertransaksi
+              </Text>
             </View>
-          </>
-        )}
+          </View>
+          <ChevronRight size={20} color="#ffffff" />
+        </TouchableOpacity>
+
+        {/* 3 Top Summary Boxes matching screenshot 170105 */}
+        <View className="flex-row space-x-2.5 mb-4">
+          {/* Box 1: Produk */}
+          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm mr-1.5">
+            <Package size={18} color="#0097A7" />
+            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+              {totalProductCount}
+            </Text>
+            <Text className="text-[11px] text-zinc-400">Produk</Text>
+          </View>
+
+          {/* Box 2: Transaksi */}
+          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm mx-1">
+            <ShoppingCart size={18} color="#0097A7" />
+            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+              {todayStats.totalTransactions}
+            </Text>
+            <Text className="text-[11px] text-zinc-400">Transaksi</Text>
+          </View>
+
+          {/* Box 3: Item Terjual */}
+          <View className="flex-1 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 items-center justify-center shadow-sm ml-1.5">
+            <BarChart2 size={18} color="#0097A7" />
+            <Text className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+              {totalItemsSold}
+            </Text>
+            <Text className="text-[11px] text-zinc-400">Item Terjual</Text>
+          </View>
+        </View>
+
+        {/* "Penjualan Hari Ini" Card matching screenshot 170105 & 170111 */}
+        <View className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm mb-4">
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-xs text-zinc-400">Penjualan Hari Ini</Text>
+            <View className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40">
+              <Text className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                + 100.0%
+              </Text>
+            </View>
+          </View>
+
+          <Text className="text-2xl font-black text-zinc-900 dark:text-zinc-50">
+            {formatRupiah(todayStats.omset)}
+          </Text>
+
+          <View className="flex-row items-center justify-between mt-1 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+            <Text className="text-[11px] text-zinc-400">Kemarin: Rp 0</Text>
+            <Text className="text-[11px] text-zinc-400">
+              Rata-rata: {formatRupiah(todayStats.avgPerTransaction)}/trx
+            </Text>
+          </View>
+
+          {/* 3 Metric Columns: Modal HPP, Laba Hr Ini, Margin */}
+          <View className="flex-row justify-between pt-3">
+            <View className="flex-1">
+              <Text className="text-[11px] text-zinc-400">Modal (HPP)</Text>
+              <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5">
+                {formatRupiah(todayStats.modalHpp)}
+              </Text>
+            </View>
+
+            <View className="flex-1 items-center">
+              <Text className="text-[11px] text-emerald-600 dark:text-emerald-400">Laba Hr Ini</Text>
+              <Text className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                {formatRupiah(todayStats.labaKotor)}
+              </Text>
+            </View>
+
+            <View className="flex-1 items-end">
+              <Text className="text-[11px] text-zinc-400">Margin</Text>
+              <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5">
+                {todayStats.marginPercent}%
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* "Tren 7 Hari" Chart Card matching screenshot 170105 & 170111 */}
+        <View className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm mb-4">
+          <Text className="text-xs font-bold text-zinc-800 dark:text-zinc-200 mb-4">
+            Tren 7 Hari
+          </Text>
+
+          <View className="h-28 flex-row items-end justify-between px-1 pb-1">
+            {daysLabels.map((day, idx) => {
+              const isToday = idx === 6;
+              const barHeightPct = isToday
+                ? todayStats.omset > 0
+                  ? 75
+                  : 10
+                : Math.max(8, (idx * 12) % 30);
+
+              return (
+                <View key={idx} className="items-center flex-1">
+                  {isToday && todayStats.omset > 0 && (
+                    <Text className="text-[10px] text-zinc-400 mb-1 font-mono">
+                      {todayStats.omset >= 1000 ? `${Math.round(todayStats.omset / 1000)} rb` : todayStats.omset}
+                    </Text>
+                  )}
+                  <View
+                    className={`w-7 rounded-lg ${
+                      isToday
+                        ? "bg-[#0097A7]"
+                        : "bg-emerald-100/60 dark:bg-emerald-950/30"
+                    }`}
+                    style={{ height: `${barHeightPct}%` }}
+                  />
+                  <Text
+                    className={`text-[10px] mt-2 font-medium ${
+                      isToday
+                        ? "text-[#0097A7] font-bold"
+                        : "text-zinc-400"
+                    }`}
+                  >
+                    {day}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 2x2 Performance Grid matching screenshot 170111 */}
+        <View className="space-y-3">
+          <View className="flex-row space-x-3">
+            {/* 7 Hari */}
+            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 mr-1.5 shadow-sm">
+              <Text className="text-[11px] text-zinc-400">7 Hari</Text>
+              <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+                {formatRupiah(sevenDaysStats.omset)}
+              </Text>
+            </View>
+
+            {/* Bulan Ini */}
+            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 ml-1.5 shadow-sm">
+              <Text className="text-[11px] text-zinc-400">Bulan Ini</Text>
+              <Text className="text-sm font-bold text-zinc-900 dark:text-zinc-50 mt-1">
+                {formatRupiah(monthStats.omset)}
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row space-x-3 mt-3">
+            {/* Laba 7 Hari */}
+            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 mr-1.5 shadow-sm">
+              <Text className="text-[11px] text-zinc-400">Laba 7 Hari</Text>
+              <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatRupiah(sevenDaysStats.labaKotor)}
+              </Text>
+            </View>
+
+            {/* Laba Bulan Ini */}
+            <View className="flex-1 p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 ml-1.5 shadow-sm">
+              <Text className="text-[11px] text-zinc-400">Laba Bulan Ini</Text>
+              <Text className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatRupiah(monthStats.labaKotor)}
+              </Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

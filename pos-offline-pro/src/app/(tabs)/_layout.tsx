@@ -14,10 +14,10 @@ export default function TabLayout() {
   const systemTheme = useColorScheme();
   const activeDark = isDark ?? (systemTheme === "dark");
 
-  const activeColor = "#3b82f6"; // Blue 500
-  const inactiveColor = activeDark ? "#71717a" : "#94a3b8";
+  const activeColor = "#0097A7"; // Cyan Teal Accent matching design system
+  const inactiveColor = activeDark ? "#71717a" : "#9ca3af";
   const bgColor = activeDark ? "#09090b" : "#ffffff";
-  const borderColor = activeDark ? "#27272a" : "#e2e8f0";
+  const borderColor = activeDark ? "#27272a" : "#f1f5f9";
 
   return (
     <Tabs

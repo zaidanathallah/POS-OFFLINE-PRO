@@ -14,12 +14,18 @@ export interface CheckoutResult {
 
 export interface CheckoutInput {
   items: CartItem[];
-  omset: number;
+  subtotal: number;
+  ppn_percent: number;
+  ppn_amount: number;
+  grand_total: number;
   total_hpp: number;
   laba_kotor: number;
   payment_method: "CASH" | "QRIS";
   cash_tendered: number;
   change_amount: number;
+  table_number?: string;
+  customer_name?: string;
+  is_open_bill?: number;
   note?: string;
 }
 
@@ -29,19 +35,31 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
       throw new Error("Keranjang belanja kosong.");
     }
 
-    // Generate clean readable transaction ID: TRX-YYYYMMDD-HHMMSS
+    // Generate readable Invoice No matching screenshot 170931.png: INV-YYMMDD-XXX
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const transactionId = `TRX-${dateStr}-${timeStr}-${randomSuffix}`;
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const randomSuffix = String(Math.floor(100 + Math.random() * 900));
+    const invoiceNo = `INV-${yy}${mm}${dd}-${randomSuffix}`;
+    const transactionId = `TRX-${Date.now()}-${randomSuffix}`;
     const createdAt = now.toISOString();
 
     const newTransaction: Transaction = {
       id: transactionId,
-      omset: input.omset,
+      invoice_no: invoiceNo,
+      omset: input.grand_total,
+      subtotal_before_tax: input.subtotal,
+      ppn_percent: input.ppn_percent,
+      ppn_amount: input.ppn_amount,
       total_hpp: input.total_hpp,
       laba_kotor: input.laba_kotor,
+      payment_method: input.payment_method,
+      cash_tendered: input.cash_tendered,
+      change_amount: input.change_amount,
+      table_number: input.table_number || null,
+      customer_name: input.customer_name || null,
+      is_open_bill: input.is_open_bill || 0,
       created_at: createdAt,
     };
 
@@ -51,35 +69,57 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
     await db.withTransactionAsync(async () => {
       // 1. Insert into transactions table
       await db.runAsync(
-        `INSERT INTO transactions (id, omset, total_hpp, laba_kotor, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (
+          id, invoice_no, omset, total_hpp, laba_kotor, 
+          subtotal_before_tax, ppn_percent, ppn_amount, 
+          payment_method, cash_tendered, change_amount, 
+          table_number, customer_name, is_open_bill, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newTransaction.id,
+          newTransaction.invoice_no ?? null,
           newTransaction.omset,
           newTransaction.total_hpp,
           newTransaction.laba_kotor,
+          newTransaction.subtotal_before_tax,
+          newTransaction.ppn_percent,
+          newTransaction.ppn_amount,
+          newTransaction.payment_method,
+          newTransaction.cash_tendered,
+          newTransaction.change_amount,
+          newTransaction.table_number ?? null,
+          newTransaction.customer_name ?? null,
+          newTransaction.is_open_bill,
           newTransaction.created_at,
         ]
       );
 
-      // 2. Insert into transaction_details & decrement product stock
+      // 2. Insert into transaction_details & decrement product / variant stock
       for (let i = 0; i < input.items.length; i++) {
         const item = input.items[i];
         const detailId = `DTL-${transactionId}-${i + 1}`;
+        const displayName = item.variant ? `${item.product.name} (${item.variant.name})` : item.product.name;
 
         await db.runAsync(
-          `INSERT INTO transaction_details (id, transaction_id, product_id, qty, subtotal)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO transaction_details (
+            id, transaction_id, product_id, product_name, 
+            variant_name, unit, harga_jual, modal_hpp, qty, subtotal
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             detailId,
             transactionId,
             item.product.id,
+            item.product.name,
+            item.variant ? item.variant.name : null,
+            item.unit || "pcs",
+            item.unitPrice,
+            item.modalHpp,
             item.qty,
             item.subtotal,
           ]
         );
 
-        // Decrement stock
+        // Decrement product stock
         await db.runAsync(
           `UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?`,
           [item.qty, item.product.id]
@@ -89,8 +129,11 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
           id: detailId,
           transaction_id: transactionId,
           product_id: item.product.id,
-          product_name: item.product.name,
-          harga_jual: item.product.harga_jual,
+          product_name: displayName,
+          variant_name: item.variant?.name || null,
+          unit: item.unit || "pcs",
+          harga_jual: item.unitPrice,
+          modal_hpp: item.modalHpp,
           qty: item.qty,
           subtotal: item.subtotal,
         });
@@ -121,9 +164,8 @@ export async function getTransactionDetailsWithProducts(
 ): Promise<(TransactionDetail & { product_name: string; harga_jual: number })[]> {
   return await runInDbQueue(async (db) => {
     return await db.getAllAsync<TransactionDetail & { product_name: string; harga_jual: number }>(
-      `SELECT td.*, p.name as product_name, p.harga_jual 
+      `SELECT td.*, td.product_name, td.harga_jual 
        FROM transaction_details td
-       JOIN products p ON td.product_id = p.id
        WHERE td.transaction_id = ?`,
       [transactionId]
     );
