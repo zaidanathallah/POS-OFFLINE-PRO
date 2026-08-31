@@ -57,14 +57,13 @@ export default function DashboardScreen() {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      const [financialData, topData, peakData] = await Promise.all([
-        getFinancialSummary(filterPeriod),
-        getTopProducts(filterPeriod, 5),
-        getPeakHoursAnalysis(filterPeriod),
-      ]);
-
+      const financialData = await getFinancialSummary(filterPeriod);
       setStats(financialData);
+
+      const topData = await getTopProducts(filterPeriod, 5);
       setTopProducts(topData);
+
+      const peakData = await getPeakHoursAnalysis(filterPeriod);
       setPeakHours(peakData);
     } catch (err) {
       console.error("Gagal load data dashboard:", err);

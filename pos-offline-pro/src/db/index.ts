@@ -8,6 +8,22 @@ import { Platform } from "react-native";
 export const DB_NAME = "pos_offline_pro.db";
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbInitPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let queuePromise: Promise<any> = Promise.resolve();
+
+/**
+ * Sequential execution queue to prevent OPFS (Origin Private File System)
+ * access handle collisions on Web while maintaining high performance.
+ */
+export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
+  const db = await getDatabase();
+  const next = queuePromise.then(
+    () => task(db),
+    () => task(db)
+  );
+  queuePromise = next.catch(() => {});
+  return next;
+}
 
 export interface Product {
   id: string;
@@ -43,10 +59,17 @@ export interface Setting {
 }
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbInstance) {
-    dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+  if (dbInstance) {
+    return dbInstance;
   }
-  return dbInstance;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      dbInstance = db;
+      return db;
+    })();
+  }
+  return dbInitPromise;
 }
 
 export async function closeDatabase(): Promise<void> {
@@ -57,6 +80,7 @@ export async function closeDatabase(): Promise<void> {
       console.log("DB close notice:", e);
     }
     dbInstance = null;
+    dbInitPromise = null;
   }
 }
 
@@ -68,7 +92,7 @@ export async function reloadDatabase(): Promise<void> {
 export async function initDatabase(): Promise<void> {
   const db = await getDatabase();
 
-  // Enable WAL mode only on native mobile (Android/iOS) because Web WASM VFS does not support WAL locks
+  // Enable WAL mode only on native mobile (Android/iOS)
   if (Platform.OS !== "web") {
     try {
       await db.execAsync("PRAGMA journal_mode = WAL;");
