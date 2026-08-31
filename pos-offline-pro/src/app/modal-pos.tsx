@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { useCartStore, CartItem } from "@/stores/useCartStore";
 import { Product, ProductVariant } from "@/db";
 import { getAllProducts, getProductByBarcode, createProduct } from "@/db/productRepository";
+import { getAllCategories } from "@/db/categoryRepository";
 import { processCheckout } from "@/db/transactionRepository";
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
@@ -95,6 +96,15 @@ export default function PosModalScreen() {
       const data = await getAllProducts("", selectedCategory);
       setProducts(data);
 
+      try {
+        const catList = await getAllCategories();
+        if (catList.length > 0) {
+          setCategories(["Semua", ...catList.map((c) => c.name)]);
+        }
+      } catch (e) {
+        console.error("Gagal load categories in POS:", e);
+      }
+
       const ppnSetting = await getSetting("feature_ppn", "1");
       const ppnVal = Number(await getSetting("ppn_rate", "11")) || 11;
       const qrisImg = await getSetting("store_qris", "");
@@ -128,7 +138,13 @@ export default function PosModalScreen() {
     if (product.has_variants === 1) {
       setSelectedProductForModal(product);
       setVariantModalVisible(true);
-    } else if (product.is_decimal === 1) {
+    } else if (
+      product.is_decimal === 1 ||
+      product.category === "Buah" ||
+      product.unit === "kg" ||
+      product.unit === "gram" ||
+      product.unit === "liter"
+    ) {
       setSelectedProductForModal(product);
       setDecimalModalVisible(true);
     } else {

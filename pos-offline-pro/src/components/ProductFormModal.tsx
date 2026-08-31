@@ -10,9 +10,12 @@ import {
   Alert,
   Switch,
   TextInput,
+  Image,
 } from "react-native";
-import { Product, ProductVariant } from "@/db";
+import * as ImagePicker from "expo-image-picker";
+import { Product, ProductVariant, Category } from "@/db";
 import { ProductInput } from "@/db/productRepository";
+import { getAllCategories } from "@/db/categoryRepository";
 import { formatRupiah } from "@/util/formatters";
 import {
   X,
@@ -22,6 +25,9 @@ import {
   Trash2,
   Scale,
   Layers,
+  Camera,
+  ImageIcon,
+  Upload,
 } from "lucide-react-native";
 
 interface ProductFormModalProps {
@@ -31,8 +37,7 @@ interface ProductFormModalProps {
   onSave: (data: ProductInput, id?: string) => Promise<void>;
 }
 
-const CATEGORIES = ["Buah", "Makanan", "Minuman", "Retail", "Jasa", "Lainnya"];
-const UNITS = ["pcs", "kg", "porsi", "cup", "liter", "box"];
+const UNITS = ["pcs", "kg", "porsi", "cup", "liter", "box", "gram"];
 
 export function ProductFormModal({
   visible,
@@ -40,9 +45,17 @@ export function ProductFormModal({
   onClose,
   onSave,
 }: ProductFormModalProps) {
+  const [categories, setCategories] = useState<string[]>([
+    "Buah",
+    "Makanan",
+    "Minuman",
+    "Retail",
+    "Jasa",
+    "Lainnya",
+  ]);
+
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Makanan");
-  const [customCategory, setCustomCategory] = useState("");
   const [unit, setUnit] = useState("pcs");
   const [isDecimal, setIsDecimal] = useState(false);
   const [hargaJual, setHargaJual] = useState("");
@@ -58,18 +71,28 @@ export function ProductFormModal({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Load dynamic categories
+  useEffect(() => {
+    if (visible) {
+      (async () => {
+        try {
+          const catList = await getAllCategories();
+          if (catList.length > 0) {
+            setCategories(catList.map((c) => c.name));
+          }
+        } catch (e) {
+          console.error("Gagal load categories in modal:", e);
+        }
+      })();
+    }
+  }, [visible]);
+
   useEffect(() => {
     if (productToEdit) {
       setName(productToEdit.name);
-      if (CATEGORIES.includes(productToEdit.category)) {
-        setCategory(productToEdit.category);
-        setCustomCategory("");
-      } else {
-        setCategory("Lainnya");
-        setCustomCategory(productToEdit.category);
-      }
+      setCategory(productToEdit.category || "Makanan");
       setUnit(productToEdit.unit || "pcs");
-      setIsDecimal(productToEdit.is_decimal === 1);
+      setIsDecimal(productToEdit.is_decimal === 1 || productToEdit.category === "Buah");
       setHargaJual(productToEdit.harga_jual.toString());
       setModalHpp(productToEdit.modal_hpp.toString());
       setStock(productToEdit.stock.toString());
@@ -95,7 +118,6 @@ export function ProductFormModal({
   const resetForm = () => {
     setName("");
     setCategory("Makanan");
-    setCustomCategory("");
     setUnit("pcs");
     setIsDecimal(false);
     setHargaJual("");
@@ -105,6 +127,108 @@ export function ProductFormModal({
     setImageUri("");
     setHasVariants(false);
     setVariants([]);
+  };
+
+  // Auto-activate decimal / scale mode when category is Buah
+  const handleSelectCategory = (catName: string) => {
+    setCategory(catName);
+    if (catName === "Buah") {
+      setIsDecimal(true);
+      if (unit === "pcs" || unit === "porsi") {
+        setUnit("kg");
+      }
+    }
+  };
+
+  const handleSelectUnit = (u: string) => {
+    setUnit(u);
+    if (u === "kg" || u === "liter" || u === "gram") {
+      setIsDecimal(true);
+    }
+  };
+
+  // Image Picker (Gallery / File)
+  const handlePickImage = async () => {
+    try {
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (reader.result) {
+                setImageUri(reader.result.toString());
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Izin Ditolak", "Izin akses galeri foto diperlukan untuk mengunggah gambar produk.");
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+          base64: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          if (asset.base64) {
+            setImageUri(`data:image/jpeg;base64,${asset.base64}`);
+          } else {
+            setImageUri(asset.uri);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Gagal memilih gambar:", err);
+      Alert.alert("Gagal Memilih Gambar", err.message || "Terjadi kesalahan.");
+    }
+  };
+
+  // Image Picker (Camera)
+  const handleTakePhoto = async () => {
+    try {
+      if (Platform.OS === "web") {
+        handlePickImage();
+      } else {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Izin Ditolak", "Izin kamera diperlukan untuk mengambil foto produk.");
+          return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7,
+          base64: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          if (asset.base64) {
+            setImageUri(`data:image/jpeg;base64,${asset.base64}`);
+          } else {
+            setImageUri(asset.uri);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Gagal mengambil foto:", err);
+      Alert.alert("Gagal Kamera", err.message || "Terjadi kesalahan.");
+    }
   };
 
   // Real-time calculations
@@ -140,7 +264,7 @@ export function ProductFormModal({
     );
   };
 
-  const validate = (): boolean => {
+  const validate = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!name.trim()) {
@@ -164,17 +288,12 @@ export function ProductFormModal({
 
     setIsSubmitting(true);
     try {
-      const finalCategory =
-        category === "Lainnya" && customCategory.trim()
-          ? customCategory.trim()
-          : category;
-
       await onSave(
         {
           name: name.trim(),
-          category: finalCategory,
+          category: category,
           unit: unit,
-          is_decimal: isDecimal ? 1 : 0,
+          is_decimal: isDecimal || category === "Buah" ? 1 : 0,
           harga_jual: numHargaJual,
           modal_hpp: numModalHpp,
           stock: parseFloat(stock) || 0,
@@ -251,81 +370,207 @@ export function ProductFormModal({
             </TouchableOpacity>
           </View>
 
-          {/* Form Content */}
+          {/* Form Scroll Area */}
           <ScrollView
-            style={{ paddingHorizontal: 20, paddingVertical: 16 }}
-            showsVerticalScrollIndicator={false}
+            style={{ paddingHorizontal: 20, paddingTop: 16 }}
             contentContainerStyle={{ paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}
           >
+            {/* Foto Produk Section (Upload/Camera) */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
+                Foto Produk
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {/* Preview Box */}
+                <View
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 16,
+                    backgroundColor: "#f4f4f5",
+                    borderWidth: 1,
+                    borderColor: "#e4e4e7",
+                    overflow: "hidden",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                  }}
+                >
+                  {imageUri ? (
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={{ width: "100%", height: "100%" }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Package size={28} color="#a1a1aa" />
+                  )}
+                </View>
+
+                {/* Upload Buttons */}
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={handlePickImage}
+                      activeOpacity={0.8}
+                      style={{
+                        flex: 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingVertical: 8,
+                        paddingHorizontal: 10,
+                        backgroundColor: "#ecfeff",
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: "#a5f3fc",
+                      }}
+                    >
+                      <ImageIcon size={14} color="#0097A7" />
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+                        Galeri / File
+                      </Text>
+                    </TouchableOpacity>
+
+                    {Platform.OS !== "web" && (
+                      <TouchableOpacity
+                        onPress={handleTakePhoto}
+                        activeOpacity={0.8}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          paddingVertical: 8,
+                          paddingHorizontal: 10,
+                          backgroundColor: "#f4f4f5",
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: "#e4e4e7",
+                        }}
+                      >
+                        <Camera size={14} color="#52525b" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#52525b", marginLeft: 4 }}>
+                          Kamera
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {imageUri ? (
+                    <TouchableOpacity
+                      onPress={() => setImageUri("")}
+                      style={{ alignSelf: "flex-start", paddingVertical: 2 }}
+                    >
+                      <Text style={{ fontSize: 11, color: "#ef4444", fontWeight: "600" }}>
+                        Hapus Foto
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ fontSize: 10, color: "#71717a" }}>
+                      Format: JPG, PNG, WebP (Tersimpan di SQLite)
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+
             {/* Nama Produk */}
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>Nama Produk *</Text>
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
+                Nama Produk *
+              </Text>
               <TextInput
-                placeholder="Contoh: Nasi Kuning, Anggur, Apel..."
                 value={name}
                 onChangeText={setName}
+                placeholder="Contoh: Nasi Kuning, Anggur, Apel..."
+                placeholderTextColor="#a1a1aa"
                 style={{
-                  padding: 12,
-                  borderRadius: 14,
-                  backgroundColor: "#f4f4f5",
+                  backgroundColor: "#f9fafb",
                   borderWidth: 1,
-                  borderColor: errors.name ? "#ef4444" : "#e4e4e7",
-                  fontSize: 13,
+                  borderColor: errors.name ? "#ef4444" : "#e5e7eb",
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 14,
                   color: "#18181b",
                 }}
               />
-              {errors.name && <Text style={{ fontSize: 10, color: "#ef4444", marginTop: 2 }}>{errors.name}</Text>}
+              {errors.name && (
+                <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                  {errors.name}
+                </Text>
+              )}
             </View>
 
-            {/* Category selector */}
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 6 }}>
+            {/* Kategori Pills */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
                 Kategori
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
-                {CATEGORIES.map((cat, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => setCategory(cat)}
-                    style={{
-                      marginRight: 8,
-                      paddingHorizontal: 14,
-                      paddingVertical: 6,
-                      borderRadius: 12,
-                      backgroundColor: category === cat ? "#0097A7" : "#f4f4f5",
-                      borderWidth: 1,
-                      borderColor: category === cat ? "#0097A7" : "#e4e4e7",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: category === cat ? "#ffffff" : "#52525b",
-                      }}
-                    >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {categories.map((c) => {
+                    const isSelected = category === c;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        onPress={() => handleSelectCategory(c)}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          backgroundColor: isSelected ? "#0097A7" : "#f4f4f5",
+                          borderWidth: 1,
+                          borderColor: isSelected ? "#0097A7" : "#e5e7eb",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: isSelected ? "700" : "500",
+                            color: isSelected ? "#ffffff" : "#52525b",
+                          }}
+                        >
+                          {c}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </ScrollView>
             </View>
 
-            {/* Unit & Decimal Mode Row */}
+            {/* Mode Timbangan & Satuan */}
             <View
               style={{
-                marginBottom: 12,
-                padding: 14,
-                backgroundColor: "#f9fafb",
-                borderRadius: 18,
+                backgroundColor: isDecimal ? "#f0fdfa" : "#f9fafb",
                 borderWidth: 1,
-                borderColor: "#e5e7eb",
+                borderColor: isDecimal ? "#99f6e4" : "#e5e7eb",
+                borderRadius: 18,
+                padding: 14,
+                marginBottom: 16,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Scale size={16} color="#0097A7" />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginLeft: 6 }}>
+                  <Scale size={16} color={isDecimal ? "#0097A7" : "#71717a"} />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: isDecimal ? "#0f766e" : "#18181b",
+                      marginLeft: 6,
+                    }}
+                  >
                     Mode Timbangan (Desimal / kg)
                   </Text>
                 </View>
@@ -333,32 +578,34 @@ export function ProductFormModal({
                   value={isDecimal}
                   onValueChange={(val) => {
                     setIsDecimal(val);
-                    if (val) setUnit("kg");
+                    if (val && unit === "pcs") setUnit("kg");
                   }}
                   trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+                  thumbColor="#ffffff"
                 />
               </View>
 
-              <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 6 }}>Satuan Unit Penjualan</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
-                {UNITS.map((u, idx) => (
+              <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 6 }}>
+                Satuan Unit Penjualan
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {UNITS.map((u) => (
                   <TouchableOpacity
-                    key={idx}
-                    onPress={() => setUnit(u)}
+                    key={u}
+                    onPress={() => handleSelectUnit(u)}
                     style={{
-                      marginRight: 8,
                       paddingHorizontal: 12,
-                      paddingVertical: 4,
-                      borderRadius: 8,
+                      paddingVertical: 6,
+                      borderRadius: 10,
                       backgroundColor: unit === u ? "#0097A7" : "#ffffff",
                       borderWidth: 1,
-                      borderColor: unit === u ? "#0097A7" : "#e4e4e7",
+                      borderColor: unit === u ? "#0097A7" : "#e5e7eb",
                     }}
                   >
                     <Text
                       style={{
                         fontSize: 11,
-                        fontWeight: "600",
+                        fontWeight: "700",
                         color: unit === u ? "#ffffff" : "#52525b",
                       }}
                     >
@@ -366,140 +613,165 @@ export function ProductFormModal({
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
-            </View>
-
-            {/* Pricing Section */}
-            <View style={{ flexDirection: "row", marginBottom: 12 }}>
-              <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
-                  Harga Jual (Rp / {unit}) *
-                </Text>
-                <TextInput
-                  placeholder="50000"
-                  keyboardType="numeric"
-                  value={hargaJual}
-                  onChangeText={setHargaJual}
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    backgroundColor: "#f4f4f5",
-                    borderWidth: 1,
-                    borderColor: errors.hargaJual ? "#ef4444" : "#e4e4e7",
-                    fontSize: 13,
-                    color: "#18181b",
-                  }}
-                />
-              </View>
-
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
-                  Modal HPP (Rp)
-                </Text>
-                <TextInput
-                  placeholder="35000"
-                  keyboardType="numeric"
-                  value={modalHpp}
-                  onChangeText={setModalHpp}
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    backgroundColor: "#f4f4f5",
-                    borderWidth: 1,
-                    borderColor: "#e4e4e7",
-                    fontSize: 13,
-                    color: "#18181b",
-                  }}
-                />
               </View>
             </View>
 
-            {/* Live Profit Preview */}
-            <View
-              style={{
-                marginBottom: 12,
-                padding: 12,
-                backgroundColor: "#ecfeff",
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "#a5f3fc",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            {/* Pricing Section (Harga Jual & Modal HPP) */}
+            {!hasVariants && (
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
+                    Harga Jual (Rp / {unit}) *
+                  </Text>
+                  <TextInput
+                    value={hargaJual}
+                    onChangeText={setHargaJual}
+                    keyboardType="numeric"
+                    placeholder="Contoh: 50000"
+                    placeholderTextColor="#a1a1aa"
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      borderWidth: 1,
+                      borderColor: errors.hargaJual ? "#ef4444" : "#e5e7eb",
+                      borderRadius: 14,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      fontSize: 14,
+                      color: "#18181b",
+                    }}
+                  />
+                  {errors.hargaJual && (
+                    <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                      {errors.hargaJual}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
+                    Modal HPP (Rp)
+                  </Text>
+                  <TextInput
+                    value={modalHpp}
+                    onChangeText={setModalHpp}
+                    keyboardType="numeric"
+                    placeholder="Contoh: 35000"
+                    placeholderTextColor="#a1a1aa"
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      borderRadius: 14,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      fontSize: 14,
+                      color: "#18181b",
+                    }}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Real-time Profit Margin Indicator */}
+            {!hasVariants && numHargaJual > 0 && (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#f0fdf4",
+                  borderWidth: 1,
+                  borderColor: "#bbf7d0",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 16,
+                }}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <TrendingUp size={15} color="#0097A7" />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
-                    Live Profit Margin
+                  <TrendingUp size={16} color="#16a34a" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803d", marginLeft: 6 }}>
+                    Laba Bersih per {unit}:
                   </Text>
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
-                  Margin: {marginPercent}%
-                </Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#16a34a" }}>
+                    +{formatRupiah(labaKotor)} ({marginPercent}%)
+                  </Text>
+                </View>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={{ fontSize: 11, color: "#52525b" }}>Laba Bersih per {unit}:</Text>
-                <Text style={{ fontSize: 14, fontWeight: "800", color: "#16a34a" }}>
-                  +{formatRupiah(labaKotor)}
-                </Text>
-              </View>
-            </View>
+            )}
 
-            {/* Stock & Barcode */}
-            <View style={{ flexDirection: "row", marginBottom: 12 }}>
-              <View style={{ width: "35%", marginRight: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+            {/* Stock & Barcode Section */}
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
                   Stok ({unit}) *
                 </Text>
                 <TextInput
-                  placeholder="50"
-                  keyboardType="numeric"
                   value={stock}
                   onChangeText={setStock}
+                  keyboardType="numeric"
+                  placeholder="50"
+                  placeholderTextColor="#a1a1aa"
                   style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    backgroundColor: "#f4f4f5",
+                    backgroundColor: "#f9fafb",
                     borderWidth: 1,
-                    borderColor: errors.stock ? "#ef4444" : "#e4e4e7",
-                    fontSize: 13,
+                    borderColor: errors.stock ? "#ef4444" : "#e5e7eb",
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 14,
                     color: "#18181b",
                   }}
                 />
+                {errors.stock && (
+                  <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                    {errors.stock}
+                  </Text>
+                )}
               </View>
 
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginBottom: 4 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
                   Barcode / SKU
                 </Text>
                 <TextInput
-                  placeholder="899..."
                   value={barcode}
                   onChangeText={setBarcode}
+                  placeholder="899..."
+                  placeholderTextColor="#a1a1aa"
                   style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    backgroundColor: "#f4f4f5",
+                    backgroundColor: "#f9fafb",
                     borderWidth: 1,
-                    borderColor: "#e4e4e7",
-                    fontSize: 13,
+                    borderColor: "#e5e7eb",
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 14,
                     color: "#18181b",
                   }}
                 />
               </View>
             </View>
 
-            {/* Variants Toggle & Section */}
+            {/* Variants Toggle */}
             <View
               style={{
-                marginBottom: 16,
-                padding: 14,
                 backgroundColor: "#f9fafb",
-                borderRadius: 18,
+                borderRadius: 16,
+                padding: 14,
                 borderWidth: 1,
                 borderColor: "#e5e7eb",
+                marginBottom: 16,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Layers size={16} color="#0097A7" />
                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginLeft: 6 }}>
@@ -508,65 +780,127 @@ export function ProductFormModal({
                 </View>
                 <Switch
                   value={hasVariants}
-                  onValueChange={setHasVariants}
+                  onValueChange={(val) => {
+                    setHasVariants(val);
+                    if (val && variants.length === 0) {
+                      handleAddVariant();
+                    }
+                  }}
                   trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+                  thumbColor="#ffffff"
                 />
               </View>
 
               {hasVariants && (
-                <View style={{ marginTop: 8 }}>
-                  {variants.map((v) => (
+                <View style={{ marginTop: 12 }}>
+                  {variants.map((v, index) => (
                     <View
                       key={v.id}
                       style={{
-                        padding: 10,
-                        marginBottom: 8,
                         backgroundColor: "#ffffff",
                         borderRadius: 14,
+                        padding: 12,
+                        marginBottom: 8,
                         borderWidth: 1,
                         borderColor: "#e5e7eb",
                       }}
                     >
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                        <TextInput
-                          value={v.name}
-                          onChangeText={(t) => handleUpdateVariant(v.id, "name", t)}
-                          placeholder="Nama Varian (mis. Ayam, Rendang)"
-                          style={{
-                            flex: 1,
-                            fontWeight: "700",
-                            fontSize: 12,
-                            color: "#18181b",
-                            paddingBottom: 4,
-                            borderBottomWidth: 1,
-                            borderBottomColor: "#e5e7eb",
-                            marginRight: 8,
-                          }}
-                        />
-                        <TouchableOpacity onPress={() => handleRemoveVariant(v.id)}>
-                          <Trash2 size={15} color="#ef4444" />
-                        </TouchableOpacity>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#18181b" }}>
+                          Varian #{index + 1}
+                        </Text>
+                        {variants.length > 1 && (
+                          <TouchableOpacity
+                            onPress={() => handleRemoveVariant(v.id)}
+                            style={{ padding: 4 }}
+                          >
+                            <Trash2 size={14} color="#ef4444" />
+                          </TouchableOpacity>
+                        )}
                       </View>
 
-                      <View style={{ flexDirection: "row" }}>
-                        <View style={{ flex: 1, marginRight: 4 }}>
-                          <Text style={{ fontSize: 10, color: "#71717a" }}>Harga Jual</Text>
-                          <TextInput
-                            value={String(v.harga_jual)}
-                            onChangeText={(t) => handleUpdateVariant(v.id, "harga_jual", Number(t) || 0)}
-                            keyboardType="numeric"
-                            style={{ backgroundColor: "#f4f4f5", fontSize: 12, padding: 6, borderRadius: 8 }}
-                          />
-                        </View>
-                        <View style={{ width: 70, marginLeft: 4 }}>
-                          <Text style={{ fontSize: 10, color: "#71717a" }}>Stok</Text>
-                          <TextInput
-                            value={String(v.stock)}
-                            onChangeText={(t) => handleUpdateVariant(v.id, "stock", Number(t) || 0)}
-                            keyboardType="numeric"
-                            style={{ backgroundColor: "#f4f4f5", fontSize: 12, padding: 6, borderRadius: 8, textAlign: "center" }}
-                          />
-                        </View>
+                      <TextInput
+                        value={v.name}
+                        onChangeText={(val) => handleUpdateVariant(v.id, "name", val)}
+                        placeholder="Nama Varian (cth: Jumbo, Pedas, Small)"
+                        placeholderTextColor="#a1a1aa"
+                        style={{
+                          backgroundColor: "#f9fafb",
+                          borderWidth: 1,
+                          borderColor: "#e5e7eb",
+                          borderRadius: 10,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          fontSize: 12,
+                          marginBottom: 6,
+                        }}
+                      />
+
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        <TextInput
+                          value={v.harga_jual.toString()}
+                          onChangeText={(val) =>
+                            handleUpdateVariant(v.id, "harga_jual", parseFloat(val) || 0)
+                          }
+                          keyboardType="numeric"
+                          placeholder="Harga Jual"
+                          placeholderTextColor="#a1a1aa"
+                          style={{
+                            flex: 1,
+                            backgroundColor: "#f9fafb",
+                            borderWidth: 1,
+                            borderColor: "#e5e7eb",
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            fontSize: 12,
+                          }}
+                        />
+                        <TextInput
+                          value={v.modal_hpp.toString()}
+                          onChangeText={(val) =>
+                            handleUpdateVariant(v.id, "modal_hpp", parseFloat(val) || 0)
+                          }
+                          keyboardType="numeric"
+                          placeholder="HPP Modal"
+                          placeholderTextColor="#a1a1aa"
+                          style={{
+                            flex: 1,
+                            backgroundColor: "#f9fafb",
+                            borderWidth: 1,
+                            borderColor: "#e5e7eb",
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            fontSize: 12,
+                          }}
+                        />
+                        <TextInput
+                          value={v.stock.toString()}
+                          onChangeText={(val) =>
+                            handleUpdateVariant(v.id, "stock", parseFloat(val) || 0)
+                          }
+                          keyboardType="numeric"
+                          placeholder="Stok"
+                          placeholderTextColor="#a1a1aa"
+                          style={{
+                            flex: 0.8,
+                            backgroundColor: "#f9fafb",
+                            borderWidth: 1,
+                            borderColor: "#e5e7eb",
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            fontSize: 12,
+                          }}
+                        />
                       </View>
                     </View>
                   ))}
@@ -575,18 +909,17 @@ export function ProductFormModal({
                     onPress={handleAddVariant}
                     activeOpacity={0.8}
                     style={{
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: "#ecfeff",
-                      borderWidth: 1,
-                      borderColor: "#0097A7",
-                      borderStyle: "dashed",
+                      flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
-                      flexDirection: "row",
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      backgroundColor: "#ecfeff",
+                      borderWidth: 1,
+                      borderColor: "#a5f3fc",
                     }}
                   >
-                    <Plus size={15} color="#0097A7" />
+                    <Plus size={14} color="#0097A7" />
                     <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
                       Tambah Varian
                     </Text>

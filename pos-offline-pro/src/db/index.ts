@@ -71,6 +71,12 @@ export interface Setting {
   value: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) {
     return dbInstance;
@@ -153,6 +159,12 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -264,6 +276,15 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
         [key, value]
       );
     }
+  }
+
+  // Seed default categories if table is empty
+  const defaultCategories = ["Buah", "Makanan", "Minuman", "Retail", "Jasa", "Lainnya"];
+  for (const catName of defaultCategories) {
+    await db.runAsync(
+      "INSERT OR IGNORE INTO categories (id, name) VALUES (?, ?);",
+      [`CAT-${catName.toUpperCase()}`, catName]
+    );
   }
 
   // Seed sample products matching reference if empty

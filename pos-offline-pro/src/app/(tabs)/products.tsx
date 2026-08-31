@@ -9,8 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Image,
 } from "react-native";
 import { ProductFormModal } from "@/components/ProductFormModal";
+import { CategoryManagerModal } from "@/components/CategoryManagerModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { Product } from "@/db";
@@ -21,6 +23,7 @@ import {
   deleteProduct,
   ProductInput,
 } from "@/db/productRepository";
+import { getAllCategories } from "@/db/categoryRepository";
 import { formatRupiah } from "@/util/formatters";
 import {
   Search,
@@ -28,6 +31,10 @@ import {
   Edit2,
   Trash2,
   Inbox,
+  Package,
+  Layers,
+  Tag,
+  Settings,
 } from "lucide-react-native";
 
 export default function ProductsScreen() {
@@ -36,9 +43,19 @@ export default function ProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
+  const [categories, setCategories] = useState<string[]>([
+    "Semua",
+    "Buah",
+    "Makanan",
+    "Minuman",
+    "Retail",
+    "Jasa",
+    "Lainnya",
+  ]);
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
+  const [categoryManagerVisible, setCategoryManagerVisible] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
 
   // Secure Action Hook for PIN Protection
@@ -50,7 +67,16 @@ export default function ProductsScreen() {
     handlePinClose,
   } = useSecureAction();
 
-  const categories = ["Semua", "Buah", "Makanan", "Minuman", "Retail", "Jasa", "Lainnya"];
+  const loadCategories = useCallback(async () => {
+    try {
+      const list = await getAllCategories();
+      if (list.length > 0) {
+        setCategories(["Semua", ...list.map((c) => c.name)]);
+      }
+    } catch (e) {
+      console.error("Gagal memuat kategori:", e);
+    }
+  }, []);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -65,11 +91,13 @@ export default function ProductsScreen() {
   }, [searchQuery, selectedCategory]);
 
   useEffect(() => {
+    loadCategories();
     loadProducts();
-  }, [loadProducts]);
+  }, [loadCategories, loadProducts]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    loadCategories();
     loadProducts();
   };
 
@@ -128,28 +156,30 @@ export default function ProductsScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={handleOpenCreateModal}
-          activeOpacity={0.8}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: "#0097A7",
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 14,
-            shadowColor: "#0097A7",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        >
-          <Plus size={16} color="#ffffff" />
-          <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
-            + Tambah
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={handleOpenCreateModal}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#0097A7",
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 14,
+              shadowColor: "#0097A7",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Plus size={16} color="#ffffff" />
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+              + Tambah
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search & Category Filter Section */}
@@ -185,18 +215,18 @@ export default function ProductsScreen() {
           />
         </View>
 
-        {/* Category Pills */}
+        {/* Category Pills & Manage Button */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 10, flexDirection: "row" }}
+          style={{ marginTop: 10 }}
+          contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
           {categories.map((cat, idx) => (
             <TouchableOpacity
               key={idx}
               onPress={() => setSelectedCategory(cat)}
               style={{
-                marginRight: 8,
                 paddingHorizontal: 14,
                 paddingVertical: 6,
                 borderRadius: 20,
@@ -216,112 +246,152 @@ export default function ProductsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+
+          {/* Manage Category Button */}
+          <TouchableOpacity
+            onPress={() => setCategoryManagerVisible(true)}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 20,
+              backgroundColor: "#ecfeff",
+              borderWidth: 1,
+              borderColor: "#a5f3fc",
+            }}
+          >
+            <Tag size={12} color="#0097A7" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+              Kelola Kategori
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
       {/* Product List Content */}
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 60 }}
+        style={{ flex: 1, padding: 16 }}
+        contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading ? (
-          <View style={{ paddingVertical: 60, alignItems: "center", justifyContent: "center" }}>
+          <View style={{ paddingVertical: 60, alignItems: "center" }}>
             <ActivityIndicator size="large" color="#0097A7" />
-            <Text style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>Memuat produk...</Text>
           </View>
         ) : products.length === 0 ? (
-          <View style={{ paddingVertical: 60, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 }}>
-            <Inbox size={40} color="#9ca3af" />
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 10, marginBottom: 4 }}>
+          <View
+            style={{
+              paddingVertical: 60,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Inbox size={48} color="#a1a1aa" />
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b", marginTop: 12 }}>
               Belum Ada Produk
             </Text>
-            <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center", marginBottom: 16 }}>
-              {searchQuery
-                ? `Tidak ditemukan produk dengan kata kunci "${searchQuery}"`
-                : "Mulai tambahkan produk untuk mengelola katalog kasir offline Anda."}
+            <Text style={{ fontSize: 12, color: "#71717a", marginTop: 4, textAlign: "center" }}>
+              Mulai tambahkan produk untuk mengelola katalog kasir offline Anda.
             </Text>
             <TouchableOpacity
               onPress={handleOpenCreateModal}
+              activeOpacity={0.8}
               style={{
-                paddingHorizontal: 18,
-                paddingVertical: 10,
+                marginTop: 16,
                 backgroundColor: "#0097A7",
+                paddingHorizontal: 20,
+                paddingVertical: 10,
                 borderRadius: 14,
               }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>+ Tambah Produk Baru</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
+                + Tambah Produk Baru
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
           products.map((product) => {
-            const labaKotor = product.harga_jual - product.modal_hpp;
-            const margin =
+            const labaKotor = Math.max(0, product.harga_jual - product.modal_hpp);
+            const marginPercent =
               product.harga_jual > 0
                 ? ((labaKotor / product.harga_jual) * 100).toFixed(0)
-                : "0";
+                : 0;
 
             return (
               <View
                 key={product.id}
                 style={{
-                  marginBottom: 12,
-                  padding: 16,
-                  borderRadius: 22,
                   backgroundColor: "#ffffff",
+                  borderRadius: 20,
+                  padding: 16,
+                  marginBottom: 12,
                   borderWidth: 1,
                   borderColor: "#e5e7eb",
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.05,
-                  shadowRadius: 2,
+                  shadowRadius: 3,
                   elevation: 1,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#f4f4f5", marginRight: 6 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#52525b" }}>{product.category}</Text>
-                      </View>
-                      {product.has_variants === 1 && (
-                        <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#ecfeff", marginRight: 6 }}>
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>Varian</Text>
-                        </View>
-                      )}
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#f4f4f5" }}>
-                        <Text style={{ fontSize: 10, color: "#71717a" }}>
-                          {product.stock > 500 ? "Stok tanpa batas" : `Stok: ${product.stock} ${product.unit || "pcs"}`}
-                        </Text>
-                      </View>
+                {/* Header Row: Category Badge, Stock & Actions */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 8,
+                        backgroundColor: "#f4f4f5",
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: "#52525b" }}>
+                        {product.category}
+                      </Text>
                     </View>
 
-                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b" }}>
-                      {product.name}
-                    </Text>
-
-                    {product.barcode && (
-                      <Text style={{ fontSize: 11, color: "#71717a", fontFamily: "monospace", marginTop: 2 }}>
-                        SKU: {product.barcode}
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 8,
+                        backgroundColor: product.stock <= 5 ? "#fef2f2" : "#f4f4f5",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: "600",
+                          color: product.stock <= 5 ? "#ef4444" : "#52525b",
+                        }}
+                      >
+                        {product.stock > 500 ? "Stok tanpa batas" : `Stok: ${product.stock} ${product.unit}`}
                       </Text>
-                    )}
+                    </View>
                   </View>
 
-                  {/* Actions: Edit & Delete */}
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {/* Actions (Edit / Delete) */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <TouchableOpacity
                       onPress={() => handleOpenEditModal(product)}
                       style={{
                         width: 32,
                         height: 32,
                         borderRadius: 10,
+                        backgroundColor: "#ecfeff",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: "#f4f4f5",
-                        marginRight: 6,
                       }}
-                      activeOpacity={0.7}
                     >
                       <Edit2 size={14} color="#0097A7" />
                     </TouchableOpacity>
@@ -332,60 +402,103 @@ export default function ProductsScreen() {
                         width: 32,
                         height: 32,
                         borderRadius: 10,
+                        backgroundColor: "#fef2f2",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: "#fef2f2",
                       }}
-                      activeOpacity={0.7}
                     >
                       <Trash2 size={14} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                {/* Price, Cost, and Profit Matrix */}
+                {/* Product Main Info with Image Thumbnail */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 4 }}>
+                  {product.image_uri ? (
+                    <Image
+                      source={{ uri: product.image_uri }}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        marginRight: 12,
+                        backgroundColor: "#f4f4f5",
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
+                      {product.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
+                      SKU: {product.barcode || "-"}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Pricing & Profit Grid */}
                 <View
                   style={{
-                    marginTop: 12,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginTop: 10,
                     paddingTop: 10,
                     borderTopWidth: 1,
                     borderTopColor: "#f4f4f5",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
                   }}
                 >
                   <View>
-                    <Text style={{ fontSize: 11, color: "#71717a" }}>Harga Jual</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 2 }}>
+                    <Text style={{ fontSize: 10, color: "#71717a" }}>Harga Jual</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "800", color: "#18181b", marginTop: 2 }}>
                       {formatRupiah(product.harga_jual)}
-                      {product.unit === "kg" ? "/kg" : ""}
+                      {product.is_decimal ? ` / ${product.unit}` : ""}
                     </Text>
                   </View>
 
                   <View>
-                    <Text style={{ fontSize: 11, color: "#71717a" }}>Modal (HPP)</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#3f3f46", marginTop: 2 }}>
+                    <Text style={{ fontSize: 10, color: "#71717a" }}>Modal (HPP)</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: "#52525b", marginTop: 2 }}>
                       {formatRupiah(product.modal_hpp)}
                     </Text>
                   </View>
 
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600" }}>
-                      Laba (+{margin}%)
+                    <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: "600" }}>
+                      Laba (+{marginPercent}%)
                     </Text>
                     <Text style={{ fontSize: 13, fontWeight: "700", color: "#16a34a", marginTop: 2 }}>
                       +{formatRupiah(labaKotor)}
                     </Text>
                   </View>
                 </View>
+
+                {/* Has Variants Badge */}
+                {product.has_variants === 1 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTopWidth: 1,
+                      borderTopColor: "#f4f4f5",
+                    }}
+                  >
+                    <Layers size={12} color="#0097A7" />
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#0097A7", marginLeft: 4 }}>
+                      Memiliki Varian Produk
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })
         )}
       </ScrollView>
 
-      {/* Add / Edit Product Modal */}
+      {/* Product Create/Edit Modal */}
       <ProductFormModal
         visible={modalVisible}
         productToEdit={productToEdit}
@@ -393,12 +506,22 @@ export default function ProductsScreen() {
         onSave={handleSaveProduct}
       />
 
-      {/* Secure PIN Prompt Modal */}
+      {/* Category Manager Modal */}
+      <CategoryManagerModal
+        visible={categoryManagerVisible}
+        onClose={() => setCategoryManagerVisible(false)}
+        onCategoriesChanged={() => {
+          loadCategories();
+          loadProducts();
+        }}
+      />
+
+      {/* Supervisor PIN Protection Modal */}
       <PinPromptModal
         visible={pinModalVisible}
         actionTitle={actionTitle}
-        onClose={handlePinClose}
         onSuccess={handlePinSuccess}
+        onClose={handlePinClose}
       />
     </SafeAreaView>
   );
