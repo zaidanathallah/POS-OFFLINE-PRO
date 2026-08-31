@@ -8,6 +8,8 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { CartItem } from "@/stores/useCartStore";
 import { formatRupiah } from "@/util/formatters";
@@ -18,6 +20,8 @@ import {
   QrCode,
   CheckCircle2,
   Delete,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react-native";
 
 interface CheckoutLandscapeModalProps {
@@ -47,20 +51,23 @@ export function CheckoutLandscapeModal({
   onClose,
   onConfirmPayment,
 }: CheckoutLandscapeModalProps) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isLandscape = width >= 768;
+  const isSmallScreen = height < 750 || width < 420;
 
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("CASH");
   const [cashTenderedStr, setCashTenderedStr] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showOrderSummaryMobile, setShowOrderSummaryMobile] = useState(!isSmallScreen);
 
   useEffect(() => {
     if (visible) {
       setPaymentMethod("CASH");
       setCashTenderedStr(grandTotal.toString());
       setIsProcessing(false);
+      setShowOrderSummaryMobile(!isSmallScreen);
     }
-  }, [visible, grandTotal]);
+  }, [visible, grandTotal, isSmallScreen]);
 
   const cashTendered = parseInt(cashTenderedStr, 10) || 0;
   const changeAmount = Math.max(0, cashTendered - grandTotal);
@@ -98,35 +105,38 @@ export function CheckoutLandscapeModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "rgba(0, 0, 0, 0.65)",
-          padding: 16,
+          padding: isSmallScreen ? 8 : 16,
         }}
       >
         <View
           style={{
             width: "100%",
-            maxWidth: 720,
+            maxWidth: isLandscape ? 740 : 460,
             backgroundColor: "#ffffff",
-            borderRadius: 24,
+            borderRadius: isSmallScreen ? 20 : 24,
             overflow: "hidden",
-            maxHeight: "92%",
+            maxHeight: isLandscape ? "92%" : "96%",
+            display: "flex",
+            flexDirection: "column",
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 10,
-            elevation: 5,
+            elevation: 8,
           }}
         >
           {/* Header */}
           <View
             style={{
-              paddingHorizontal: 20,
-              paddingVertical: 14,
+              paddingHorizontal: isSmallScreen ? 14 : 20,
+              paddingVertical: isSmallScreen ? 10 : 14,
               backgroundColor: "#ffffff",
               borderBottomWidth: 1,
               borderBottomColor: "#e5e7eb",
@@ -136,260 +146,327 @@ export function CheckoutLandscapeModal({
             }}
           >
             <View>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
+              <Text style={{ fontSize: isSmallScreen ? 14 : 16, fontWeight: "700", color: "#18181b" }}>
                 Pembayaran Transaksi
               </Text>
-              <Text style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>
+              <Text style={{ fontSize: isSmallScreen ? 10 : 12, color: "#71717a", marginTop: 2 }}>
                 Pilih metode bayar & masukkan nominal tunai
               </Text>
             </View>
 
             <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color="#71717a" />
+              <X size={isSmallScreen ? 18 : 20} color="#71717a" />
             </TouchableOpacity>
           </View>
 
-          {/* Main Dual Grid View */}
-          <View style={{ flexDirection: isLandscape ? "row" : "column" }}>
-            {/* Left Column: Order Summary */}
-            <View
-              style={{
-                width: isLandscape ? 300 : "100%",
-                backgroundColor: "#f9fafb",
-                borderRightWidth: isLandscape ? 1 : 0,
-                borderRightColor: "#e5e7eb",
-                padding: 16,
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>
-                Ringkasan Pesanan ({items.length} Item)
-              </Text>
-
-              <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
-                {items.map((item) => {
-                  const unitPrice =
-                    item.variant?.harga_jual ??
-                    item.product?.harga_jual ??
-                    (item.qty > 0 ? item.subtotal / item.qty : 0);
-
-                  return (
-                    <View
-                      key={item.id}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        paddingVertical: 6,
-                        borderBottomWidth: 1,
-                        borderBottomColor: "#f4f4f5",
-                      }}
-                    >
-                      <View style={{ flex: 1, paddingRight: 6 }}>
-                        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>
-                          {item.product?.name || "Produk"}
-                          {item.variant ? ` (${item.variant.name})` : ""}
-                        </Text>
-                        <Text style={{ fontSize: 10, color: "#71717a" }}>
-                          {item.qty} {item.unit} x {formatRupiah(unitPrice)}
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
-                        {formatRupiah(item.subtotal)}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Totals */}
-              <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
-                {ppnPercent > 0 && (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                    <Text style={{ fontSize: 11, color: "#71717a" }}>PPN {ppnPercent}%</Text>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
-                  </View>
-                )}
-
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>Total Bayar</Text>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Right Column: Payment Input & Keypad */}
-            <View style={{ flex: 1, padding: 16 }}>
-              {/* Method Switcher */}
-              <View style={{ flexDirection: "row", marginBottom: 12 }}>
-                <TouchableOpacity
-                  onPress={() => setPaymentMethod("CASH")}
-                  activeOpacity={0.8}
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingVertical: 10,
-                    borderRadius: 14,
-                    backgroundColor: paymentMethod === "CASH" ? "#0097A7" : "#f4f4f5",
-                    marginRight: 6,
-                  }}
-                >
-                  <Banknote size={16} color={paymentMethod === "CASH" ? "#ffffff" : "#71717a"} />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: paymentMethod === "CASH" ? "#ffffff" : "#52525b", marginLeft: 6 }}>
-                    Tunai (CASH)
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setPaymentMethod("QRIS")}
-                  activeOpacity={0.8}
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingVertical: 10,
-                    borderRadius: 14,
-                    backgroundColor: paymentMethod === "QRIS" ? "#0097A7" : "#f4f4f5",
-                    marginLeft: 6,
-                  }}
-                >
-                  <QrCode size={16} color={paymentMethod === "QRIS" ? "#ffffff" : "#71717a"} />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: paymentMethod === "QRIS" ? "#ffffff" : "#52525b", marginLeft: 6 }}>
-                    QRIS Dinamis
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Mode Cash Keypad */}
-              {paymentMethod === "CASH" ? (
-                <View>
-                  {/* Display Nominal */}
-                  <View
-                    style={{
-                      padding: 10,
-                      borderRadius: 16,
-                      backgroundColor: "#f9fafb",
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, color: "#71717a" }}>Uang Diterima</Text>
-                    <Text style={{ fontSize: 20, fontWeight: "900", color: "#18181b", marginVertical: 2 }}>
-                      {formatRupiah(cashTendered)}
-                    </Text>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: cashTendered >= grandTotal ? "#16a34a" : "#ef4444" }}>
-                      {cashTendered >= grandTotal ? `Kembalian: ${formatRupiah(changeAmount)}` : `Kurang: ${formatRupiah(grandTotal - cashTendered)}`}
-                    </Text>
-                  </View>
-
-                  {/* Quick Nominals */}
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8, gap: 6 }}>
-                    {quickNominals.map((q, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        onPress={() => setCashTenderedStr(q.value.toString())}
-                        style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 10,
-                          backgroundColor: "#ecfeff",
-                          borderWidth: 1,
-                          borderColor: "#a5f3fc",
-                        }}
-                      >
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>
-                          {q.label === "Uang Pas" ? "Uang Pas" : formatRupiah(q.value)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Keypad Grid */}
-                  <View style={{ marginTop: 10, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-                    {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "DEL"].map((k) => (
-                      <TouchableOpacity
-                        key={k}
-                        onPress={() => handleKeypadPress(k)}
-                        style={{
-                          width: "31%",
-                          paddingVertical: 10,
-                          borderRadius: 12,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginBottom: 6,
-                        }}
-                      >
-                        {k === "DEL" ? (
-                          <Delete size={16} color="#ef4444" />
-                        ) : (
-                          <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b" }}>{k}</Text>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              ) : (
-                /* QRIS Mode View */
-                <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                  <View
-                    style={{
-                      padding: 12,
-                      borderRadius: 18,
-                      backgroundColor: "#ffffff",
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Image
-                      source={{
-                        uri: storeQrisImage || "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=STORE_QRIS_OFFLINE_PRO",
-                      }}
-                      style={{ width: 160, height: 160 }}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#71717a", marginTop: 8 }}>
-                    Scan QRIS untuk menyelesaikan pembayaran
-                  </Text>
-                </View>
-              )}
-
-              {/* Submit Payment Button with isProcessing spinner */}
-              <TouchableOpacity
-                onPress={handleConfirm}
-                disabled={!isPaymentValid || isProcessing}
-                activeOpacity={0.8}
+          {/* Scrollable Modal Content */}
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            showsVerticalScrollIndicator={true}
+          >
+            <View style={{ flexDirection: isLandscape ? "row" : "column" }}>
+              {/* Left Column: Order Summary */}
+              <View
                 style={{
-                  paddingVertical: 14,
-                  borderRadius: 16,
-                  backgroundColor: isPaymentValid && !isProcessing ? "#0097A7" : "#a1a1aa",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginTop: 10,
+                  width: isLandscape ? 300 : "100%",
+                  backgroundColor: "#f9fafb",
+                  borderRightWidth: isLandscape ? 1 : 0,
+                  borderRightColor: "#e5e7eb",
+                  borderBottomWidth: isLandscape ? 0 : 1,
+                  borderBottomColor: "#e5e7eb",
+                  padding: isSmallScreen ? 12 : 16,
                 }}
               >
-                {isProcessing ? (
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <ActivityIndicator size="small" color="#ffffff" />
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
-                      Memproses Transaksi...
+                {/* Mobile toggle for order summary */}
+                {!isLandscape ? (
+                  <TouchableOpacity
+                    onPress={() => setShowOrderSummaryMobile(!showOrderSummaryMobile)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 4,
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>
+                      Ringkasan Pesanan ({items.length} Item)
                     </Text>
-                  </View>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: "#0097A7", marginRight: 4 }}>
+                        {formatRupiah(grandTotal)}
+                      </Text>
+                      {showOrderSummaryMobile ? <ChevronUp size={16} color="#71717a" /> : <ChevronDown size={16} color="#71717a" />}
+                    </View>
+                  </TouchableOpacity>
                 ) : (
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
-                    Selesaikan Transaksi ({formatRupiah(grandTotal)})
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>
+                    Ringkasan Pesanan ({items.length} Item)
                   </Text>
                 )}
-              </TouchableOpacity>
+
+                {(isLandscape || showOrderSummaryMobile) && (
+                  <>
+                    <ScrollView style={{ maxHeight: isSmallScreen ? 110 : 160 }} showsVerticalScrollIndicator={false}>
+                      {items.map((item) => {
+                        const unitPrice =
+                          item.variant?.harga_jual ??
+                          item.product?.harga_jual ??
+                          (item.qty > 0 ? item.subtotal / item.qty : 0);
+
+                        return (
+                          <View
+                            key={item.id}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              paddingVertical: 5,
+                              borderBottomWidth: 1,
+                              borderBottomColor: "#f4f4f5",
+                            }}
+                          >
+                            <View style={{ flex: 1, paddingRight: 6 }}>
+                              <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>
+                                {item.product?.name || "Produk"}
+                                {item.variant ? ` (${item.variant.name})` : ""}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: "#71717a" }}>
+                                {item.qty} {item.unit} x {formatRupiah(unitPrice)}
+                              </Text>
+                            </View>
+                            <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
+                              {formatRupiah(item.subtotal)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+
+                    {/* Totals */}
+                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
+                      {ppnPercent > 0 && (
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                          <Text style={{ fontSize: 10, color: "#71717a" }}>PPN {ppnPercent}%</Text>
+                          <Text style={{ fontSize: 10, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
+                        </View>
+                      )}
+
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>Total Bayar</Text>
+                        <Text style={{ fontSize: 15, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {/* Right Column: Payment Input & Keypad */}
+              <View style={{ flex: 1, padding: isSmallScreen ? 12 : 16 }}>
+                {/* Method Switcher */}
+                <View style={{ flexDirection: "row", marginBottom: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => setPaymentMethod("CASH")}
+                    activeOpacity={0.8}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: isSmallScreen ? 8 : 10,
+                      borderRadius: 12,
+                      backgroundColor: paymentMethod === "CASH" ? "#0097A7" : "#f4f4f5",
+                      marginRight: 6,
+                    }}
+                  >
+                    <Banknote size={15} color={paymentMethod === "CASH" ? "#ffffff" : "#71717a"} />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: paymentMethod === "CASH" ? "#ffffff" : "#52525b",
+                        marginLeft: 6,
+                      }}
+                    >
+                      Tunai (CASH)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setPaymentMethod("QRIS")}
+                    activeOpacity={0.8}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: isSmallScreen ? 8 : 10,
+                      borderRadius: 12,
+                      backgroundColor: paymentMethod === "QRIS" ? "#0097A7" : "#f4f4f5",
+                      marginLeft: 6,
+                    }}
+                  >
+                    <QrCode size={15} color={paymentMethod === "QRIS" ? "#ffffff" : "#71717a"} />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: paymentMethod === "QRIS" ? "#ffffff" : "#52525b",
+                        marginLeft: 6,
+                      }}
+                    >
+                      QRIS Dinamis
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Mode Cash Keypad */}
+                {paymentMethod === "CASH" ? (
+                  <View>
+                    {/* Display Nominal */}
+                    <View
+                      style={{
+                        padding: isSmallScreen ? 8 : 10,
+                        borderRadius: 14,
+                        backgroundColor: "#f9fafb",
+                        borderWidth: 1,
+                        borderColor: "#e5e7eb",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 9, color: "#71717a" }}>Uang Diterima</Text>
+                      <Text style={{ fontSize: isSmallScreen ? 17 : 20, fontWeight: "900", color: "#18181b", marginVertical: 1 }}>
+                        {formatRupiah(cashTendered)}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: "700",
+                          color: cashTendered >= grandTotal ? "#16a34a" : "#ef4444",
+                        }}
+                      >
+                        {cashTendered >= grandTotal
+                          ? `Kembalian: ${formatRupiah(changeAmount)}`
+                          : `Kurang: ${formatRupiah(grandTotal - cashTendered)}`}
+                      </Text>
+                    </View>
+
+                    {/* Quick Nominals */}
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6, gap: 5 }}>
+                      {quickNominals.map((q, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setCashTenderedStr(q.value.toString())}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: 8,
+                            backgroundColor: "#ecfeff",
+                            borderWidth: 1,
+                            borderColor: "#a5f3fc",
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
+                            {q.label === "Uang Pas" ? "Uang Pas" : formatRupiah(q.value)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Keypad Grid */}
+                    <View
+                      style={{
+                        marginTop: 8,
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "DEL"].map((k) => (
+                        <TouchableOpacity
+                          key={k}
+                          onPress={() => handleKeypadPress(k)}
+                          style={{
+                            width: "31%",
+                            paddingVertical: isSmallScreen ? 8 : 10,
+                            borderRadius: 10,
+                            backgroundColor: "#f4f4f5",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 5,
+                          }}
+                        >
+                          {k === "DEL" ? (
+                            <Delete size={15} color="#ef4444" />
+                          ) : (
+                            <Text style={{ fontSize: isSmallScreen ? 14 : 15, fontWeight: "700", color: "#18181b" }}>{k}</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                ) : (
+                  /* QRIS Mode View */
+                  <View style={{ alignItems: "center", paddingVertical: 12 }}>
+                    <View
+                      style={{
+                        padding: 10,
+                        borderRadius: 16,
+                        backgroundColor: "#ffffff",
+                        borderWidth: 1,
+                        borderColor: "#e5e7eb",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Image
+                        source={{
+                          uri:
+                            storeQrisImage ||
+                            "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=STORE_QRIS_OFFLINE_PRO",
+                        }}
+                        style={{ width: isSmallScreen ? 130 : 160, height: isSmallScreen ? 130 : 160 }}
+                        resizeMode="contain"
+                      />
+                    </View>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#71717a", marginTop: 6 }}>
+                      Scan QRIS untuk menyelesaikan pembayaran
+                    </Text>
+                  </View>
+                )}
+
+                {/* Submit Payment Button */}
+                <TouchableOpacity
+                  onPress={handleConfirm}
+                  disabled={!isPaymentValid || isProcessing}
+                  activeOpacity={0.8}
+                  style={{
+                    paddingVertical: isSmallScreen ? 12 : 14,
+                    borderRadius: 14,
+                    backgroundColor: isPaymentValid && !isProcessing ? "#0097A7" : "#a1a1aa",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  {isProcessing ? (
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <ActivityIndicator size="small" color="#ffffff" />
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
+                        Memproses Transaksi...
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: isSmallScreen ? 12 : 13, fontWeight: "700", color: "#ffffff" }}>
+                      Selesaikan Transaksi ({formatRupiah(grandTotal)})
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
