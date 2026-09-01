@@ -31,6 +31,17 @@ export interface PeakHourItem {
   isPeak: boolean;
 }
 
+export interface DailyTrendItem {
+  dateStr: string; // "2026-09-01"
+  dayName: string; // "Sel", "Rab", "Kam"
+  displayLabel: string; // "Hr Ini" or "Sel"
+  omset: number;
+  labaKotor: number;
+  transactionCount: number;
+  percentage: number;
+  isToday: boolean;
+}
+
 function getPeriodCondition(
   period: ReportPeriod,
   customStartDate?: string,
@@ -128,6 +139,127 @@ export async function getFinancialSummary(
       avgPerTransaction,
       avgPerDay,
     };
+  });
+}
+
+/**
+ * Calculates dynamic stats for Yesterday (for day-over-day growth comparison)
+ */
+export async function getYesterdaySummary(): Promise<{ omset: number; labaKotor: number }> {
+  return await runInDbQueue(async (db) => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const yStr = yesterday.toISOString().split("T")[0];
+
+    const row = await db.getFirstAsync<{
+      total_omset: number | null;
+      total_laba: number | null;
+    }>(
+      `SELECT SUM(omset) as total_omset, SUM(laba_kotor) as total_laba 
+       FROM transactions 
+       WHERE is_open_bill = 0 AND created_at LIKE ?;`,
+      [`${yStr}%`]
+    );
+
+    return {
+      omset: row?.total_omset || 0,
+      labaKotor: row?.total_laba || 0,
+    };
+  });
+}
+
+/**
+ * Calculates dynamic stats for Current Calendar Month (from 1st of this month to today)
+ */
+export async function getCurrentMonthSummary(): Promise<FinancialSummary> {
+  return await runInDbQueue(async (db) => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const monthPrefix = `${year}-${month}`;
+
+    const row = await db.getFirstAsync<{
+      total_omset: number | null;
+      total_hpp: number | null;
+      total_laba: number | null;
+      total_transactions: number;
+    }>(
+      `SELECT 
+         SUM(omset) as total_omset,
+         SUM(total_hpp) as total_hpp,
+         SUM(laba_kotor) as total_laba,
+         COUNT(*) as total_transactions
+       FROM transactions 
+       WHERE is_open_bill = 0 AND created_at LIKE ?;`,
+      [`${monthPrefix}%`]
+    );
+
+    const omset = row?.total_omset || 0;
+    const modalHpp = row?.total_hpp || 0;
+    const labaKotor = row?.total_laba || 0;
+    const totalTransactions = row?.total_transactions || 0;
+    const marginPercent = omset > 0 ? Number(((labaKotor / omset) * 100).toFixed(1)) : 0;
+    const avgPerTransaction = totalTransactions > 0 ? Math.round(omset / totalTransactions) : 0;
+    const dayOfMonth = Math.max(1, now.getDate());
+    const avgPerDay = Math.round(omset / dayOfMonth);
+
+    return {
+      omset,
+      modalHpp,
+      labaKotor,
+      marginPercent,
+      totalTransactions,
+      avgPerTransaction,
+      avgPerDay,
+    };
+  });
+}
+
+/**
+ * Calculates dynamic 7-Day Trend array for Dashboard bar chart
+ */
+export async function getDailyTrend7Days(): Promise<DailyTrendItem[]> {
+  return await runInDbQueue(async (db) => {
+    const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    const results: DailyTrendItem[] = [];
+    const now = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayOfWeek = d.getDay();
+      const isToday = i === 0;
+
+      const row = await db.getFirstAsync<{
+        daily_omset: number | null;
+        daily_laba: number | null;
+        daily_count: number;
+      }>(
+        `SELECT 
+           SUM(omset) as daily_omset,
+           SUM(laba_kotor) as daily_laba,
+           COUNT(*) as daily_count
+         FROM transactions 
+         WHERE is_open_bill = 0 AND created_at LIKE ?;`,
+        [`${dateStr}%`]
+      );
+
+      results.push({
+        dateStr,
+        dayName: dayNames[dayOfWeek],
+        displayLabel: isToday ? "Hr Ini" : dayNames[dayOfWeek],
+        omset: row?.daily_omset || 0,
+        labaKotor: row?.daily_laba || 0,
+        transactionCount: row?.daily_count || 0,
+        percentage: 0,
+        isToday,
+      });
+    }
+
+    const maxOmset = Math.max(...results.map((r) => r.omset), 1);
+    return results.map((r) => ({
+      ...r,
+      percentage: r.omset > 0 ? Math.max(12, Math.round((r.omset / maxOmset) * 85)) : 10,
+    }));
   });
 }
 

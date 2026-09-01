@@ -35,6 +35,7 @@ import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
 import { Transaction } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
+import { compressAndConvertToBase64 } from "@/util/imageCompressor";
 import {
   BarChart2,
   Printer,
@@ -214,26 +215,27 @@ export default function SettingsScreen() {
     }
   }, [activeSubpage, loadReportData]);
 
-  // Image Picker for Logo or QRIS
+  // Image Picker for Logo or QRIS with Automatic Compression
   const handlePickStoreImage = async (type: "logo" | "qris") => {
     try {
       if (Platform.OS === "web") {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
-        input.onchange = (e: any) => {
+        input.onchange = async (e: any) => {
           const file = e.target?.files?.[0];
           if (file) {
             const reader = new FileReader();
             reader.onload = async () => {
               if (reader.result) {
-                const uri = reader.result.toString();
+                const rawUri = reader.result.toString();
+                const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
                 if (type === "logo") {
-                  setStoreLogo(uri);
-                  await setSetting("store_logo", uri);
+                  setStoreLogo(compressed);
+                  await setSetting("store_logo", compressed);
                 } else {
-                  setStoreQris(uri);
-                  await setSetting("store_qris", uri);
+                  setStoreQris(compressed);
+                  await setSetting("store_qris", compressed);
                 }
               }
             };
@@ -257,13 +259,14 @@ export default function SettingsScreen() {
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
-          const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          const rawUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
           if (type === "logo") {
-            setStoreLogo(uri);
-            await setSetting("store_logo", uri);
+            setStoreLogo(compressed);
+            await setSetting("store_logo", compressed);
           } else {
-            setStoreQris(uri);
-            await setSetting("store_qris", uri);
+            setStoreQris(compressed);
+            await setSetting("store_qris", compressed);
           }
         }
       }

@@ -6,15 +6,17 @@ import {
   TouchableOpacity,
   SafeAreaView,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   getFinancialSummary,
   getTopProducts,
-  getPeakHoursAnalysis,
+  getYesterdaySummary,
+  getCurrentMonthSummary,
+  getDailyTrend7Days,
   FinancialSummary,
+  DailyTrendItem,
 } from "@/db/reportRepository";
 import { getAllProducts } from "@/db/productRepository";
 import { getSetting } from "@/db/settingsRepository";
@@ -34,7 +36,7 @@ export default function DashboardScreen() {
   const [businessType, setBusinessType] = useState("Jenis toko");
   const [storeLogo, setStoreLogo] = useState("");
 
-  const [totalProductCount, setTotalProductCount] = useState(11);
+  const [totalProductCount, setTotalProductCount] = useState(0);
   const [todayStats, setTodayStats] = useState<FinancialSummary>({
     omset: 0,
     modalHpp: 0,
@@ -43,6 +45,11 @@ export default function DashboardScreen() {
     totalTransactions: 0,
     avgPerTransaction: 0,
     avgPerDay: 0,
+  });
+
+  const [yesterdayStats, setYesterdayStats] = useState<{ omset: number; labaKotor: number }>({
+    omset: 0,
+    labaKotor: 0,
   });
 
   const [sevenDaysStats, setSevenDaysStats] = useState<FinancialSummary>({
@@ -65,6 +72,7 @@ export default function DashboardScreen() {
     avgPerDay: 0,
   });
 
+  const [trend7Days, setTrend7Days] = useState<DailyTrendItem[]>([]);
   const [totalItemsSold, setTotalItemsSold] = useState(0);
 
   const loadData = useCallback(async () => {
@@ -82,11 +90,17 @@ export default function DashboardScreen() {
       const today = await getFinancialSummary("today");
       setTodayStats(today);
 
+      const yesterday = await getYesterdaySummary();
+      setYesterdayStats(yesterday);
+
       const sevenDays = await getFinancialSummary("7days");
       setSevenDaysStats(sevenDays);
 
-      const thirtyDays = await getFinancialSummary("30days");
-      setMonthStats(thirtyDays);
+      const currentMonth = await getCurrentMonthSummary();
+      setMonthStats(currentMonth);
+
+      const trend = await getDailyTrend7Days();
+      setTrend7Days(trend);
 
       const topProds = await getTopProducts("today", 100);
       const totalSold = topProds.reduce((acc, p) => acc + p.totalQty, 0);
@@ -99,8 +113,20 @@ export default function DashboardScreen() {
     }
   }, []);
 
+  // Real-time automatic reload whenever user focuses Dashboard tab
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  // Periodic heartbeat sync for real-time live numbers
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData();
+    }, 4000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   const onRefresh = () => {
@@ -108,7 +134,18 @@ export default function DashboardScreen() {
     loadData();
   };
 
-  const daysLabels = ["Sab", "Min", "Sen", "Sel", "Rab", "Kam", "Hr Ini"];
+  // Calculate dynamic growth vs yesterday
+  let growthPercentText = "+ 100.0%";
+  let isPositiveGrowth = true;
+  if (yesterdayStats.omset > 0) {
+    const diff = todayStats.omset - yesterdayStats.omset;
+    const pct = (diff / yesterdayStats.omset) * 100;
+    isPositiveGrowth = pct >= 0;
+    growthPercentText = `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+  } else if (todayStats.omset === 0) {
+    growthPercentText = "0.0%";
+    isPositiveGrowth = true;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
@@ -301,9 +338,22 @@ export default function DashboardScreen() {
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <Text style={{ fontSize: 12, color: "#71717a", fontWeight: "500" }}>Penjualan Hari Ini</Text>
-            <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#f0fdf4" }}>
-              <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
-                + 100.0%
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 6,
+                backgroundColor: isPositiveGrowth ? "#f0fdf4" : "#fef2f2",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: isPositiveGrowth ? "#16a34a" : "#ef4444",
+                }}
+              >
+                {growthPercentText}
               </Text>
             </View>
           </View>
@@ -322,7 +372,9 @@ export default function DashboardScreen() {
               borderBottomColor: "#f4f4f5",
             }}
           >
-            <Text style={{ fontSize: 11, color: "#71717a" }}>Kemarin: Rp 0</Text>
+            <Text style={{ fontSize: 11, color: "#71717a" }}>
+              Kemarin: {formatRupiah(yesterdayStats.omset)}
+            </Text>
             <Text style={{ fontSize: 11, color: "#71717a" }}>
               Rata-rata: {formatRupiah(todayStats.avgPerTransaction)}/trx
             </Text>
@@ -353,7 +405,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* "Tren 7 Hari" Chart Card matching screenshot 170105 & 170111 */}
+        {/* "Tren 7 Hari" Chart Card (Dynamic from SQLite) */}
         <View
           style={{
             padding: 16,
@@ -374,38 +426,40 @@ export default function DashboardScreen() {
           </Text>
 
           <View style={{ height: 110, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 4 }}>
-            {daysLabels.map((day, idx) => {
-              const isToday = idx === 6;
-              const barHeightPct = isToday
-                ? todayStats.omset > 0
-                  ? 75
-                  : 12
-                : Math.max(10, ((idx + 2) * 12) % 35);
+            {trend7Days.map((item, idx) => {
+              const formattedLabel =
+                item.omset >= 1000000
+                  ? `${(item.omset / 1000000).toFixed(1)} jt`
+                  : item.omset >= 1000
+                  ? `${Math.round(item.omset / 1000)} rb`
+                  : item.omset > 0
+                  ? `${item.omset}`
+                  : "";
 
               return (
                 <View key={idx} style={{ alignItems: "center", flex: 1 }}>
-                  {isToday && todayStats.omset > 0 && (
-                    <Text style={{ fontSize: 10, color: "#71717a", marginBottom: 4, fontFamily: "monospace" }}>
-                      {todayStats.omset >= 1000 ? `${Math.round(todayStats.omset / 1000)} rb` : todayStats.omset}
+                  {item.omset > 0 ? (
+                    <Text style={{ fontSize: 9, color: item.isToday ? "#0097A7" : "#71717a", marginBottom: 4, fontWeight: "700" }}>
+                      {formattedLabel}
                     </Text>
-                  )}
+                  ) : null}
                   <View
                     style={{
                       width: 28,
-                      height: `${barHeightPct}%`,
+                      height: `${item.percentage}%`,
                       borderRadius: 8,
-                      backgroundColor: isToday ? "#0097A7" : "#ccfbf1",
+                      backgroundColor: item.isToday ? "#0097A7" : item.omset > 0 ? "#5eead4" : "#f4f4f5",
                     }}
                   />
                   <Text
                     style={{
                       fontSize: 10,
                       marginTop: 8,
-                      fontWeight: isToday ? "700" : "500",
-                      color: isToday ? "#0097A7" : "#71717a",
+                      fontWeight: item.isToday ? "700" : "500",
+                      color: item.isToday ? "#0097A7" : "#71717a",
                     }}
                   >
-                    {day}
+                    {item.displayLabel}
                   </Text>
                 </View>
               );

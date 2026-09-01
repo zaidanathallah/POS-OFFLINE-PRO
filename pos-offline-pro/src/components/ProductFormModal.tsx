@@ -17,6 +17,7 @@ import { Product, ProductVariant, Category } from "@/db";
 import { ProductInput } from "@/db/productRepository";
 import { getAllCategories } from "@/db/categoryRepository";
 import { formatRupiah } from "@/util/formatters";
+import { compressAndConvertToBase64 } from "@/util/imageCompressor";
 import {
   X,
   Package,
@@ -147,20 +148,22 @@ export function ProductFormModal({
     }
   };
 
-  // Image Picker (Gallery / File)
+  // Image Picker (Gallery / File) with Automatic Compression
   const handlePickImage = async () => {
     try {
       if (Platform.OS === "web") {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
-        input.onchange = (e: any) => {
+        input.onchange = async (e: any) => {
           const file = e.target?.files?.[0];
           if (file) {
             const reader = new FileReader();
-            reader.onload = () => {
+            reader.onload = async () => {
               if (reader.result) {
-                setImageUri(reader.result.toString());
+                const rawUri = reader.result.toString();
+                const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
+                setImageUri(compressed);
               }
             };
             reader.readAsDataURL(file);
@@ -184,11 +187,9 @@ export function ProductFormModal({
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
-          if (asset.base64) {
-            setImageUri(`data:image/jpeg;base64,${asset.base64}`);
-          } else {
-            setImageUri(asset.uri);
-          }
+          const rawUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
+          setImageUri(compressed);
         }
       }
     } catch (err: any) {
@@ -197,7 +198,7 @@ export function ProductFormModal({
     }
   };
 
-  // Image Picker (Camera)
+  // Image Picker (Camera) with Automatic Compression
   const handleTakePhoto = async () => {
     try {
       if (Platform.OS === "web") {
@@ -218,11 +219,9 @@ export function ProductFormModal({
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
-          if (asset.base64) {
-            setImageUri(`data:image/jpeg;base64,${asset.base64}`);
-          } else {
-            setImageUri(asset.uri);
-          }
+          const rawUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
+          setImageUri(compressed);
         }
       }
     } catch (err: any) {
