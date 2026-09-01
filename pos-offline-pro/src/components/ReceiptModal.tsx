@@ -246,9 +246,27 @@ export function ReceiptModal({
                   </>
                 )}
 
+                {receiptData.tableNumber ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#71717a" }}>No. Meja:</Text>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", fontWeight: "700", color: "#18181b" }}>
+                      {receiptData.tableNumber}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {receiptData.customerName ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#71717a" }}>Pelanggan:</Text>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", fontWeight: "700", color: "#18181b" }}>
+                      {receiptData.customerName}
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={{ borderBottomWidth: 1, borderBottomColor: "#d4d4d8", marginVertical: 6, borderStyle: "dashed" }} />
                 <Text style={{ textAlign: "center", fontSize: 9, color: "#71717a" }}>
-                  Terima Kasih Atas Kunjungan Anda
+                  {receiptData.footerNote || "Terima Kasih Atas Kunjungan Anda!"}
                 </Text>
               </ScrollView>
             </View>

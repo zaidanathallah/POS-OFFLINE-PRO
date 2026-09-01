@@ -11,18 +11,23 @@ import {
   Image,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { getSetting, setSetting } from "@/db/settingsRepository";
 import {
   getFinancialSummary,
   getTopProducts,
   getPeakHoursAnalysis,
+  getTransactionsForReport,
   ReportPeriod,
   FinancialSummary,
   TopProductItem,
   PeakHourItem,
 } from "@/db/reportRepository";
 import { exportDatabaseBackup, importDatabaseBackup } from "@/util/databaseSync";
+import { exportReportToCSV } from "@/util/csvExportService";
+import { PrinterService, BluetoothDeviceItem } from "@/util/printerService";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { formatRupiah, formatNumber } from "@/util/formatters";
@@ -40,6 +45,15 @@ import {
   Download,
   Clock,
   Award,
+  Calendar,
+  FileSpreadsheet,
+  Bluetooth,
+  RefreshCw,
+  CheckCircle2,
+  Camera,
+  ImageIcon,
+  MessageSquare,
+  Percent,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -52,6 +66,7 @@ export default function SettingsScreen() {
   const [storePhone, setStorePhone] = useState("08111111111");
   const [storeLogo, setStoreLogo] = useState("");
   const [storeQris, setStoreQris] = useState("");
+  const [receiptFooter, setReceiptFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
 
   // PIN Settings
   const [isPinActive, setIsPinActive] = useState(false);
@@ -71,6 +86,14 @@ export default function SettingsScreen() {
 
   // Detailed Report State
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("7days");
+  const [customStartDate, setCustomStartDate] = useState(
+    new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0]
+  );
+  const [customEndDate, setCustomEndDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+
   const [reportStats, setReportStats] = useState<FinancialSummary>({
     omset: 0,
     modalHpp: 0,
@@ -82,6 +105,12 @@ export default function SettingsScreen() {
   });
   const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
   const [peakHours, setPeakHours] = useState<PeakHourItem[]>([]);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+
+  // Bluetooth Printer Scanner State
+  const [discoveredPrinters, setDiscoveredPrinters] = useState<BluetoothDeviceItem[]>([]);
+  const [connectedPrinter, setConnectedPrinter] = useState<BluetoothDeviceItem | null>(null);
+  const [isScanningBT, setIsScanningBT] = useState(false);
 
   // Backup state
   const [isExporting, setIsExporting] = useState(false);
@@ -103,6 +132,7 @@ export default function SettingsScreen() {
     const sPhone = await getSetting("store_phone", "08111111111");
     const sLogo = await getSetting("store_logo", "");
     const sQris = await getSetting("store_qris", "");
+    const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
 
     const pinActive = await getSetting("is_pin_active", "0");
 
@@ -121,6 +151,7 @@ export default function SettingsScreen() {
     setStorePhone(sPhone);
     setStoreLogo(sLogo);
     setStoreQris(sQris);
+    setReceiptFooter(sFooter);
 
     setIsPinActive(pinActive === "1");
 
@@ -132,22 +163,25 @@ export default function SettingsScreen() {
     setFeatureAutoPrint(fAutoPrint === "1");
     setFeaturePpn(fPpn === "1");
     setPpnRate(pRate);
+
+    const printer = await PrinterService.getConnectedPrinter();
+    setConnectedPrinter(printer);
   }, []);
 
   const loadReportData = useCallback(async () => {
     try {
-      const summary = await getFinancialSummary(reportPeriod);
+      const summary = await getFinancialSummary(reportPeriod, customStartDate, customEndDate);
       setReportStats(summary);
 
-      const prods = await getTopProducts(reportPeriod, 5);
+      const prods = await getTopProducts(reportPeriod, 5, customStartDate, customEndDate);
       setTopProducts(prods);
 
-      const peak = await getPeakHoursAnalysis(reportPeriod);
+      const peak = await getPeakHoursAnalysis(reportPeriod, customStartDate, customEndDate);
       setPeakHours(peak);
     } catch (e) {
       console.log("Load report error:", e);
     }
-  }, [reportPeriod]);
+  }, [reportPeriod, customStartDate, customEndDate]);
 
   useEffect(() => {
     loadAllSettings();
@@ -159,52 +193,165 @@ export default function SettingsScreen() {
     }
   }, [activeSubpage, loadReportData]);
 
-  const handleSaveStoreProfile = async () => {
-    await setSetting("store_name", storeName);
-    await setSetting("store_business_type", businessType);
-    await setSetting("store_address", storeAddress);
-    await setSetting("store_phone", storePhone);
-    Alert.alert("Sukses", "Profil toko berhasil disimpan.");
-  };
+  // Image Picker (Gallery / File) for Logo or QRIS
+  const handlePickStoreImage = async (type: "logo" | "qris") => {
+    try {
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              if (reader.result) {
+                const uri = reader.result.toString();
+                if (type === "logo") {
+                  setStoreLogo(uri);
+                  await setSetting("store_logo", uri);
+                } else {
+                  setStoreQris(uri);
+                  await setSetting("store_qris", uri);
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Izin Ditolak", "Akses galeri foto diperlukan untuk mengunggah gambar.");
+          return;
+        }
 
-  const handleToggleFeature = async (key: string, val: boolean, setter: (v: boolean) => void) => {
-    setter(val);
-    await setSetting(key, val ? "1" : "0");
-  };
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.7,
+          base64: true,
+        });
 
-  const handleTogglePin = async (val: boolean) => {
-    setIsPinActive(val);
-    await setSetting("is_pin_active", val ? "1" : "0");
-  };
-
-  const handleSaveNewPin = async () => {
-    if (newPin.length !== 4 || isNaN(Number(newPin))) {
-      Alert.alert("Format Salah", "PIN harus terdiri dari 4 digit angka.");
-      return;
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          if (type === "logo") {
+            setStoreLogo(uri);
+            await setSetting("store_logo", uri);
+          } else {
+            setStoreQris(uri);
+            await setSetting("store_qris", uri);
+          }
+        }
+      }
+    } catch (err: any) {
+      Alert.alert("Gagal Memilih Gambar", err.message || "Terjadi kesalahan.");
     }
-    if (newPin !== confirmPin) {
-      Alert.alert("Tidak Cocok", "Konfirmasi PIN tidak sesuai.");
-      return;
-    }
-    await setSetting("supervisor_pin", newPin);
-    setPinChangeVisible(false);
-    setNewPin("");
-    setConfirmPin("");
-    Alert.alert("Berhasil", "PIN Supervisor berhasil diperbarui.");
   };
 
+  // Secure toggle for features
+  const handleToggleFeatureWithPin = (key: string, val: boolean, setter: (v: boolean) => void) => {
+    executeSecureAction(async () => {
+      setter(val);
+      await setSetting(key, val ? "1" : "0");
+    }, "Masukkan PIN Supervisor untuk mengubah pengaturan fitur");
+  };
+
+  // Save Store Profile
+  const handleSaveStoreProfile = () => {
+    executeSecureAction(async () => {
+      await setSetting("store_name", storeName);
+      await setSetting("store_business_type", businessType);
+      await setSetting("store_address", storeAddress);
+      await setSetting("store_phone", storePhone);
+      await setSetting("store_receipt_footer", receiptFooter);
+      Alert.alert("Sukses", "Profil toko & ucapan struk berhasil disimpan.");
+    }, "Masukkan PIN Supervisor untuk menyimpan profil toko");
+  };
+
+  // Save PPN Rate
+  const handleSavePpnRate = async (rate: string) => {
+    setPpnRate(rate);
+    await setSetting("ppn_rate", rate);
+  };
+
+  // Bluetooth Search & Connect
+  const handleSearchPrinters = async () => {
+    setIsScanningBT(true);
+    try {
+      const list = await PrinterService.searchBluetoothPrinters();
+      setDiscoveredPrinters(list);
+    } finally {
+      setIsScanningBT(false);
+    }
+  };
+
+  const handleConnectPrinter = async (device: BluetoothDeviceItem) => {
+    await PrinterService.connectBluetoothPrinter(device);
+    setConnectedPrinter({ ...device, connected: true });
+    Alert.alert("Printer Terhubung", `Printer "${device.name}" berhasil disambungkan.`);
+  };
+
+  const handleDisconnectPrinter = async () => {
+    await PrinterService.disconnectBluetoothPrinter();
+    setConnectedPrinter(null);
+    Alert.alert("Printer Terputus", "Koneksi printer telah dinonaktifkan.");
+  };
+
+  const handleTestPrint = async () => {
+    const ok = await PrinterService.testPrint58mm();
+    if (ok) {
+      Alert.alert("Sukses", "Test print 58mm berhasil dikirim ke printer.");
+    } else {
+      Alert.alert("Gagal", "Printer tidak merespon. Pastikan Bluetooth aktif.");
+    }
+  };
+
+  // Export CSV
+  const handleExportCSV = async () => {
+    setIsExportingCSV(true);
+    try {
+      const transactions = await getTransactionsForReport(
+        reportPeriod,
+        customStartDate,
+        customEndDate
+      );
+      const periodLabel =
+        reportPeriod === "today"
+          ? "Hari_Ini"
+          : reportPeriod === "7days"
+          ? "7_Hari"
+          : reportPeriod === "30days"
+          ? "30_Hari"
+          : `${customStartDate}_sd_${customEndDate}`;
+
+      const res = await exportReportToCSV(reportStats, transactions, periodLabel);
+      if (res.success) {
+        Alert.alert("Export CSV Berhasil!", `File ${res.fileName} berhasil diekspor.`);
+      }
+    } catch (err: any) {
+      Alert.alert("Gagal Export CSV", err.message || "Terjadi kesalahan.");
+    } finally {
+      setIsExportingCSV(false);
+    }
+  };
+
+  // Export DB
   const handleExport = async () => {
     setIsExporting(true);
     try {
       const res = await exportDatabaseBackup();
       if (res.success) {
-        Alert.alert("Backup Berhasil!", `File cadangan ${res.fileName} berhasil diekstrak.`);
+        Alert.alert("Backup Berhasil!", `File cadangan ${res.fileName} berhasil diekspor.`);
       }
     } finally {
       setIsExporting(false);
     }
   };
 
+  // Import DB
   const handleImport = () => {
     executeSecureAction(() => {
       Alert.alert(
@@ -231,6 +378,25 @@ export default function SettingsScreen() {
         ]
       );
     }, "Masukkan PIN Supervisor untuk memulihkan database");
+  };
+
+  // Save PIN
+  const handleSaveNewPin = async () => {
+    if (newPin.length !== 4 || isNaN(Number(newPin))) {
+      Alert.alert("Format Salah", "PIN harus terdiri dari 4 digit angka.");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      Alert.alert("Tidak Cocok", "Konfirmasi PIN tidak sesuai.");
+      return;
+    }
+    await setSetting("supervisor_pin", newPin);
+    await setSetting("is_pin_active", "1");
+    setIsPinActive(true);
+    setPinChangeVisible(false);
+    setNewPin("");
+    setConfirmPin("");
+    Alert.alert("Berhasil", "PIN Supervisor 4-digit berhasil diaktifkan.");
   };
 
   const peakHourRecord = peakHours.find((p) => p.isPeak);
@@ -278,7 +444,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Main Pengaturan Menu List matching screenshot 170400 */}
+      {/* Main Pengaturan Menu List */}
       {activeSubpage === null && (
         <ScrollView
           style={{ flex: 1 }}
@@ -360,9 +526,16 @@ export default function SettingsScreen() {
                 >
                   <Printer size={20} color="#0097A7" />
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
-                  Printer
-                </Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
+                    Printer
+                  </Text>
+                  {connectedPrinter && (
+                    <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: "600" }}>
+                      ● {connectedPrinter.name}
+                    </Text>
+                  )}
+                </View>
               </View>
               <ChevronRight size={18} color="#a1a1aa" />
             </TouchableOpacity>
@@ -428,9 +601,14 @@ export default function SettingsScreen() {
                 >
                   <Lock size={20} color="#0097A7" />
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
-                  Keamanan PIN
-                </Text>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
+                    Keamanan PIN
+                  </Text>
+                  <Text style={{ fontSize: 10, color: isPinActive ? "#16a34a" : "#71717a" }}>
+                    {isPinActive ? "● PIN Aktif" : "○ Nonaktif"}
+                  </Text>
+                </View>
               </View>
               <ChevronRight size={18} color="#a1a1aa" />
             </TouchableOpacity>
@@ -504,7 +682,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 1: Laporan Lengkap */}
+      {/* Subpage 1: Laporan Lengkap with Custom Date Range & CSV Export */}
       {activeSubpage === "laporan" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -518,13 +696,18 @@ export default function SettingsScreen() {
               padding: 4,
               backgroundColor: "#e4e4e7",
               borderRadius: 16,
-              marginBottom: 16,
+              marginBottom: 12,
             }}
           >
-            {(["today", "7days", "30days"] as ReportPeriod[]).map((period) => (
+            {(["today", "7days", "30days", "custom"] as ReportPeriod[]).map((period) => (
               <TouchableOpacity
                 key={period}
-                onPress={() => setReportPeriod(period)}
+                onPress={() => {
+                  setReportPeriod(period);
+                  if (period === "custom") {
+                    setShowCustomDateModal(true);
+                  }
+                }}
                 style={{
                   flex: 1,
                   paddingVertical: 8,
@@ -535,16 +718,82 @@ export default function SettingsScreen() {
               >
                 <Text
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: "700",
                     color: reportPeriod === period ? "#ffffff" : "#52525b",
                   }}
                 >
-                  {period === "today" ? "Hari Ini" : period === "7days" ? "7 Hari" : "30 Hari"}
+                  {period === "today"
+                    ? "Hari Ini"
+                    : period === "7days"
+                    ? "7 Hari"
+                    : period === "30days"
+                    ? "30 Hari"
+                    : "Kustom 📅"}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Custom Date Info Banner */}
+          {reportPeriod === "custom" && (
+            <TouchableOpacity
+              onPress={() => setShowCustomDateModal(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#ecfeff",
+                padding: 10,
+                borderRadius: 14,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: "#a5f3fc",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Calendar size={15} color="#0097A7" />
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
+                  Periode: {customStartDate} s/d {customEndDate}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>Ubah Tanggal</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Export CSV Button */}
+          <TouchableOpacity
+            onPress={handleExportCSV}
+            disabled={isExportingCSV}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "#ffffff",
+              paddingVertical: 10,
+              borderRadius: 14,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            {isExportingCSV ? (
+              <ActivityIndicator size="small" color="#0097A7" />
+            ) : (
+              <>
+                <FileSpreadsheet size={16} color="#0097A7" />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
+                  Export Laporan ke CSV (Excel)
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           {/* Ringkasan Finansial Card */}
           <View
@@ -643,7 +892,7 @@ export default function SettingsScreen() {
 
             {topProducts.length === 0 ? (
               <Text style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", paddingVertical: 12 }}>
-                Belum ada data transaksi
+                Belum ada data transaksi pada periode ini
               </Text>
             ) : (
               topProducts.map((p, idx) => (
@@ -696,7 +945,7 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          {/* Jam Sibuk Card */}
+          {/* Jam Sibuk Card (Dynamic Real Hour & Dynamic Revenue per device) */}
           <View
             style={{
               padding: 16,
@@ -715,13 +964,13 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
               <Clock size={18} color="#0097A7" />
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
-                Jam Sibuk
+                Jam Sibuk (Waktu Lokal Device)
               </Text>
             </View>
 
             {peakHours.map((h, idx) => (
-              <View key={idx} style={{ flexDirection: "row", alignItems: "center", marginVertical: 4 }}>
-                <Text style={{ width: 44, fontSize: 11, fontFamily: "monospace", color: "#71717a" }}>
+              <View key={idx} style={{ flexDirection: "row", alignItems: "center", marginVertical: 5 }}>
+                <Text style={{ width: 48, fontSize: 11, fontFamily: "monospace", color: "#71717a" }}>
                   {h.hour}
                 </Text>
                 <View style={{ flex: 1, height: 10, backgroundColor: "#f4f4f5", borderRadius: 5, marginHorizontal: 8, overflow: "hidden" }}>
@@ -734,28 +983,134 @@ export default function SettingsScreen() {
                     }}
                   />
                 </View>
-                <Text style={{ width: 80, textAlign: "right", fontSize: 11, fontWeight: "600", color: "#3f3f46" }}>
-                  {h.transactionCount > 0 ? formatRupiah(h.transactionCount * 24000) : "Rp 0"}
-                </Text>
+                <View style={{ width: 100, alignItems: "flex-end" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: h.isPeak ? "#0097A7" : "#3f3f46" }}>
+                    {formatRupiah(h.totalOmset)}
+                  </Text>
+                  {h.transactionCount > 0 && (
+                    <Text style={{ fontSize: 9, color: "#71717a" }}>
+                      {h.transactionCount} transaksi
+                    </Text>
+                  )}
+                </View>
               </View>
             ))}
 
             {peakHourRecord && peakHourRecord.transactionCount > 0 && (
-              <Text style={{ fontSize: 11, color: "#71717a", marginTop: 8, fontWeight: "500" }}>
-                * Jam dengan transaksi tertinggi: {peakHourRecord.hour}
+              <Text style={{ fontSize: 11, color: "#0097A7", marginTop: 8, fontWeight: "700" }}>
+                * Jam dengan transaksi tertinggi: {peakHourRecord.hour} ({formatRupiah(peakHourRecord.totalOmset)})
               </Text>
             )}
           </View>
         </ScrollView>
       )}
 
-      {/* Subpage 2: Printer */}
+      {/* Subpage 2: Printer Bluetooth Scanner & Connect */}
       {activeSubpage === "printer" && (
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Connected Printer Card */}
+          <View
+            style={{
+              padding: 20,
+              borderRadius: 24,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              marginBottom: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Printer size={20} color="#0097A7" />
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
+                  Status Printer Thermal 58mm
+                </Text>
+              </View>
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  backgroundColor: connectedPrinter ? "#f0fdf4" : "#fef2f2",
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: connectedPrinter ? "#16a34a" : "#ef4444" }}>
+                  {connectedPrinter ? "Terhubung" : "Belum Terhubung"}
+                </Text>
+              </View>
+            </View>
+
+            {connectedPrinter ? (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  backgroundColor: "#f0fdf4",
+                  borderWidth: 1,
+                  borderColor: "#bbf7d0",
+                  marginBottom: 14,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#15803d" }}>
+                  {connectedPrinter.name}
+                </Text>
+                <Text style={{ fontSize: 11, color: "#166534", marginTop: 2 }}>
+                  ID / MAC: {connectedPrinter.address || connectedPrinter.id}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: "#71717a", marginBottom: 14, lineHeight: 18 }}>
+                Nyalakan printer thermal Bluetooth Anda, lalu tekan tombol "Cari Printer Bluetooth" di bawah.
+              </Text>
+            )}
+
+            {/* Test Print Button */}
+            <TouchableOpacity
+              onPress={handleTestPrint}
+              activeOpacity={0.8}
+              style={{
+                paddingVertical: 12,
+                borderRadius: 16,
+                backgroundColor: "#0097A7",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>
+                Test Cetak Struk 58mm
+              </Text>
+            </TouchableOpacity>
+
+            {connectedPrinter && (
+              <TouchableOpacity
+                onPress={handleDisconnectPrinter}
+                activeOpacity={0.8}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 14,
+                  backgroundColor: "#fef2f2",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444" }}>
+                  Putuskan Koneksi Printer
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Bluetooth Scanner Card */}
           <View
             style={{
               padding: 20,
@@ -770,33 +1125,100 @@ export default function SettingsScreen() {
               elevation: 1,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
-                  Printer Thermal Bluetooth (58mm)
-                </Text>
-                <Text style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>
-                  Format struk 32 karakter dengan header logo
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Bluetooth size={18} color="#0097A7" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
+                  Pindai Perangkat Bluetooth
                 </Text>
               </View>
-              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#f0fdf4" }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>Siap Cetak</Text>
-              </View>
+
+              <TouchableOpacity
+                onPress={handleSearchPrinters}
+                disabled={isScanningBT}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                  backgroundColor: "#ecfeff",
+                  borderWidth: 1,
+                  borderColor: "#a5f3fc",
+                }}
+              >
+                {isScanningBT ? (
+                  <ActivityIndicator size="small" color="#0097A7" />
+                ) : (
+                  <>
+                    <RefreshCw size={12} color="#0097A7" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+                      Pindai Ulang
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              onPress={() => Alert.alert("Test Print", "Karakter test print berhasil dikirim ke printer 58mm.")}
-              activeOpacity={0.8}
-              style={{
-                paddingVertical: 12,
-                borderRadius: 16,
-                backgroundColor: "#0097A7",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Test Cetak Struk 58mm</Text>
-            </TouchableOpacity>
+            {discoveredPrinters.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>
+                  Klik "Pindai Ulang" untuk mendeteksi printer Bluetooth yang aktif di sekitar Anda.
+                </Text>
+              </View>
+            ) : (
+              discoveredPrinters.map((p) => {
+                const isThisConnected = connectedPrinter?.id === p.id;
+                return (
+                  <View
+                    key={p.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: isThisConnected ? "#f0fdf4" : "#f9fafb",
+                      borderWidth: 1,
+                      borderColor: isThisConnected ? "#86efac" : "#e5e7eb",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                        {p.name}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: "#71717a" }}>
+                        {p.address || p.id}
+                      </Text>
+                    </View>
+
+                    {isThisConnected ? (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <CheckCircle2 size={16} color="#16a34a" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a", marginLeft: 4 }}>
+                          Aktif
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleConnectPrinter(p)}
+                        style={{
+                          backgroundColor: "#0097A7",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 10,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff" }}>
+                          Sambungkan
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })
+            )}
           </View>
         </ScrollView>
       )}
@@ -826,11 +1248,12 @@ export default function SettingsScreen() {
               Backup & Restore Database (100% Offline)
             </Text>
             <Text style={{ fontSize: 12, color: "#71717a", lineHeight: 18, marginBottom: 16 }}>
-              Ekspor seluruh data produk, transaksi, dan pengaturan ke file .db untuk dipindahkan ke HP baru tanpa internet.
+              Ekspor seluruh data produk (beserta foto), kategori, transaksi, dan pengaturan untuk dicadangkan atau dipindahkan antar perangkat tanpa internet.
             </Text>
 
             <TouchableOpacity
               onPress={handleExport}
+              disabled={isExporting}
               activeOpacity={0.8}
               style={{
                 paddingVertical: 14,
@@ -842,12 +1265,21 @@ export default function SettingsScreen() {
                 flexDirection: "row",
               }}
             >
-              <Download size={16} color="#ffffff" />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>Backup Data (Export .db)</Text>
+              {isExporting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Download size={16} color="#ffffff" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
+                    Backup Data (Export Database)
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleImport}
+              disabled={isImporting}
               activeOpacity={0.8}
               style={{
                 paddingVertical: 14,
@@ -860,10 +1292,16 @@ export default function SettingsScreen() {
                 flexDirection: "row",
               }}
             >
-              <Upload size={16} color="#0097A7" />
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginLeft: 8 }}>
-                Pulihkan Data (Import .db)
-              </Text>
+              {isImporting ? (
+                <ActivityIndicator size="small" color="#0097A7" />
+              ) : (
+                <>
+                  <Upload size={16} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginLeft: 8 }}>
+                    Pulihkan Data (Import Database)
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -896,7 +1334,7 @@ export default function SettingsScreen() {
                   PIN Pelindung Data
                 </Text>
                 <Text style={{ fontSize: 12, color: "#71717a", marginTop: 4, lineHeight: 18 }}>
-                  Jika aktif, menghapus data (transaksi, produk, kategori) memerlukan PIN
+                  Jika aktif, menghapus produk, memulihkan database, dan mengubah pengaturan memerlukan PIN Supervisor
                 </Text>
               </View>
               <Text style={{ fontSize: 12, fontWeight: "700", color: isPinActive ? "#16a34a" : "#a1a1aa" }}>
@@ -907,10 +1345,15 @@ export default function SettingsScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (isPinActive) {
-                  handleTogglePin(false);
+                  executeSecureAction(async () => {
+                    await setSetting("is_pin_active", "0");
+                    setIsPinActive(false);
+                    Alert.alert("Sukses", "PIN Keamanan telah dinonaktifkan.");
+                  }, "Masukkan PIN Supervisor untuk menonaktifkan keamanan PIN");
                 } else {
+                  setNewPin("");
+                  setConfirmPin("");
                   setPinChangeVisible(true);
-                  handleTogglePin(true);
                 }
               }}
               activeOpacity={0.8}
@@ -920,9 +1363,9 @@ export default function SettingsScreen() {
                 alignItems: "center",
                 justifyContent: "center",
                 marginTop: 12,
-                backgroundColor: isPinActive ? "#f4f4f5" : "#0097A7",
+                backgroundColor: isPinActive ? "#fef2f2" : "#0097A7",
                 borderWidth: isPinActive ? 1 : 0,
-                borderColor: "#e4e4e7",
+                borderColor: "#fca5a5",
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: "700", color: isPinActive ? "#ef4444" : "#ffffff" }}>
@@ -932,7 +1375,13 @@ export default function SettingsScreen() {
 
             {isPinActive && (
               <TouchableOpacity
-                onPress={() => setPinChangeVisible(true)}
+                onPress={() => {
+                  executeSecureAction(() => {
+                    setNewPin("");
+                    setConfirmPin("");
+                    setPinChangeVisible(true);
+                  }, "Masukkan PIN Supervisor lama untuk mengganti PIN baru");
+                }}
                 activeOpacity={0.7}
                 style={{ marginTop: 10, paddingVertical: 8, alignItems: "center", justifyContent: "center" }}
               >
@@ -945,7 +1394,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 5: Atur Toko */}
+      {/* Subpage 5: Atur Toko with Image Pickers & Receipt Footer */}
       {activeSubpage === "toko" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -969,6 +1418,7 @@ export default function SettingsScreen() {
           >
             {/* Logo Section */}
             <View style={{ marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#f4f4f5" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>Logo Toko</Text>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <View
                   style={{
@@ -990,31 +1440,27 @@ export default function SettingsScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 8 }}>
-                    Logo akan dicetak di bagian atas struk (hitam-putih)
+                    Logo akan dicetak di bagian atas struk thermal
                   </Text>
-                  <View style={{ flexDirection: "row" }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
                     <TouchableOpacity
-                      onPress={() => {
-                        setStoreLogo("https://images.unsplash.com/photo-1559839914-ba2a1ae09a03?w=200&q=80");
-                        setSetting("store_logo", "https://images.unsplash.com/photo-1559839914-ba2a1ae09a03?w=200&q=80");
-                        Alert.alert("Logo Dipilih", "Logo toko berhasil diperbarui.");
-                      }}
+                      onPress={() => handlePickStoreImage("logo")}
                       style={{
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 12,
+                        backgroundColor: "#ecfeff",
                         borderWidth: 1,
-                        borderColor: "#0097A7",
-                        marginRight: 8,
+                        borderColor: "#a5f3fc",
                       }}
                     >
                       <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>Ganti Logo</Text>
                     </TouchableOpacity>
                     {storeLogo ? (
                       <TouchableOpacity
-                        onPress={() => {
+                        onPress={async () => {
                           setStoreLogo("");
-                          setSetting("store_logo", "");
+                          await setSetting("store_logo", "");
                         }}
                         style={{
                           paddingHorizontal: 12,
@@ -1033,7 +1479,7 @@ export default function SettingsScreen() {
 
             {/* Foto QRIS */}
             <View style={{ marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#f4f4f5" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>Foto QRIS</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>Foto QRIS Toko</Text>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <View
                   style={{
@@ -1046,42 +1492,39 @@ export default function SettingsScreen() {
                     marginRight: 14,
                     borderWidth: 1,
                     borderColor: "#e4e4e7",
+                    overflow: "hidden",
                   }}
                 >
                   <Image
                     source={{
-                      uri: storeQris || "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=QRIS_DEMO_SAMPLE",
+                      uri: storeQris || "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=STORE_QRIS_OFFLINE_PRO",
                     }}
                     style={{ width: 50, height: 50 }}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 8 }}>
-                    Foto QRIS toko akan ditampilkan di layar pembayaran
+                    QRIS toko dinamis dengan nominal transaksi otomatis
                   </Text>
-                  <View style={{ flexDirection: "row" }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
                     <TouchableOpacity
-                      onPress={() => {
-                        setStoreQris("https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=STORE_QRIS_OFFLINE_PRO");
-                        setSetting("store_qris", "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=STORE_QRIS_OFFLINE_PRO");
-                        Alert.alert("QRIS Dipilih", "Foto QRIS toko berhasil diperbarui.");
-                      }}
+                      onPress={() => handlePickStoreImage("qris")}
                       style={{
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 12,
+                        backgroundColor: "#ecfeff",
                         borderWidth: 1,
-                        borderColor: "#0097A7",
-                        marginRight: 8,
+                        borderColor: "#a5f3fc",
                       }}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>Ganti Foto QRIS</Text>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>Ganti QRIS</Text>
                     </TouchableOpacity>
                     {storeQris ? (
                       <TouchableOpacity
-                        onPress={() => {
+                        onPress={async () => {
                           setStoreQris("");
-                          setSetting("store_qris", "");
+                          await setSetting("store_qris", "");
                         }}
                         style={{
                           paddingHorizontal: 12,
@@ -1169,6 +1612,25 @@ export default function SettingsScreen() {
                 }}
               />
 
+              <Text style={{ fontSize: 11, color: "#71717a", marginTop: 12, marginBottom: 4 }}>
+                Ucapan Struk (Footer Pesan)
+              </Text>
+              <TextInput
+                value={receiptFooter}
+                onChangeText={setReceiptFooter}
+                placeholder="Terima Kasih Atas Kunjungan Anda!"
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#f4f4f5",
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: "#18181b",
+                }}
+              />
+
               <TouchableOpacity
                 onPress={handleSaveStoreProfile}
                 activeOpacity={0.8}
@@ -1188,7 +1650,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 6: Pengaturan Aplikasi Dynamic Toggles */}
+      {/* Subpage 6: Pengaturan Aplikasi Dynamic Toggles with PIN protection & editable PPN */}
       {activeSubpage === "aplikasi" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -1216,12 +1678,12 @@ export default function SettingsScreen() {
                   Fitur Nomor Meja
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Tampilkan pemilihan nomor meja saat transaksi (untuk rumah makan)
+                  Tampilkan input/pemilihan nomor meja saat transaksi dan cetak di struk
                 </Text>
               </View>
               <Switch
                 value={featureTable}
-                onValueChange={(val) => handleToggleFeature("feature_table_number", val, setFeatureTable)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_table_number", val, setFeatureTable)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
@@ -1233,12 +1695,12 @@ export default function SettingsScreen() {
                   Fitur Pelanggan
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Tampilkan pemilihan pelanggan saat transaksi, halaman pelanggan, dan laporan pelanggan
+                  Tampilkan nama/identitas pelanggan saat transaksi dan cetak di struk
                 </Text>
               </View>
               <Switch
                 value={featureCustomer}
-                onValueChange={(val) => handleToggleFeature("feature_customer", val, setFeatureCustomer)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_customer", val, setFeatureCustomer)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
@@ -1250,12 +1712,12 @@ export default function SettingsScreen() {
                   Fitur Open Bill
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Tampilkan fitur bill yang disimpan dan dibayar nanti (piutang)
+                  Tampilkan tombol simpan open bill (pesanan gantung / bayar nanti)
                 </Text>
               </View>
               <Switch
                 value={featureOpenBill}
-                onValueChange={(val) => handleToggleFeature("feature_open_bill", val, setFeatureOpenBill)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_open_bill", val, setFeatureOpenBill)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
@@ -1267,12 +1729,12 @@ export default function SettingsScreen() {
                   Fitur Barcode
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Tampilkan mode scan barcode saat transaksi dan kolom barcode di produk
+                  Tampilkan tombol scanner barcode toko & supermarket
                 </Text>
               </View>
               <Switch
                 value={featureBarcode}
-                onValueChange={(val) => handleToggleFeature("feature_barcode", val, setFeatureBarcode)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_barcode", val, setFeatureBarcode)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
@@ -1284,12 +1746,12 @@ export default function SettingsScreen() {
                   Fitur Varian Produk
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Kelola varian pada produk, mis. ukuran S/M/L dengan harga dan stok masing-masing
+                  Kelola dan pilih varian rasa/ukuran pada transaksi kasir
                 </Text>
               </View>
               <Switch
                 value={featureVariants}
-                onValueChange={(val) => handleToggleFeature("feature_variants", val, setFeatureVariants)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_variants", val, setFeatureVariants)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
@@ -1301,43 +1763,156 @@ export default function SettingsScreen() {
                   Cetak Struk Otomatis
                 </Text>
                 <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Cetak struk otomatis setiap pembayaran berhasil (butuh printer terhubung)
+                  Otomatis kirim struk ke printer Bluetooth sesaat setelah transaksi selesai
                 </Text>
               </View>
               <Switch
                 value={featureAutoPrint}
-                onValueChange={(val) => handleToggleFeature("feature_auto_print", val, setFeatureAutoPrint)}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_auto_print", val, setFeatureAutoPrint)}
                 trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
               />
             </View>
 
-            {/* 7. Pajak PPN */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
-                  Pajak PPN
-                </Text>
-                <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
-                  Hitung PPN otomatis pada setiap transaksi (mis. PPN 11%)
-                </Text>
+            {/* 7. Pajak PPN (Dinamis Rate & Toggle) */}
+            <View style={{ paddingVertical: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                    Pajak PPN
+                  </Text>
+                  <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
+                    Hitung PPN otomatis pada setiap transaksi
+                  </Text>
+                </View>
+                <Switch
+                  value={featurePpn}
+                  onValueChange={(val) => handleToggleFeatureWithPin("feature_ppn", val, setFeaturePpn)}
+                  trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+                />
               </View>
-              <Switch
-                value={featurePpn}
-                onValueChange={(val) => handleToggleFeature("feature_ppn", val, setFeaturePpn)}
-                trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
-              />
+
+              {featurePpn && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 10,
+                    padding: 10,
+                    backgroundColor: "#f9fafb",
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "#e5e7eb",
+                  }}
+                >
+                  <Percent size={16} color="#0097A7" />
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#3f3f46", marginLeft: 6, flex: 1 }}>
+                    Persentase Tarif PPN:
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <TextInput
+                      value={ppnRate}
+                      onChangeText={handleSavePpnRate}
+                      keyboardType="numeric"
+                      maxLength={3}
+                      style={{
+                        backgroundColor: "#ffffff",
+                        borderWidth: 1,
+                        borderColor: "#0097A7",
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: "#18181b",
+                        width: 44,
+                        textAlign: "center",
+                      }}
+                    />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b", marginLeft: 4 }}>%</Text>
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         </ScrollView>
       )}
 
-      {/* Change PIN Modal */}
+      {/* Custom Date Range Picker Modal */}
+      <Modal visible={showCustomDateModal} transparent animationType="fade" onRequestClose={() => setShowCustomDateModal(false)}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)", padding: 20 }}>
+          <View style={{ width: "100%", maxWidth: 360, backgroundColor: "#ffffff", borderRadius: 24, padding: 20 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
+                Pilih Rentang Tanggal
+              </Text>
+              <TouchableOpacity onPress={() => setShowCustomDateModal(false)}>
+                <X size={18} color="#71717a" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Dari Tanggal (YYYY-MM-DD)</Text>
+            <TextInput
+              value={customStartDate}
+              onChangeText={setCustomStartDate}
+              placeholder="2026-08-01"
+              style={{
+                padding: 10,
+                backgroundColor: "#f4f4f5",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#e4e4e7",
+                fontSize: 13,
+                fontWeight: "600",
+                color: "#18181b",
+                marginBottom: 10,
+              }}
+            />
+
+            <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Sampai Tanggal (YYYY-MM-DD)</Text>
+            <TextInput
+              value={customEndDate}
+              onChangeText={setCustomEndDate}
+              placeholder="2026-08-31"
+              style={{
+                padding: 10,
+                backgroundColor: "#f4f4f5",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#e4e4e7",
+                fontSize: 13,
+                fontWeight: "600",
+                color: "#18181b",
+                marginBottom: 16,
+              }}
+            />
+
+            <TouchableOpacity
+              onPress={() => {
+                setShowCustomDateModal(false);
+                loadReportData();
+              }}
+              activeOpacity={0.8}
+              style={{
+                paddingVertical: 12,
+                borderRadius: 14,
+                backgroundColor: "#0097A7",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Tampilkan Laporan</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change/Set PIN Modal */}
       <Modal visible={pinChangeVisible} transparent animationType="fade" onRequestClose={() => setPinChangeVisible(false)}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)", padding: 20 }}>
           <View style={{ width: "100%", maxWidth: 360, backgroundColor: "#ffffff", borderRadius: 24, padding: 20 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
-                Ubah PIN Supervisor
+                {isPinActive ? "Ubah PIN Supervisor" : "Aktifkan PIN Supervisor"}
               </Text>
               <TouchableOpacity onPress={() => setPinChangeVisible(false)}>
                 <X size={18} color="#71717a" />
@@ -1365,7 +1940,7 @@ export default function SettingsScreen() {
               />
 
               <TextInput
-                placeholder="Konfirmasi PIN"
+                placeholder="Konfirmasi PIN Baru"
                 keyboardType="numeric"
                 secureTextEntry
                 maxLength={4}

@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  ActivityIndicator,
+  TextInput,
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
@@ -22,6 +22,9 @@ import {
   Delete,
   ChevronDown,
   ChevronUp,
+  Hash,
+  Users,
+  BookmarkPlus,
 } from "lucide-react-native";
 
 interface CheckoutLandscapeModalProps {
@@ -32,12 +35,20 @@ interface CheckoutLandscapeModalProps {
   ppnAmount: number;
   grandTotal: number;
   storeQrisImage?: string;
+  tableNumber?: string;
+  customerName?: string;
+  onTableNumberChange?: (val: string) => void;
+  onCustomerNameChange?: (val: string) => void;
+  featureTable?: boolean;
+  featureCustomer?: boolean;
+  featureOpenBill?: boolean;
   onClose: () => void;
   onConfirmPayment: (
     method: "CASH" | "QRIS",
     cashTendered: number,
     changeAmount: number
   ) => Promise<void> | void;
+  onSaveOpenBill?: () => Promise<void> | void;
 }
 
 export function CheckoutLandscapeModal({
@@ -48,8 +59,16 @@ export function CheckoutLandscapeModal({
   ppnAmount,
   grandTotal,
   storeQrisImage,
+  tableNumber = "",
+  customerName = "",
+  onTableNumberChange,
+  onCustomerNameChange,
+  featureTable = false,
+  featureCustomer = false,
+  featureOpenBill = false,
   onClose,
   onConfirmPayment,
+  onSaveOpenBill,
 }: CheckoutLandscapeModalProps) {
   const { width, height } = useWindowDimensions();
   const isLandscape = width >= 768;
@@ -103,6 +122,16 @@ export function CheckoutLandscapeModal({
     }
   };
 
+  const handleOpenBillClick = async () => {
+    if (isProcessing || !onSaveOpenBill) return;
+    setIsProcessing(true);
+    try {
+      await onSaveOpenBill();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -145,41 +174,108 @@ export function CheckoutLandscapeModal({
               justifyContent: "space-between",
             }}
           >
-            <View>
-              <Text style={{ fontSize: isSmallScreen ? 14 : 16, fontWeight: "700", color: "#18181b" }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <CreditCard size={18} color="#0097A7" />
+              <Text style={{ fontSize: isSmallScreen ? 14 : 16, fontWeight: "800", color: "#18181b", marginLeft: 8 }}>
                 Pembayaran Transaksi
               </Text>
-              <Text style={{ fontSize: isSmallScreen ? 10 : 12, color: "#71717a", marginTop: 2 }}>
-                Pilih metode bayar & masukkan nominal tunai
-              </Text>
             </View>
-
-            <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-              <X size={isSmallScreen ? 18 : 20} color="#71717a" />
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: "#f4f4f5",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <X size={15} color="#71717a" />
             </TouchableOpacity>
           </View>
 
-          {/* Scrollable Modal Content */}
+          {/* Body Content */}
           <ScrollView
-            style={{ flexShrink: 1 }}
+            style={{ flex: 1 }}
             contentContainerStyle={{ flexGrow: 1 }}
-            showsVerticalScrollIndicator={true}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <View style={{ flexDirection: isLandscape ? "row" : "column" }}>
-              {/* Left Column: Order Summary */}
+            <View style={{ flexDirection: isLandscape ? "row" : "column", flex: 1 }}>
+              {/* Left Column: Order Summary & Info Inputs */}
               <View
                 style={{
-                  width: isLandscape ? 300 : "100%",
+                  width: isLandscape ? "42%" : "100%",
                   backgroundColor: "#f9fafb",
                   borderRightWidth: isLandscape ? 1 : 0,
-                  borderRightColor: "#e5e7eb",
                   borderBottomWidth: isLandscape ? 0 : 1,
-                  borderBottomColor: "#e5e7eb",
+                  borderColor: "#e5e7eb",
                   padding: isSmallScreen ? 12 : 16,
                 }}
               >
-                {/* Mobile toggle for order summary */}
-                {!isLandscape ? (
+                {/* Table Number & Customer Name Inputs (if features are active) */}
+                {(featureTable || featureCustomer) && (
+                  <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e5e7eb" }}>
+                    {featureTable && (
+                      <View style={{ marginBottom: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                          <Hash size={12} color="#0097A7" />
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
+                            Nomor Meja
+                          </Text>
+                        </View>
+                        <TextInput
+                          value={tableNumber}
+                          onChangeText={onTableNumberChange}
+                          placeholder="Misal: Meja 05"
+                          style={{
+                            backgroundColor: "#ffffff",
+                            borderWidth: 1,
+                            borderColor: "#e5e7eb",
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: "#18181b",
+                          }}
+                        />
+                      </View>
+                    )}
+
+                    {featureCustomer && (
+                      <View>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                          <Users size={12} color="#0097A7" />
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
+                            Nama Pelanggan
+                          </Text>
+                        </View>
+                        <TextInput
+                          value={customerName}
+                          onChangeText={onCustomerNameChange}
+                          placeholder="Misal: Budi / 08123xxx"
+                          style={{
+                            backgroundColor: "#ffffff",
+                            borderWidth: 1,
+                            borderColor: "#e5e7eb",
+                            borderRadius: 10,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: "#18181b",
+                          }}
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Mobile Collapsible Header */}
+                {!isLandscape && (
                   <TouchableOpacity
                     onPress={() => setShowOrderSummaryMobile(!showOrderSummaryMobile)}
                     style={{
@@ -187,10 +283,11 @@ export function CheckoutLandscapeModal({
                       alignItems: "center",
                       justifyContent: "space-between",
                       paddingVertical: 4,
+                      marginBottom: showOrderSummaryMobile ? 8 : 0,
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>
-                      Ringkasan Pesanan ({items.length} Item)
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46" }}>
+                      Ringkasan Pesanan ({items.length} item)
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
                       <Text style={{ fontSize: 12, fontWeight: "800", color: "#0097A7", marginRight: 4 }}>
@@ -199,60 +296,56 @@ export function CheckoutLandscapeModal({
                       {showOrderSummaryMobile ? <ChevronUp size={16} color="#71717a" /> : <ChevronDown size={16} color="#71717a" />}
                     </View>
                   </TouchableOpacity>
-                ) : (
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b", marginBottom: 8 }}>
-                    Ringkasan Pesanan ({items.length} Item)
-                  </Text>
                 )}
 
                 {(isLandscape || showOrderSummaryMobile) && (
                   <>
-                    <ScrollView style={{ maxHeight: isSmallScreen ? 110 : 160 }} showsVerticalScrollIndicator={false}>
-                      {items.map((item) => {
-                        const unitPrice =
-                          item.variant?.harga_jual ??
-                          item.product?.harga_jual ??
-                          (item.qty > 0 ? item.subtotal / item.qty : 0);
-
-                        return (
-                          <View
-                            key={item.id}
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              paddingVertical: 5,
-                              borderBottomWidth: 1,
-                              borderBottomColor: "#f4f4f5",
-                            }}
-                          >
-                            <View style={{ flex: 1, paddingRight: 6 }}>
-                              <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>
-                                {item.product?.name || "Produk"}
-                                {item.variant ? ` (${item.variant.name})` : ""}
-                              </Text>
-                              <Text style={{ fontSize: 10, color: "#71717a" }}>
-                                {item.qty} {item.unit} x {formatRupiah(unitPrice)}
-                              </Text>
-                            </View>
-                            <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
-                              {formatRupiah(item.subtotal)}
+                    <ScrollView
+                      style={{ maxHeight: isLandscape ? 220 : 120 }}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {items.map((it, idx) => (
+                        <View
+                          key={idx}
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingVertical: 4,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#f4f4f5",
+                          }}
+                        >
+                          <View style={{ flex: 1, paddingRight: 6 }}>
+                            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: "700", color: "#18181b" }}>
+                              {it.product.name}
+                            </Text>
+                            <Text style={{ fontSize: 9, color: "#71717a" }}>
+                              {it.qty} {it.unit || "pcs"} x {formatRupiah(it.unitPrice)}
                             </Text>
                           </View>
-                        );
-                      })}
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#18181b" }}>
+                            {formatRupiah(it.subtotal)}
+                          </Text>
+                        </View>
+                      ))}
                     </ScrollView>
 
-                    {/* Totals */}
-                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
-                      {ppnPercent > 0 && (
+                    {/* Breakdown */}
+                    <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                        <Text style={{ fontSize: 10, color: "#71717a" }}>Subtotal</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#18181b" }}>{formatRupiah(subtotal)}</Text>
+                      </View>
+
+                      {ppnAmount > 0 && (
                         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
                           <Text style={{ fontSize: 10, color: "#71717a" }}>PPN {ppnPercent}%</Text>
                           <Text style={{ fontSize: 10, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
                         </View>
                       )}
 
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
                         <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>Total Bayar</Text>
                         <Text style={{ fontSize: 15, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
                       </View>
@@ -261,7 +354,7 @@ export function CheckoutLandscapeModal({
                 )}
               </View>
 
-              {/* Right Column: Payment Input & Keypad */}
+              {/* Right Column: Payment Input & Keypad / Dynamic QRIS */}
               <View style={{ flex: 1, padding: isSmallScreen ? 12 : 16 }}>
                 {/* Method Switcher */}
                 <View style={{ flexDirection: "row", marginBottom: 10 }}>
@@ -406,8 +499,27 @@ export function CheckoutLandscapeModal({
                     </View>
                   </View>
                 ) : (
-                  /* QRIS Mode View */
-                  <View style={{ alignItems: "center", paddingVertical: 12 }}>
+                  /* Dynamic QRIS View */
+                  <View style={{ alignItems: "center", paddingVertical: 10 }}>
+                    {/* Dynamic Amount Banner */}
+                    <View
+                      style={{
+                        backgroundColor: "#ecfeff",
+                        paddingHorizontal: 14,
+                        paddingVertical: 6,
+                        borderRadius: 12,
+                        marginBottom: 10,
+                        borderWidth: 1,
+                        borderColor: "#a5f3fc",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, color: "#0891b2", fontWeight: "600" }}>Total Bayar QRIS</Text>
+                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#0097A7" }}>
+                        {formatRupiah(grandTotal)}
+                      </Text>
+                    </View>
+
                     <View
                       style={{
                         padding: 10,
@@ -422,46 +534,66 @@ export function CheckoutLandscapeModal({
                         source={{
                           uri:
                             storeQrisImage ||
-                            "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=STORE_QRIS_OFFLINE_PRO",
+                            `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=QRIS_OFFLINE_PRO_AMOUNT_${grandTotal}`,
                         }}
-                        style={{ width: isSmallScreen ? 130 : 160, height: isSmallScreen ? 130 : 160 }}
+                        style={{ width: isSmallScreen ? 130 : 150, height: isSmallScreen ? 130 : 150 }}
                         resizeMode="contain"
                       />
                     </View>
                     <Text style={{ fontSize: 11, fontWeight: "600", color: "#71717a", marginTop: 6 }}>
-                      Scan QRIS untuk menyelesaikan pembayaran
+                      Arahkan kamera e-wallet / mobile banking ke QRIS di atas
                     </Text>
                   </View>
                 )}
 
-                {/* Submit Payment Button */}
-                <TouchableOpacity
-                  onPress={handleConfirm}
-                  disabled={!isPaymentValid || isProcessing}
-                  activeOpacity={0.8}
-                  style={{
-                    paddingVertical: isSmallScreen ? 12 : 14,
-                    borderRadius: 14,
-                    backgroundColor: isPaymentValid && !isProcessing ? "#0097A7" : "#a1a1aa",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginTop: 8,
-                    marginBottom: 4,
-                  }}
-                >
-                  {isProcessing ? (
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <ActivityIndicator size="small" color="#ffffff" />
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
-                        Memproses Transaksi...
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={{ fontSize: isSmallScreen ? 12 : 13, fontWeight: "700", color: "#ffffff" }}>
-                      Selesaikan Transaksi ({formatRupiah(grandTotal)})
+                {/* Actions: Selesaikan Transaksi & Open Bill */}
+                <View style={{ marginTop: 10, gap: 6 }}>
+                  <TouchableOpacity
+                    onPress={handleConfirm}
+                    disabled={!isPaymentValid || isProcessing}
+                    activeOpacity={0.8}
+                    style={{
+                      paddingVertical: isSmallScreen ? 10 : 12,
+                      borderRadius: 14,
+                      backgroundColor: isPaymentValid ? "#0097A7" : "#d4d4d8",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "row",
+                    }}
+                  >
+                    <CheckCircle2 size={16} color="#ffffff" />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+                      {isProcessing
+                        ? "Memproses..."
+                        : paymentMethod === "CASH"
+                        ? `Bayar ${formatRupiah(cashTendered)}`
+                        : `Konfirmasi Bayar QRIS`}
                     </Text>
+                  </TouchableOpacity>
+
+                  {featureOpenBill && onSaveOpenBill && (
+                    <TouchableOpacity
+                      onPress={handleOpenBillClick}
+                      disabled={isProcessing}
+                      activeOpacity={0.8}
+                      style={{
+                        paddingVertical: 9,
+                        borderRadius: 14,
+                        backgroundColor: "#f4f4f5",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        borderWidth: 1,
+                        borderColor: "#e4e4e7",
+                      }}
+                    >
+                      <BookmarkPlus size={15} color="#0097A7" />
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
+                        Simpan Sebagai Open Bill (Bayar Nanti)
+                      </Text>
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </View>
               </View>
             </View>
           </ScrollView>

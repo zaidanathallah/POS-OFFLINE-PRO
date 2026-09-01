@@ -201,7 +201,7 @@ export async function getTransactionsSummary(): Promise<{
          SUM(total_hpp) as total_hpp, 
          SUM(laba_kotor) as total_laba, 
          COUNT(*) as total_count 
-       FROM transactions`
+       FROM transactions WHERE is_open_bill = 0`
     );
 
     return {
@@ -212,3 +212,48 @@ export async function getTransactionsSummary(): Promise<{
     };
   });
 }
+
+export async function getOpenBills(): Promise<Transaction[]> {
+  return await runInDbQueue(async (db) => {
+    return await db.getAllAsync<Transaction>(
+      "SELECT * FROM transactions WHERE is_open_bill = 1 ORDER BY created_at DESC;"
+    );
+  });
+}
+
+export async function cancelOpenBill(transactionId: string): Promise<void> {
+  return await runInDbQueue(async (db) => {
+    // Restore stock
+    const details = await db.getAllAsync<TransactionDetail>(
+      "SELECT * FROM transaction_details WHERE transaction_id = ?;",
+      [transactionId]
+    );
+    for (const d of details) {
+      await db.runAsync("UPDATE products SET stock = stock + ? WHERE id = ?;", [
+        d.qty,
+        d.product_id,
+      ]);
+    }
+    await db.runAsync("DELETE FROM transaction_details WHERE transaction_id = ?;", [
+      transactionId,
+    ]);
+    await db.runAsync("DELETE FROM transactions WHERE id = ?;", [transactionId]);
+  });
+}
+
+export async function settleOpenBill(
+  transactionId: string,
+  paymentMethod: "CASH" | "QRIS",
+  cashTendered: number,
+  changeAmount: number
+): Promise<void> {
+  return await runInDbQueue(async (db) => {
+    await db.runAsync(
+      `UPDATE transactions 
+       SET is_open_bill = 0, payment_method = ?, cash_tendered = ?, change_amount = ? 
+       WHERE id = ?;`,
+      [paymentMethod, cashTendered, changeAmount, transactionId]
+    );
+  });
+}
+
