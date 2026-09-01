@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Platform,
-  Modal,
 } from "react-native";
 import { router } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -44,14 +43,11 @@ import {
   Package,
   Sparkles,
   Receipt,
-  X,
   RotateCw,
-  ChevronUp,
 } from "lucide-react-native";
 
 export default function PosModalScreen() {
   const { width, height } = useWindowDimensions();
-  const isLandscape = width >= height || width >= 600;
 
   // Auto Lock to Landscape when entering cashier mode
   useEffect(() => {
@@ -125,7 +121,6 @@ export default function PosModalScreen() {
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [openBillModalVisible, setOpenBillModalVisible] = useState(false);
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
-  const [portraitCartModalVisible, setPortraitCartModalVisible] = useState(false);
 
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<ReceiptData | null>(null);
@@ -331,7 +326,6 @@ export default function PosModalScreen() {
       setCompletedReceipt(receiptData);
       clearCart();
       setCheckoutModalVisible(false);
-      setPortraitCartModalVisible(false);
       setTableNumber("");
       setCustomerName("");
 
@@ -361,11 +355,8 @@ export default function PosModalScreen() {
     }
   };
 
-  // Compute Cart Width for Landscape (responsive ~35% of width, min 260px, max 340px)
-  const cartColumnWidth = Math.min(340, Math.max(260, Math.round(width * 0.35)));
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF8F5" }}>
       {/* Top Floating Notification */}
       {notificationBanner ? (
         <View
@@ -377,7 +368,7 @@ export default function PosModalScreen() {
             zIndex: 9999,
             backgroundColor: "#0097A7",
             borderRadius: 16,
-            paddingVertical: 10,
+            paddingVertical: 8,
             paddingHorizontal: 16,
             flexDirection: "row",
             alignItems: "center",
@@ -389,154 +380,163 @@ export default function PosModalScreen() {
             elevation: 8,
           }}
         >
-          <Sparkles size={16} color="#ffffff" />
-          <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 8, textAlign: "center" }}>
+          <Sparkles size={14} color="#ffffff" />
+          <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 8, textAlign: "center" }}>
             {notificationBanner}
           </Text>
         </View>
       ) : null}
 
-      {/* Main Workstation (Landscape 2-Column, Portrait Full Width + Floating Bottom Cart) */}
-      <View style={{ flex: 1, flexDirection: isLandscape ? "row" : "column" }}>
-        {/* Left Column: Product Catalog & Categories */}
-        <View style={{ flex: 1, borderRightWidth: isLandscape ? 1 : 0, borderRightColor: "#e5e7eb" }}>
-          {/* Top Bar */}
-          <View
+      {/* Top Header Bar across full screen */}
+      <View
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          backgroundColor: "#FAF8F5",
+          borderBottomWidth: 1,
+          borderBottomColor: "#EAE5DC",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        {/* Left Side: Filter & Tools (Matches Left Column) */}
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 12 }}>
+          {/* Cari Button */}
+          <TouchableOpacity
+            onPress={() => setSearchModalVisible(true)}
+            activeOpacity={0.8}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              backgroundColor: "#ffffff",
-              borderBottomWidth: 1,
-              borderBottomColor: "#e5e7eb",
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
+              backgroundColor: "#FFFFFF",
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 20,
+              marginRight: 6,
+              borderWidth: 1,
+              borderColor: "#E5DFD7",
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
-              {/* Cari Button */}
-              <TouchableOpacity
-                onPress={() => setSearchModalVisible(true)}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: "#f4f4f5",
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 16,
-                  marginRight: 6,
-                  borderWidth: 1,
-                  borderColor: "#e4e4e7",
-                }}
-              >
-                <Search size={13} color="#0097A7" />
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#3f3f46", marginLeft: 4 }}>
-                  Cari
-                </Text>
-              </TouchableOpacity>
+            <Search size={12} color="#0097A7" />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "#44403c", marginLeft: 4 }}>
+              Cari
+            </Text>
+          </TouchableOpacity>
 
-              {/* Barcode Scanner Button */}
-              {featureBarcode && (
-                <TouchableOpacity
-                  onPress={() => setBarcodeModalVisible(true)}
-                  activeOpacity={0.8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: "#ecfeff",
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    marginRight: 6,
-                    borderWidth: 1,
-                    borderColor: "#a5f3fc",
-                  }}
-                >
-                  <Barcode size={13} color="#0097A7" />
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
-                    Scan
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Open Bill List Button */}
-              {featureOpenBill && (
-                <TouchableOpacity
-                  onPress={() => setOpenBillModalVisible(true)}
-                  activeOpacity={0.8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: "#fef3c7",
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    marginRight: 6,
-                    borderWidth: 1,
-                    borderColor: "#fde68a",
-                  }}
-                >
-                  <Receipt size={13} color="#d97706" />
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#b45309", marginLeft: 4 }}>
-                    Open Bill
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Category Filter Pills */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
-                {categories.map((cat, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => setSelectedCategory(cat)}
-                    activeOpacity={0.8}
-                    style={{
-                      marginRight: 6,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 16,
-                      backgroundColor: selectedCategory === cat ? "#0097A7" : "#f4f4f5",
-                      borderWidth: 1,
-                      borderColor: selectedCategory === cat ? "#0097A7" : "#e4e4e7",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "700",
-                        color: selectedCategory === cat ? "#ffffff" : "#52525b",
-                      }}
-                    >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Selesai Menjual Exit Button */}
+          {/* Barcode Scanner Button */}
+          {featureBarcode && (
             <TouchableOpacity
-              onPress={handleExitPOS}
+              onPress={() => setBarcodeModalVisible(true)}
               activeOpacity={0.8}
               style={{
-                backgroundColor: "#0097A7",
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#ECFEFF",
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 20,
+                marginRight: 6,
+                borderWidth: 1,
+                borderColor: "#A5F3FC",
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff" }}>
-                Selesai
+              <Barcode size={12} color="#0097A7" />
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+                Scan
               </Text>
             </TouchableOpacity>
-          </View>
+          )}
 
-          {/* Product Grid */}
+          {/* Open Bill List Button */}
+          {featureOpenBill && (
+            <TouchableOpacity
+              onPress={() => setOpenBillModalVisible(true)}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#FEF3C7",
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 20,
+                marginRight: 6,
+                borderWidth: 1,
+                borderColor: "#FDE68A",
+              }}
+            >
+              <Receipt size={12} color="#D97706" />
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#B45309", marginLeft: 4 }}>
+                Open Bill
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Category Filter Pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row" }}>
+            {categories.map((cat, idx) => {
+              const isActive = selectedCategory === cat;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => setSelectedCategory(cat)}
+                  activeOpacity={0.8}
+                  style={{
+                    marginRight: 6,
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 20,
+                    backgroundColor: isActive ? "#0097A7" : "#EFEBE4",
+                    borderWidth: 1,
+                    borderColor: isActive ? "#0097A7" : "#E5DFD7",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: isActive ? "#FFFFFF" : "#57534E",
+                    }}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Right Side: Keranjang Title & Selesai Menjual (Matches Right Column) */}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#44403C", marginRight: 14 }}>
+            Keranjang
+          </Text>
+          <TouchableOpacity
+            onPress={handleExitPOS}
+            activeOpacity={0.8}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 5,
+              borderRadius: 20,
+              backgroundColor: "#FFFFFF",
+              borderWidth: 1,
+              borderColor: "#D6D1CA",
+            }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7" }}>
+              Selesai Menjual
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Main Dual-Column Landscape Workstation (Always Side-by-Side as in Reference Photo) */}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        {/* Left Column: Product Catalog Grid (~52% width) */}
+        <View style={{ flex: 11, borderRightWidth: 1, borderRightColor: "#EAE5DC", backgroundColor: "#FAF8F5" }}>
           <ScrollView
             contentContainerStyle={{
               padding: 10,
-              paddingBottom: isLandscape ? 20 : 85,
               flexDirection: "row",
               flexWrap: "wrap",
               justifyContent: "space-between",
@@ -549,350 +549,141 @@ export default function PosModalScreen() {
               </View>
             ) : products.length === 0 ? (
               <View style={{ width: "100%", paddingVertical: 40, alignItems: "center" }}>
-                <Inbox size={40} color="#a1a1aa" />
-                <Text style={{ fontSize: 13, color: "#71717a", marginTop: 8 }}>
+                <Inbox size={36} color="#A8A29E" />
+                <Text style={{ fontSize: 12, color: "#78716C", marginTop: 8 }}>
                   Tidak ada produk dalam kategori ini
                 </Text>
               </View>
             ) : (
-              products.map((p) => {
-                // Determine item width based on viewport
-                const cardWidth = isLandscape
-                  ? width >= 900
-                    ? "23.5%"
-                    : "31.5%"
-                  : "48.5%";
-
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    onPress={() => handleProductPress(p)}
-                    activeOpacity={0.8}
+              products.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => handleProductPress(p)}
+                  activeOpacity={0.75}
+                  style={{
+                    width: "48.5%",
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 18,
+                    padding: 10,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: "#EAE6DF",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 2,
+                    elevation: 1,
+                    alignItems: "center",
+                  }}
+                >
+                  {/* Product Image */}
+                  <View
                     style={{
-                      width: cardWidth,
-                      backgroundColor: "#ffffff",
-                      borderRadius: 16,
-                      padding: 10,
-                      marginBottom: 10,
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 2,
-                      elevation: 1,
+                      width: 68,
+                      height: 68,
+                      borderRadius: 14,
+                      backgroundColor: "#F5F3EF",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 8,
+                      overflow: "hidden",
                     }}
                   >
-                    <View
-                      style={{
-                        width: "100%",
-                        height: isLandscape ? 70 : 90,
-                        borderRadius: 12,
-                        backgroundColor: "#f4f4f5",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      {p.image_uri ? (
-                        <Image source={{ uri: p.image_uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-                      ) : (
-                        <Package size={26} color="#a1a1aa" />
-                      )}
-                    </View>
+                    {p.image_uri ? (
+                      <Image source={{ uri: p.image_uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                    ) : (
+                      <Package size={26} color="#A8A29E" />
+                    )}
+                  </View>
 
-                    <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>
-                      {p.name}
-                    </Text>
-                    <Text style={{ fontSize: 12, fontWeight: "800", color: "#0097A7", marginTop: 2 }}>
-                      {formatRupiah(p.harga_jual)}
-                    </Text>
-                    <Text style={{ fontSize: 9, color: "#71717a", marginTop: 1 }}>
-                      Stok: {p.stock} {p.unit || "pcs"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
+                  {/* Product Name */}
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#292524",
+                      textAlign: "center",
+                    }}
+                  >
+                    {p.name}
+                  </Text>
+
+                  {/* Price */}
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "800",
+                      color: "#0097A7",
+                      marginTop: 2,
+                      textAlign: "center",
+                    }}
+                  >
+                    {formatRupiah(p.harga_jual)} {p.unit && p.unit !== "pcs" ? `/ ${p.unit}` : ""}
+                  </Text>
+
+                  {/* Stock */}
+                  <Text
+                    style={{
+                      fontSize: 9,
+                      color: "#8E887F",
+                      marginTop: 2,
+                      textAlign: "center",
+                    }}
+                  >
+                    Stok: {p.stock} {p.unit || "pcs"}
+                  </Text>
+                </TouchableOpacity>
+              ))
             )}
           </ScrollView>
         </View>
 
-        {/* Landscape Right Column: Permanent Cart Workstation */}
-        {isLandscape && (
-          <View
-            style={{
-              width: cartColumnWidth,
-              backgroundColor: "#ffffff",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {/* Cart Header */}
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: "#e5e7eb",
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <ShoppingCart size={16} color="#0097A7" />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b", marginLeft: 6 }}>
-                  Keranjang ({totalItemCount})
-                </Text>
-              </View>
-              {items.length > 0 && (
-                <TouchableOpacity onPress={clearCart} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: "#ef4444" }}>
-                    Kosongkan
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Cart Items List */}
-            <ScrollView style={{ flex: 1, paddingHorizontal: 10 }} showsVerticalScrollIndicator={false}>
-              {items.length === 0 ? (
-                <View style={{ paddingVertical: 30, alignItems: "center" }}>
-                  <ShoppingCart size={30} color="#d4d4d8" />
-                  <Text style={{ fontSize: 12, color: "#a1a1aa", marginTop: 8 }}>
-                    Keranjang masih kosong
-                  </Text>
-                </View>
-              ) : (
-                items.map((item) => (
-                  <View
-                    key={item.id}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      paddingVertical: 8,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#f4f4f5",
-                    }}
-                  >
-                    <View style={{ flex: 1, paddingRight: 6 }}>
-                      <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>
-                        {item.product.name}
-                      </Text>
-                      {item.variant && (
-                        <Text style={{ fontSize: 10, color: "#0097A7" }}>
-                          Varian: {item.variant.name}
-                        </Text>
-                      )}
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: "#52525b" }}>
-                        {formatRupiah(item.subtotal)}
-                      </Text>
-                    </View>
-
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <TouchableOpacity
-                        onPress={() => updateQty(item.id, item.qty - (item.product.is_decimal ? 0.5 : 1))}
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 6,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Minus size={10} color="#3f3f46" />
-                      </TouchableOpacity>
-
-                      <Text style={{ minWidth: 24, textAlign: "center", fontSize: 11, fontWeight: "700", color: "#18181b" }}>
-                        {item.qty}
-                      </Text>
-
-                      <TouchableOpacity
-                        onPress={() => updateQty(item.id, item.qty + (item.product.is_decimal ? 0.5 : 1))}
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 6,
-                          backgroundColor: "#f4f4f5",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Plus size={10} color="#3f3f46" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            {/* Cart Footer: Summary & Checkout Button */}
-            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: "#e5e7eb", backgroundColor: "#f9fafb" }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
-                <Text style={{ fontSize: 11, color: "#71717a" }}>Subtotal</Text>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: "#18181b" }}>{formatRupiah(subtotal)}</Text>
-              </View>
-
-              {isPpnActive && ppnAmount > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
-                  <Text style={{ fontSize: 11, color: "#71717a" }}>PPN {ppnRate}%</Text>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
-                </View>
-              )}
-
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 3 }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#18181b" }}>Total</Text>
-                <Text style={{ fontSize: 14, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => {
-                  if (items.length === 0) {
-                    Alert.alert("Keranjang Kosong", "Pilih produk terlebih dahulu.");
-                    return;
-                  }
-                  setCheckoutModalVisible(true);
-                }}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: items.length > 0 ? "#0097A7" : "#d4d4d8",
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginTop: 2,
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>
-                  Bayar {formatRupiah(grandTotal)}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Portrait Floating Cart Bar (when held in portrait) */}
-      {!isLandscape && items.length > 0 && (
+        {/* Right Column: Keranjang Area (~48% width, exactly matching Reference Screenshot) */}
         <View
           style={{
-            position: "absolute",
-            bottom: 12,
-            left: 12,
-            right: 12,
-            backgroundColor: "#0097A7",
-            borderRadius: 20,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            flexDirection: "row",
-            alignItems: "center",
+            flex: 10,
+            backgroundColor: "#FAF8F5",
+            display: "flex",
+            flexDirection: "column",
             justifyContent: "space-between",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-            elevation: 8,
           }}
         >
-          <TouchableOpacity
-            onPress={() => setPortraitCartModalVisible(true)}
-            style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          {/* Cart Items Area */}
+          <ScrollView
+            style={{ flex: 1, paddingHorizontal: 12, paddingTop: 8 }}
+            contentContainerStyle={items.length === 0 ? { flex: 1, alignItems: "center", justifyContent: "center" } : {}}
+            showsVerticalScrollIndicator={false}
           >
-            <View
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                backgroundColor: "rgba(255, 255, 255, 0.25)",
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 10,
-              }}
-            >
-              <ShoppingCart size={16} color="#ffffff" />
-            </View>
-            <View>
-              <Text style={{ fontSize: 11, color: "#ecfeff", fontWeight: "600" }}>
-                {totalItemCount} Item Terpilih
-              </Text>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: "#ffffff" }}>
-                {formatRupiah(grandTotal)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setCheckoutModalVisible(true)}
-            activeOpacity={0.8}
-            style={{
-              backgroundColor: "#ffffff",
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 14,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "800", color: "#0097A7" }}>
-              Bayar →
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Portrait Slide-Up Cart Modal */}
-      <Modal
-        visible={portraitCartModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setPortraitCartModalVisible(false)}
-      >
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
-          <View
-            style={{
-              backgroundColor: "#ffffff",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              padding: 16,
-              maxHeight: "75%",
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <ShoppingCart size={18} color="#0097A7" />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
-                  Keranjang ({totalItemCount})
+            {items.length === 0 ? (
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 20 }}>
+                <Text style={{ fontSize: 13, color: "#8E887F", fontWeight: "500" }}>
+                  Keranjang masih kosong
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setPortraitCartModalVisible(false)} style={{ padding: 4 }}>
-                <X size={20} color="#71717a" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
-              {items.map((item) => (
+            ) : (
+              items.map((item) => (
                 <View
                   key={item.id}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    paddingVertical: 10,
+                    paddingVertical: 8,
                     borderBottomWidth: 1,
-                    borderBottomColor: "#f4f4f5",
+                    borderBottomColor: "#EAE5DC",
                   }}
                 >
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                  <View style={{ flex: 1, paddingRight: 6 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "700", color: "#292524" }}>
                       {item.product.name}
                     </Text>
                     {item.variant && (
-                      <Text style={{ fontSize: 11, color: "#0097A7" }}>
+                      <Text style={{ fontSize: 10, color: "#0097A7" }}>
                         Varian: {item.variant.name}
                       </Text>
                     )}
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#52525b", marginTop: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#57534E" }}>
                       {formatRupiah(item.subtotal)}
                     </Text>
                   </View>
@@ -901,80 +692,94 @@ export default function PosModalScreen() {
                     <TouchableOpacity
                       onPress={() => updateQty(item.id, item.qty - (item.product.is_decimal ? 0.5 : 1))}
                       style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: "#f4f4f5",
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        backgroundColor: "#EFEBE4",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Minus size={14} color="#3f3f46" />
+                      <Minus size={10} color="#44403C" />
                     </TouchableOpacity>
 
-                    <Text style={{ minWidth: 28, textAlign: "center", fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                    <Text style={{ minWidth: 24, textAlign: "center", fontSize: 11, fontWeight: "700", color: "#292524" }}>
                       {item.qty}
                     </Text>
 
                     <TouchableOpacity
                       onPress={() => updateQty(item.id, item.qty + (item.product.is_decimal ? 0.5 : 1))}
                       style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: "#f4f4f5",
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        backgroundColor: "#EFEBE4",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Plus size={14} color="#3f3f46" />
+                      <Plus size={10} color="#44403C" />
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))}
-            </ScrollView>
+              ))
+            )}
+          </ScrollView>
 
-            <View style={{ paddingTop: 12, borderTopWidth: 1, borderTopColor: "#e5e7eb", marginTop: 8 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                <Text style={{ fontSize: 12, color: "#71717a" }}>Subtotal</Text>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>{formatRupiah(subtotal)}</Text>
+          {/* Cart Bottom: Total & Full-Width Cyan Payment Button */}
+          <View
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              backgroundColor: "#FAF8F5",
+            }}
+          >
+            {/* Subtotal / PPN if active */}
+            {isPpnActive && ppnAmount > 0 && (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                <Text style={{ fontSize: 10, color: "#78716C" }}>PPN {ppnRate}%</Text>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: "#292524" }}>{formatRupiah(ppnAmount)}</Text>
               </View>
+            )}
 
-              {isPpnActive && ppnAmount > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                  <Text style={{ fontSize: 12, color: "#71717a" }}>PPN {ppnRate}%</Text>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#18181b" }}>{formatRupiah(ppnAmount)}</Text>
-                </View>
-              )}
-
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 6 }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>Total</Text>
-                <Text style={{ fontSize: 16, fontWeight: "900", color: "#0097A7" }}>{formatRupiah(grandTotal)}</Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => {
-                  setPortraitCartModalVisible(false);
-                  setCheckoutModalVisible(true);
-                }}
-                activeOpacity={0.8}
+            {/* Total Price Right Aligned (Matches Screenshot Rp 0) */}
+            <View style={{ alignItems: "flex-end", marginBottom: 6 }}>
+              <Text
                 style={{
-                  backgroundColor: "#0097A7",
-                  paddingVertical: 12,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginTop: 6,
+                  fontSize: 14,
+                  fontWeight: "800",
+                  color: items.length > 0 ? "#0097A7" : "#8E887F",
                 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
-                  Lanjut Bayar {formatRupiah(grandTotal)}
-                </Text>
-              </TouchableOpacity>
+                {formatRupiah(grandTotal)}
+              </Text>
             </View>
+
+            {/* Big Cyan Payment Button: Lanjutkan ke Pembayaran */}
+            <TouchableOpacity
+              onPress={() => {
+                if (items.length === 0) {
+                  Alert.alert("Keranjang Kosong", "Pilih produk terlebih dahulu.");
+                  return;
+                }
+                setCheckoutModalVisible(true);
+              }}
+              activeOpacity={items.length > 0 ? 0.85 : 1}
+              style={{
+                backgroundColor: items.length > 0 ? "#0097A7" : "#A2E2EA",
+                paddingVertical: 11,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#FFFFFF" }}>
+                Lanjutkan ke Pembayaran
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </View>
 
       {/* Modals */}
       {selectedProductForModal && (
