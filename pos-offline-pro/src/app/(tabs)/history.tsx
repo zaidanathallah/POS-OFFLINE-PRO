@@ -10,11 +10,16 @@ import {
   Alert,
 } from "react-native";
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { TransactionFormModal } from "@/components/TransactionFormModal";
+import { TransactionDetailModal } from "@/components/TransactionDetailModal";
+import { PinPromptModal } from "@/components/PinPromptModal";
+import { useSecureAction } from "@/hooks/useSecureAction";
 import { Transaction } from "@/db";
 import {
   getAllTransactions,
   getTransactionDetailsWithProducts,
   getTransactionsSummary,
+  deleteTransaction,
 } from "@/db/transactionRepository";
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
@@ -23,6 +28,10 @@ import {
   Receipt,
   Printer,
   Inbox,
+  Plus,
+  Edit2,
+  Trash2,
+  Eye,
 } from "lucide-react-native";
 
 export default function HistoryScreen() {
@@ -39,6 +48,22 @@ export default function HistoryScreen() {
   // Receipt Modal for Re-printing
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
+
+  // CRUD Modals
+  const [formModalVisible, setFormModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedTrxForEdit, setSelectedTrxForEdit] = useState<Transaction | null>(null);
+  const [selectedTrxForDetail, setSelectedTrxForDetail] = useState<Transaction | null>(null);
+
+  // Secure Action Hook for PIN Protection
+  const {
+    pinModalVisible,
+    actionTitle,
+    hintText,
+    executeSecureAction,
+    handlePinSuccess,
+    handlePinClose,
+  } = useSecureAction();
 
   const loadTransactions = useCallback(async () => {
     try {
@@ -74,6 +99,55 @@ export default function HistoryScreen() {
     loadTransactions();
   };
 
+  // 1. Create Manual Transaction (PIN Protected)
+  const handleOpenCreateManual = () => {
+    executeSecureAction(() => {
+      setSelectedTrxForEdit(null);
+      setFormModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk menambah transaksi manual");
+  };
+
+  // 2. Edit Transaction (PIN Protected)
+  const handleOpenEditTrx = (trx: Transaction) => {
+    executeSecureAction(() => {
+      setSelectedTrxForEdit(trx);
+      setFormModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk mengubah data transaksi");
+  };
+
+  // 3. Delete Transaction (PIN Protected)
+  const handleDeleteTrx = (trx: Transaction) => {
+    executeSecureAction(() => {
+      Alert.alert(
+        "Hapus / Batalkan Transaksi",
+        `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteTransaction(trx.id, true);
+                await loadTransactions();
+                Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
+              } catch (e: any) {
+                Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+              }
+            },
+          },
+        ]
+      );
+    }, "Masukkan PIN Supervisor untuk menghapus transaksi");
+  };
+
+  // 4. Detail Modal
+  const handleOpenDetail = (trx: Transaction) => {
+    setSelectedTrxForDetail(trx);
+    setDetailModalVisible(true);
+  };
+
+  // Print Receipt
   const handlePrintReceipt = async (trx: Transaction) => {
     try {
       const details = await getTransactionDetailsWithProducts(trx.id);
@@ -104,6 +178,8 @@ export default function HistoryScreen() {
         changeAmount: trx.change_amount || 0,
         paymentMethod: trx.payment_method || "CASH",
         cashierName: "Kasir 1",
+        tableNumber: trx.table_number || undefined,
+        customerName: trx.customer_name || undefined,
       };
       setSelectedReceipt(receiptData);
       setReceiptModalVisible(true);
@@ -114,7 +190,7 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
-      {/* Header */}
+      {/* Header with Add Button */}
       <View
         style={{
           paddingHorizontal: 16,
@@ -122,14 +198,37 @@ export default function HistoryScreen() {
           backgroundColor: "#ffffff",
           borderBottomWidth: 1,
           borderBottomColor: "#e5e7eb",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
-          Riwayat Transaksi
-        </Text>
-        <Text style={{ fontSize: 12, color: "#71717a", marginTop: 1 }}>
-          Daftar Struk Penjualan & Cetak Ulang (58mm)
-        </Text>
+        <View>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
+            Riwayat Transaksi
+          </Text>
+          <Text style={{ fontSize: 12, color: "#71717a", marginTop: 1 }}>
+            Daftar Struk Penjualan & Kelola Transaksi (CRUD)
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleOpenCreateManual}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#0097A7",
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 14,
+          }}
+        >
+          <Plus size={14} color="#ffffff" />
+          <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 4 }}>
+            Catat Manual
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Transaction List */}
@@ -180,7 +279,7 @@ export default function HistoryScreen() {
                 elevation: 1,
               }}
             >
-              {/* Header Struk: Invoice & Method */}
+              {/* Header Struk: Invoice, Method, & Action Icons */}
               <View
                 style={{
                   flexDirection: "row",
@@ -197,10 +296,43 @@ export default function HistoryScreen() {
                     {trx.invoice_no || trx.id}
                   </Text>
                 </View>
-                <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, backgroundColor: "#ecfeff" }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
-                    {trx.payment_method || "CASH"}
-                  </Text>
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: "#ecfeff" }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
+                      {trx.payment_method || "CASH"}
+                    </Text>
+                  </View>
+
+                  {/* Edit Button (PIN Protected) */}
+                  <TouchableOpacity
+                    onPress={() => handleOpenEditTrx(trx)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      backgroundColor: "#f4f4f5",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Edit2 size={12} color="#0097A7" />
+                  </TouchableOpacity>
+
+                  {/* Delete Button (PIN Protected) */}
+                  <TouchableOpacity
+                    onPress={() => handleDeleteTrx(trx)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      backgroundColor: "#fef2f2",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Trash2 size={12} color="#ef4444" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -222,7 +354,7 @@ export default function HistoryScreen() {
                 ) : null}
               </View>
 
-              {/* Financial Breakdown & Print Button */}
+              {/* Financial Breakdown & Action Buttons */}
               <View
                 style={{
                   paddingTop: 10,
@@ -242,30 +374,69 @@ export default function HistoryScreen() {
                   </Text>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => handlePrintReceipt(trx)}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "#d4d4d8",
-                    backgroundColor: "#ffffff",
-                  }}
-                >
-                  <Printer size={14} color="#0097A7" />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginLeft: 6 }}>
-                    Cetak 58mm
-                  </Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {/* Detail Button */}
+                  <TouchableOpacity
+                    onPress={() => handleOpenDetail(trx)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#e4e4e7",
+                      backgroundColor: "#f9fafb",
+                    }}
+                  >
+                    <Eye size={13} color="#52525b" />
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#52525b", marginLeft: 4 }}>
+                      Detail
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Print 58mm Button */}
+                  <TouchableOpacity
+                    onPress={() => handlePrintReceipt(trx)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#a5f3fc",
+                      backgroundColor: "#ecfeff",
+                    }}
+                  >
+                    <Printer size={13} color="#0097A7" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+                      Cetak 58mm
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           ))
         )}
       </ScrollView>
+
+      {/* Detail Modal */}
+      <TransactionDetailModal
+        visible={detailModalVisible}
+        transaction={selectedTrxForDetail}
+        onClose={() => setDetailModalVisible(false)}
+      />
+
+      {/* Form (Create / Edit) Modal */}
+      <TransactionFormModal
+        visible={formModalVisible}
+        transaction={selectedTrxForEdit}
+        onClose={() => setFormModalVisible(false)}
+        onSaved={loadTransactions}
+      />
 
       {/* Re-print Receipt Modal */}
       <ReceiptModal
@@ -273,6 +444,15 @@ export default function HistoryScreen() {
         receiptData={selectedReceipt}
         onClose={() => setReceiptModalVisible(false)}
         onNewTransaction={() => setReceiptModalVisible(false)}
+      />
+
+      {/* Secure PIN Prompt Modal */}
+      <PinPromptModal
+        visible={pinModalVisible}
+        actionTitle={actionTitle}
+        hintText={hintText}
+        onClose={handlePinClose}
+        onSuccess={handlePinSuccess}
       />
     </SafeAreaView>
   );

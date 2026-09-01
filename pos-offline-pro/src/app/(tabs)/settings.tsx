@@ -25,11 +25,15 @@ import {
   TopProductItem,
   PeakHourItem,
 } from "@/db/reportRepository";
+import { deleteTransaction } from "@/db/transactionRepository";
 import { exportDatabaseBackup, importDatabaseBackup } from "@/util/databaseSync";
 import { exportReportToCSV } from "@/util/csvExportService";
 import { PrinterService, BluetoothDeviceItem } from "@/util/printerService";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { PinPromptModal } from "@/components/PinPromptModal";
+import { TransactionFormModal } from "@/components/TransactionFormModal";
+import { TransactionDetailModal } from "@/components/TransactionDetailModal";
+import { Transaction } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import {
   BarChart2,
@@ -55,6 +59,11 @@ import {
   MessageSquare,
   Percent,
   AlertTriangle,
+  Plus,
+  Edit2,
+  Trash2,
+  Eye,
+  Receipt,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -106,7 +115,14 @@ export default function SettingsScreen() {
   });
   const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
   const [peakHours, setPeakHours] = useState<PeakHourItem[]>([]);
+  const [reportTransactions, setReportTransactions] = useState<Transaction[]>([]);
   const [isExportingCSV, setIsExportingCSV] = useState(false);
+
+  // Transaction CRUD Modals for Laporan
+  const [formModalVisible, setFormModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedTrxForEdit, setSelectedTrxForEdit] = useState<Transaction | null>(null);
+  const [selectedTrxForDetail, setSelectedTrxForDetail] = useState<Transaction | null>(null);
 
   // Bluetooth Printer Scanner State
   const [discoveredPrinters, setDiscoveredPrinters] = useState<BluetoothDeviceItem[]>([]);
@@ -180,6 +196,9 @@ export default function SettingsScreen() {
 
       const peak = await getPeakHoursAnalysis(reportPeriod, customStartDate, customEndDate);
       setPeakHours(peak);
+
+      const trxs = await getTransactionsForReport(reportPeriod, customStartDate, customEndDate);
+      setReportTransactions(trxs);
     } catch (e) {
       console.log("Load report error:", e);
     }
@@ -253,7 +272,7 @@ export default function SettingsScreen() {
     }
   };
 
-  // Secure toggle for features (No hint text shown to keep it clean)
+  // Secure toggle for features
   const handleToggleFeatureWithPin = (key: string, val: boolean, setter: (v: boolean) => void) => {
     executeSecureAction(async () => {
       setter(val);
@@ -399,6 +418,46 @@ export default function SettingsScreen() {
     setNewPin("");
     setConfirmPin("");
     Alert.alert("Berhasil", "PIN Supervisor 4-digit berhasil disimpan.\n\nCatatan: Tolong owner dicatat PIN nya di WA atau di catatan HP.");
+  };
+
+  // Laporan CRUD Handlers (Protected by PIN)
+  const handleOpenCreateManualLaporan = () => {
+    executeSecureAction(() => {
+      setSelectedTrxForEdit(null);
+      setFormModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk menambah data transaksi manual");
+  };
+
+  const handleOpenEditLaporan = (trx: Transaction) => {
+    executeSecureAction(() => {
+      setSelectedTrxForEdit(trx);
+      setFormModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk mengubah data transaksi");
+  };
+
+  const handleDeleteLaporan = (trx: Transaction) => {
+    executeSecureAction(() => {
+      Alert.alert(
+        "Hapus Transaksi dari Laporan",
+        `Hapus transaksi ${trx.invoice_no || trx.id}? Omset laporan akan dikurangi dan stok dikembalikan.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteTransaction(trx.id, true);
+                await loadReportData();
+                Alert.alert("Sukses", "Transaksi berhasil dihapus dari laporan.");
+              } catch (e: any) {
+                Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+              }
+            },
+          },
+        ]
+      );
+    }, "Masukkan PIN Supervisor untuk menghapus transaksi");
   };
 
   const peakHourRecord = peakHours.find((p) => p.isPeak);
@@ -684,7 +743,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 1: Laporan */}
+      {/* Subpage 1: Laporan with Complete CRUD & Real Minute Peak Hours */}
       {activeSubpage === "laporan" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -763,39 +822,65 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Export CSV Button */}
-          <TouchableOpacity
-            onPress={handleExportCSV}
-            disabled={isExportingCSV}
-            activeOpacity={0.8}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#ffffff",
-              paddingVertical: 10,
-              borderRadius: 14,
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: "#e5e7eb",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.05,
-              shadowRadius: 2,
-              elevation: 1,
-            }}
-          >
-            {isExportingCSV ? (
-              <ActivityIndicator size="small" color="#0097A7" />
-            ) : (
-              <>
-                <FileSpreadsheet size={16} color="#0097A7" />
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
-                  Export Laporan ke CSV (Excel)
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* Action Row: Export CSV & Catat Transaksi Manual */}
+          <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={handleExportCSV}
+              disabled={isExportingCSV}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#ffffff",
+                paddingVertical: 10,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              {isExportingCSV ? (
+                <ActivityIndicator size="small" color="#0097A7" />
+              ) : (
+                <>
+                  <FileSpreadsheet size={15} color="#0097A7" />
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 6 }}>
+                    Export CSV
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleOpenCreateManualLaporan}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#0097A7",
+                paddingVertical: 10,
+                borderRadius: 14,
+                shadowColor: "#0097A7",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <Plus size={15} color="#ffffff" />
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+                + Catat Manual
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Ringkasan Finansial Card */}
           <View
@@ -816,7 +901,7 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <BarChart2 size={18} color="#0097A7" />
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
-                Ringkasan
+                Ringkasan Finansial
               </Text>
             </View>
 
@@ -947,7 +1032,7 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          {/* Jam Sibuk Card */}
+          {/* Jam Sibuk Card (Minute by Minute Local Device Timestamps) */}
           <View
             style={{
               padding: 16,
@@ -966,14 +1051,14 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
               <Clock size={18} color="#0097A7" />
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
-                Jam Sibuk (Waktu Lokal Device)
+                Waktu Transaksi Riil & Jam Sibuk
               </Text>
             </View>
 
             {peakHours.map((h, idx) => (
               <View key={idx} style={{ flexDirection: "row", alignItems: "center", marginVertical: 5 }}>
                 <Text style={{ width: 48, fontSize: 11, fontFamily: "monospace", color: "#71717a" }}>
-                  {h.hour}
+                  {h.timeLabel}
                 </Text>
                 <View style={{ flex: 1, height: 10, backgroundColor: "#f4f4f5", borderRadius: 5, marginHorizontal: 8, overflow: "hidden" }}>
                   <View
@@ -985,13 +1070,13 @@ export default function SettingsScreen() {
                     }}
                   />
                 </View>
-                <View style={{ width: 100, alignItems: "flex-end" }}>
+                <View style={{ width: 110, alignItems: "flex-end" }}>
                   <Text style={{ fontSize: 11, fontWeight: "700", color: h.isPeak ? "#0097A7" : "#3f3f46" }}>
                     {formatRupiah(h.totalOmset)}
                   </Text>
                   {h.transactionCount > 0 && (
                     <Text style={{ fontSize: 9, color: "#71717a" }}>
-                      {h.transactionCount} transaksi
+                      {h.transactionCount} trx {h.invoiceNo ? `(${h.invoiceNo.split("-")[2] || ""})` : ""}
                     </Text>
                   )}
                 </View>
@@ -1000,8 +1085,105 @@ export default function SettingsScreen() {
 
             {peakHourRecord && peakHourRecord.transactionCount > 0 && (
               <Text style={{ fontSize: 11, color: "#0097A7", marginTop: 8, fontWeight: "700" }}>
-                * Jam dengan transaksi tertinggi: {peakHourRecord.hour} ({formatRupiah(peakHourRecord.totalOmset)})
+                * Transaksi tertinggi pada: {peakHourRecord.timeLabel} ({formatRupiah(peakHourRecord.totalOmset)})
               </Text>
+            )}
+          </View>
+
+          {/* Daftar Transaksi Laporan (CRUD with PIN) */}
+          <View
+            style={{
+              padding: 16,
+              borderRadius: 24,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#e5e7eb",
+              marginBottom: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Receipt size={18} color="#0097A7" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginLeft: 8 }}>
+                  Daftar Transaksi Periode Ini ({reportTransactions.length})
+                </Text>
+              </View>
+            </View>
+
+            {reportTransactions.length === 0 ? (
+              <Text style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", paddingVertical: 16 }}>
+                Tidak ada transaksi pada periode ini
+              </Text>
+            ) : (
+              reportTransactions.map((trx) => (
+                <View
+                  key={trx.id}
+                  style={{
+                    paddingVertical: 10,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#f4f4f5",
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", fontFamily: "monospace", color: "#18181b" }}>
+                        {trx.invoice_no || trx.id}
+                      </Text>
+                      <View style={{ marginLeft: 6, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: "#ecfeff" }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#0097A7" }}>
+                          {trx.payment_method || "CASH"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* CRUD Action Buttons for Owner */}
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedTrxForDetail(trx);
+                          setDetailModalVisible(true);
+                        }}
+                        style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#f4f4f5", alignItems: "center", justifyContent: "center" }}
+                      >
+                        <Eye size={12} color="#52525b" />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => handleOpenEditLaporan(trx)}
+                        style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#ecfeff", alignItems: "center", justifyContent: "center" }}
+                      >
+                        <Edit2 size={12} color="#0097A7" />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => handleDeleteLaporan(trx)}
+                        style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: "#fef2f2", alignItems: "center", justifyContent: "center" }}
+                      >
+                        <Trash2 size={12} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={{ fontSize: 10, color: "#71717a" }}>
+                      {new Date(trx.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} • {new Date(trx.created_at).toLocaleDateString("id-ID")}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: "#18181b" }}>
+                        {formatRupiah(trx.omset)}
+                      </Text>
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: "#16a34a" }}>
+                        +{formatRupiah(trx.laba_kotor)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
             )}
           </View>
         </ScrollView>
@@ -2025,6 +2207,21 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Transaction Form Modal for Laporan CRUD */}
+      <TransactionFormModal
+        visible={formModalVisible}
+        transaction={selectedTrxForEdit}
+        onClose={() => setFormModalVisible(false)}
+        onSaved={loadReportData}
+      />
+
+      {/* Transaction Detail Modal for Laporan */}
+      <TransactionDetailModal
+        visible={detailModalVisible}
+        transaction={selectedTrxForDetail}
+        onClose={() => setDetailModalVisible(false)}
+      />
 
       {/* Secure PIN Prompt Modal */}
       <PinPromptModal

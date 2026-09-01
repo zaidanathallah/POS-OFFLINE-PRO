@@ -1,8 +1,4 @@
-/**
- * Report Repository - SQLite Aggregation Queries for Financial & Analytics Reporting
- * Dynamic timezone-aware device calculations and custom date ranges
- */
-import { runInDbQueue } from "./index";
+import { runInDbQueue, Transaction } from "./index";
 
 export type ReportPeriod = "today" | "7days" | "30days" | "custom";
 
@@ -27,25 +23,12 @@ export interface TopProductItem {
 }
 
 export interface PeakHourItem {
-  hour: string;
-  transactionCount: number;
+  timeLabel: string; // e.g. "12:07", "12:12", "19:38" (Device local time)
   totalOmset: number;
+  transactionCount: number;
+  invoiceNo?: string;
   percentage: number;
   isPeak: boolean;
-}
-
-export interface TransactionReportRow {
-  id: string;
-  invoice_no: string;
-  created_at: string;
-  payment_method: string;
-  subtotal_before_tax: number;
-  ppn_amount: number;
-  omset: number;
-  total_hpp: number;
-  laba_kotor: number;
-  table_number?: string | null;
-  customer_name?: string | null;
 }
 
 function getPeriodCondition(
@@ -54,35 +37,42 @@ function getPeriodCondition(
   customEndDate?: string
 ): { whereClause: string; params: any[] } {
   const now = new Date();
+
   if (period === "today") {
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T00:00:00`;
+    const todayStr = now.toISOString().split("T")[0];
     return {
-      whereClause: "created_at >= ?",
-      params: [todayStr],
-    };
-  } else if (period === "7days") {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const dateStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(sevenDaysAgo.getDate()).padStart(2, "0")}T00:00:00`;
-    return {
-      whereClause: "created_at >= ?",
-      params: [dateStr],
-    };
-  } else if (period === "30days") {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const dateStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(thirtyDaysAgo.getDate()).padStart(2, "0")}T00:00:00`;
-    return {
-      whereClause: "created_at >= ?",
-      params: [dateStr],
-    };
-  } else {
-    // Custom date range (YYYY-MM-DD)
-    const start = customStartDate ? `${customStartDate}T00:00:00` : "2020-01-01T00:00:00";
-    const end = customEndDate ? `${customEndDate}T23:59:59` : `${now.getFullYear()}-12-31T23:59:59`;
-    return {
-      whereClause: "created_at >= ? AND created_at <= ?",
-      params: [start, end],
+      whereClause: "is_open_bill = 0 AND created_at LIKE ?",
+      params: [`${todayStr}%`],
     };
   }
+
+  if (period === "7days") {
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      whereClause: "is_open_bill = 0 AND created_at >= ?",
+      params: [sevenDaysAgo.toISOString()],
+    };
+  }
+
+  if (period === "30days") {
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return {
+      whereClause: "is_open_bill = 0 AND created_at >= ?",
+      params: [thirtyDaysAgo.toISOString()],
+    };
+  }
+
+  if (period === "custom" && customStartDate && customEndDate) {
+    return {
+      whereClause: "is_open_bill = 0 AND created_at >= ? AND created_at <= ?",
+      params: [`${customStartDate}T00:00:00.000Z`, `${customEndDate}T23:59:59.999Z`],
+    };
+  }
+
+  return {
+    whereClause: "is_open_bill = 0",
+    params: [],
+  };
 }
 
 export async function getFinancialSummary(
@@ -95,38 +85,45 @@ export async function getFinancialSummary(
 
     const query = `
       SELECT 
-        COALESCE(SUM(omset), 0) as total_omset,
-        COALESCE(SUM(total_hpp), 0) as total_hpp,
-        COALESCE(SUM(laba_kotor), 0) as total_laba,
-        COUNT(*) as total_count,
-        COUNT(DISTINCT substr(created_at, 1, 10)) as distinct_days
+        SUM(omset) as total_omset,
+        SUM(total_hpp) as total_hpp,
+        SUM(laba_kotor) as total_laba,
+        COUNT(*) as total_transactions
       FROM transactions
       WHERE ${whereClause}
     `;
 
     const row = await db.getFirstAsync<{
-      total_omset: number;
-      total_hpp: number;
-      total_laba: number;
-      total_count: number;
-      distinct_days: number;
+      total_omset: number | null;
+      total_hpp: number | null;
+      total_laba: number | null;
+      total_transactions: number;
     }>(query, params);
 
     const omset = row?.total_omset || 0;
     const modalHpp = row?.total_hpp || 0;
     const labaKotor = row?.total_laba || 0;
-    const totalTransactions = row?.total_count || 0;
-    const daysCount = Math.max(1, row?.distinct_days || 1);
+    const totalTransactions = row?.total_transactions || 0;
 
-    const marginPercent = omset > 0 ? (labaKotor / omset) * 100 : 0;
-    const avgPerTransaction = totalTransactions > 0 ? Math.round(omset / totalTransactions) : 0;
-    const avgPerDay = Math.round(omset / daysCount);
+    const marginPercent =
+      omset > 0 ? Number(((labaKotor / omset) * 100).toFixed(1)) : 0;
+    const avgPerTransaction =
+      totalTransactions > 0 ? Math.round(omset / totalTransactions) : 0;
+
+    let divisorDays = 1;
+    if (period === "7days") divisorDays = 7;
+    else if (period === "30days") divisorDays = 30;
+    else if (period === "custom" && customStartDate && customEndDate) {
+      const diffMs = new Date(customEndDate).getTime() - new Date(customStartDate).getTime();
+      divisorDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+    const avgPerDay = Math.round(omset / divisorDays);
 
     return {
       omset,
       modalHpp,
       labaKotor,
-      marginPercent: parseFloat(marginPercent.toFixed(1)),
+      marginPercent,
       totalTransactions,
       avgPerTransaction,
       avgPerDay,
@@ -186,7 +183,7 @@ export async function getTopProducts(
 }
 
 /**
- * Calculates dynamic hourly peak hours based on the device's local timezone
+ * Calculates dynamic peak minutes/hours based on actual transaction timestamps in device local time
  */
 export async function getPeakHoursAnalysis(
   period: ReportPeriod,
@@ -197,83 +194,72 @@ export async function getPeakHoursAnalysis(
     const { whereClause, params } = getPeriodCondition(period, customStartDate, customEndDate);
 
     const rows = await db.getAllAsync<{
+      invoice_no: string | null;
       created_at: string;
       omset: number;
-    }>(`SELECT created_at, omset FROM transactions WHERE ${whereClause};`, params);
+    }>(
+      `SELECT invoice_no, created_at, omset 
+       FROM transactions 
+       WHERE ${whereClause} 
+       ORDER BY created_at DESC;`,
+      params
+    );
 
-    // Default time buckets: 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00
-    const hourMap: Record<number, { count: number; omset: number }> = {};
-    for (let h = 0; h < 24; h++) {
-      hourMap[h] = { count: 0, omset: 0 };
+    if (!rows || rows.length === 0) {
+      return [
+        { timeLabel: "08:00", totalOmset: 0, transactionCount: 0, percentage: 0, isPeak: false },
+        { timeLabel: "12:00", totalOmset: 0, transactionCount: 0, percentage: 0, isPeak: false },
+        { timeLabel: "18:00", totalOmset: 0, transactionCount: 0, percentage: 0, isPeak: false },
+        { timeLabel: "20:00", totalOmset: 0, transactionCount: 0, percentage: 0, isPeak: false },
+      ];
     }
 
-    // Accumulate each transaction in device local hour
-    if (rows && rows.length > 0) {
-      for (const row of rows) {
-        const date = new Date(row.created_at);
-        const localHour = isNaN(date.getHours()) ? 12 : date.getHours();
-        hourMap[localHour].count += 1;
-        hourMap[localHour].omset += row.omset || 0;
+    // Group by exact HH:mm local time
+    const timeMap: Record<string, { omset: number; count: number; invoiceNo?: string }> = {};
+
+    for (const row of rows) {
+      const d = new Date(row.created_at);
+      const hours = String(isNaN(d.getHours()) ? 12 : d.getHours()).padStart(2, "0");
+      const minutes = String(isNaN(d.getMinutes()) ? 0 : d.getMinutes()).padStart(2, "0");
+      const key = `${hours}:${minutes}`;
+
+      if (!timeMap[key]) {
+        timeMap[key] = { omset: 0, count: 0, invoiceNo: row.invoice_no || undefined };
       }
+      timeMap[key].omset += row.omset || 0;
+      timeMap[key].count += 1;
     }
 
-    // Find hours with transactions or display top business hours
-    const activeHours = Object.keys(hourMap)
-      .map(Number)
-      .filter((h) => hourMap[h].count > 0);
+    const timeKeys = Object.keys(timeMap);
+    const maxOmset = Math.max(...timeKeys.map((k) => timeMap[k].omset), 1);
 
-    const displayHours =
-      activeHours.length > 0
-        ? activeHours.sort((a, b) => a - b)
-        : [8, 10, 12, 14, 16, 18, 20];
-
-    const maxCount = Math.max(...displayHours.map((h) => hourMap[h].count), 1);
-
-    return displayHours.map((h) => {
-      const padHour = String(h).padStart(2, "0");
-      const count = hourMap[h].count;
-      const omset = hourMap[h].omset;
-
+    return timeKeys.map((k) => {
+      const item = timeMap[k];
       return {
-        hour: `${padHour}:00`,
-        transactionCount: count,
-        totalOmset: omset,
-        percentage: count > 0 ? Math.round((count / maxCount) * 100) : 0,
-        isPeak: count === maxCount && count > 0,
+        timeLabel: k,
+        totalOmset: item.omset,
+        transactionCount: item.count,
+        invoiceNo: item.invoiceNo,
+        percentage: Math.round((item.omset / maxOmset) * 100),
+        isPeak: item.omset === maxOmset && item.omset > 0,
       };
     });
   });
 }
 
 /**
- * Fetches all transaction rows for CSV export
+ * Fetches all transaction rows for CSV export & detail management
  */
 export async function getTransactionsForReport(
   period: ReportPeriod,
   customStartDate?: string,
   customEndDate?: string
-): Promise<TransactionReportRow[]> {
+): Promise<Transaction[]> {
   return await runInDbQueue(async (db) => {
     const { whereClause, params } = getPeriodCondition(period, customStartDate, customEndDate);
-
-    const query = `
-      SELECT 
-        id,
-        invoice_no,
-        created_at,
-        payment_method,
-        subtotal_before_tax,
-        ppn_amount,
-        omset,
-        total_hpp,
-        laba_kotor,
-        table_number,
-        customer_name
-      FROM transactions
-      WHERE ${whereClause}
-      ORDER BY created_at DESC
-    `;
-
-    return await db.getAllAsync<TransactionReportRow>(query, params);
+    return await db.getAllAsync<Transaction>(
+      `SELECT * FROM transactions WHERE ${whereClause} ORDER BY created_at DESC;`,
+      params
+    );
   });
 }
