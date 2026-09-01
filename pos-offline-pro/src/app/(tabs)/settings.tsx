@@ -55,7 +55,6 @@ import {
   MessageSquare,
   Percent,
   AlertTriangle,
-  RotateCcw,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -402,27 +401,6 @@ export default function SettingsScreen() {
     Alert.alert("Berhasil", "PIN Supervisor 4-digit berhasil disimpan.\n\nCatatan: Tolong owner dicatat PIN nya di WA atau di catatan HP.");
   };
 
-  // Emergency Reset PIN to Default
-  const handleResetPinDefault = () => {
-    Alert.alert(
-      "Reset PIN Supervisor",
-      "Apakah Anda ingin mereset PIN Supervisor ke default (1234)?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Ya, Reset PIN",
-          style: "destructive",
-          onPress: async () => {
-            await setSetting("supervisor_pin", "1234");
-            await setSetting("is_pin_active", "0");
-            setIsPinActive(false);
-            Alert.alert("PIN Direset", "PIN Supervisor telah dikembalikan ke default dan proteksi dinonaktifkan.");
-          },
-        },
-      ]
-    );
-  };
-
   const peakHourRecord = peakHours.find((p) => p.isPeak);
 
   return (
@@ -472,7 +450,7 @@ export default function SettingsScreen() {
       {activeSubpage === null && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -710,7 +688,7 @@ export default function SettingsScreen() {
       {activeSubpage === "laporan" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Period Filter Tabs */}
@@ -1033,7 +1011,7 @@ export default function SettingsScreen() {
       {activeSubpage === "printer" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -1249,7 +1227,7 @@ export default function SettingsScreen() {
       {activeSubpage === "manajemen_data" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -1333,7 +1311,7 @@ export default function SettingsScreen() {
       {activeSubpage === "pin" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Important Owner Note Banner */}
@@ -1444,18 +1422,6 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-
-            {/* Emergency Reset Option */}
-            <TouchableOpacity
-              onPress={handleResetPinDefault}
-              activeOpacity={0.7}
-              style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#f4f4f5", flexDirection: "row", alignItems: "center", justifyContent: "center" }}
-            >
-              <RotateCcw size={14} color="#71717a" />
-              <Text style={{ fontSize: 11, color: "#71717a", marginLeft: 6 }}>
-                Reset PIN ke Pengaturan Awal
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       )}
@@ -1464,7 +1430,7 @@ export default function SettingsScreen() {
       {activeSubpage === "toko" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -1720,7 +1686,7 @@ export default function SettingsScreen() {
       {activeSubpage === "aplikasi" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           <View

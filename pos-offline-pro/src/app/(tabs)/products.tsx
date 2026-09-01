@@ -273,7 +273,7 @@ export default function ProductsScreen() {
       {/* Product List Content */}
       <ScrollView
         style={{ flex: 1, padding: 16 }}
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
