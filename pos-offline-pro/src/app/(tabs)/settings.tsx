@@ -54,6 +54,8 @@ import {
   ImageIcon,
   MessageSquare,
   Percent,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -120,6 +122,7 @@ export default function SettingsScreen() {
   const {
     pinModalVisible,
     actionTitle,
+    hintText,
     executeSecureAction,
     handlePinSuccess,
     handlePinClose,
@@ -193,7 +196,7 @@ export default function SettingsScreen() {
     }
   }, [activeSubpage, loadReportData]);
 
-  // Image Picker (Gallery / File) for Logo or QRIS
+  // Image Picker for Logo or QRIS
   const handlePickStoreImage = async (type: "logo" | "qris") => {
     try {
       if (Platform.OS === "web") {
@@ -251,7 +254,7 @@ export default function SettingsScreen() {
     }
   };
 
-  // Secure toggle for features
+  // Secure toggle for features (No hint text shown to keep it clean)
   const handleToggleFeatureWithPin = (key: string, val: boolean, setter: (v: boolean) => void) => {
     executeSecureAction(async () => {
       setter(val);
@@ -344,7 +347,7 @@ export default function SettingsScreen() {
     try {
       const res = await exportDatabaseBackup();
       if (res.success) {
-        Alert.alert("Backup Berhasil!", `File cadangan ${res.fileName} berhasil diekspor.`);
+        Alert.alert("Backup Berhasil!", `File cadangan ${res.fileName} berhasil diekstrak.`);
       }
     } finally {
       setIsExporting(false);
@@ -396,7 +399,28 @@ export default function SettingsScreen() {
     setPinChangeVisible(false);
     setNewPin("");
     setConfirmPin("");
-    Alert.alert("Berhasil", "PIN Supervisor 4-digit berhasil diaktifkan.");
+    Alert.alert("Berhasil", "PIN Supervisor 4-digit berhasil disimpan.\n\nCatatan: Tolong owner dicatat PIN nya di WA atau di catatan HP.");
+  };
+
+  // Emergency Reset PIN to Default
+  const handleResetPinDefault = () => {
+    Alert.alert(
+      "Reset PIN Supervisor",
+      "Apakah Anda ingin mereset PIN Supervisor ke default (1234)?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Ya, Reset PIN",
+          style: "destructive",
+          onPress: async () => {
+            await setSetting("supervisor_pin", "1234");
+            await setSetting("is_pin_active", "0");
+            setIsPinActive(false);
+            Alert.alert("PIN Direset", "PIN Supervisor telah dikembalikan ke default dan proteksi dinonaktifkan.");
+          },
+        },
+      ]
+    );
   };
 
   const peakHourRecord = peakHours.find((p) => p.isPeak);
@@ -682,7 +706,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 1: Laporan Lengkap with Custom Date Range & CSV Export */}
+      {/* Subpage 1: Laporan */}
       {activeSubpage === "laporan" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -945,7 +969,7 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          {/* Jam Sibuk Card (Dynamic Real Hour & Dynamic Revenue per device) */}
+          {/* Jam Sibuk Card */}
           <View
             style={{
               padding: 16,
@@ -1005,14 +1029,13 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 2: Printer Bluetooth Scanner & Connect */}
+      {/* Subpage 2: Printer */}
       {activeSubpage === "printer" && (
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Connected Printer Card */}
           <View
             style={{
               padding: 20,
@@ -1073,7 +1096,6 @@ export default function SettingsScreen() {
               </Text>
             )}
 
-            {/* Test Print Button */}
             <TouchableOpacity
               onPress={handleTestPrint}
               activeOpacity={0.8}
@@ -1110,7 +1132,7 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          {/* Bluetooth Scanner Card */}
+          {/* Bluetooth Scanner */}
           <View
             style={{
               padding: 20,
@@ -1307,13 +1329,37 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 4: Keamanan PIN */}
+      {/* Subpage 4: Keamanan PIN with Owner Reminder Note */}
       {activeSubpage === "pin" && (
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Important Owner Note Banner */}
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              backgroundColor: "#fffbeb",
+              borderWidth: 1,
+              borderColor: "#fde68a",
+              marginBottom: 16,
+              flexDirection: "row",
+              alignItems: "flex-start",
+            }}
+          >
+            <AlertTriangle size={18} color="#d97706" style={{ marginTop: 2, marginRight: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#b45309" }}>
+                Penting untuk Owner:
+              </Text>
+              <Text style={{ fontSize: 12, color: "#92400e", marginTop: 2, lineHeight: 18 }}>
+                tolong owner dicatat pin nya di wa atau di catatan hp agar tidak lupa.
+              </Text>
+            </View>
+          </View>
+
           <View
             style={{
               padding: 20,
@@ -1345,11 +1391,15 @@ export default function SettingsScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (isPinActive) {
-                  executeSecureAction(async () => {
-                    await setSetting("is_pin_active", "0");
-                    setIsPinActive(false);
-                    Alert.alert("Sukses", "PIN Keamanan telah dinonaktifkan.");
-                  }, "Masukkan PIN Supervisor untuk menonaktifkan keamanan PIN");
+                  executeSecureAction(
+                    async () => {
+                      await setSetting("is_pin_active", "0");
+                      setIsPinActive(false);
+                      Alert.alert("Sukses", "PIN Keamanan telah dinonaktifkan.");
+                    },
+                    "Masukkan PIN Supervisor untuk menonaktifkan keamanan PIN",
+                    "tolong owner dicatat pin nya di wa atau di catatan hp"
+                  );
                 } else {
                   setNewPin("");
                   setConfirmPin("");
@@ -1376,11 +1426,15 @@ export default function SettingsScreen() {
             {isPinActive && (
               <TouchableOpacity
                 onPress={() => {
-                  executeSecureAction(() => {
-                    setNewPin("");
-                    setConfirmPin("");
-                    setPinChangeVisible(true);
-                  }, "Masukkan PIN Supervisor lama untuk mengganti PIN baru");
+                  executeSecureAction(
+                    () => {
+                      setNewPin("");
+                      setConfirmPin("");
+                      setPinChangeVisible(true);
+                    },
+                    "Masukkan PIN Supervisor lama untuk mengganti PIN baru",
+                    "tolong owner dicatat pin nya di wa atau di catatan hp"
+                  );
                 }}
                 activeOpacity={0.7}
                 style={{ marginTop: 10, paddingVertical: 8, alignItems: "center", justifyContent: "center" }}
@@ -1390,11 +1444,23 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* Emergency Reset Option */}
+            <TouchableOpacity
+              onPress={handleResetPinDefault}
+              activeOpacity={0.7}
+              style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#f4f4f5", flexDirection: "row", alignItems: "center", justifyContent: "center" }}
+            >
+              <RotateCcw size={14} color="#71717a" />
+              <Text style={{ fontSize: 11, color: "#71717a", marginLeft: 6 }}>
+                Reset PIN ke Pengaturan Awal
+              </Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       )}
 
-      {/* Subpage 5: Atur Toko with Image Pickers & Receipt Footer */}
+      {/* Subpage 5: Atur Toko */}
       {activeSubpage === "toko" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -1650,7 +1716,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 6: Pengaturan Aplikasi Dynamic Toggles with PIN protection & editable PPN */}
+      {/* Subpage 6: Pengaturan Aplikasi */}
       {activeSubpage === "aplikasi" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -1773,7 +1839,7 @@ export default function SettingsScreen() {
               />
             </View>
 
-            {/* 7. Pajak PPN (Dinamis Rate & Toggle) */}
+            {/* 7. Pajak PPN */}
             <View style={{ paddingVertical: 10 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
@@ -1910,7 +1976,7 @@ export default function SettingsScreen() {
       <Modal visible={pinChangeVisible} transparent animationType="fade" onRequestClose={() => setPinChangeVisible(false)}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)", padding: 20 }}>
           <View style={{ width: "100%", maxWidth: 360, backgroundColor: "#ffffff", borderRadius: 24, padding: 20 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>
                 {isPinActive ? "Ubah PIN Supervisor" : "Aktifkan PIN Supervisor"}
               </Text>
@@ -1919,7 +1985,23 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={{ marginVertical: 8 }}>
+            {/* Important Owner Note inside Modal */}
+            <View
+              style={{
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: "#fffbeb",
+                borderWidth: 1,
+                borderColor: "#fde68a",
+                marginBottom: 12,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: "#92400e", fontWeight: "600", textAlign: "center" }}>
+                tolong owner dicatat pin nya di wa atau di catatan hp
+              </Text>
+            </View>
+
+            <View style={{ marginVertical: 4 }}>
               <TextInput
                 placeholder="PIN Baru (4 Digit)"
                 keyboardType="numeric"
@@ -1982,6 +2064,7 @@ export default function SettingsScreen() {
       <PinPromptModal
         visible={pinModalVisible}
         actionTitle={actionTitle}
+        hintText={hintText}
         onClose={handlePinClose}
         onSuccess={handlePinSuccess}
       />

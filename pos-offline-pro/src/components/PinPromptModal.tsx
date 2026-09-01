@@ -4,17 +4,20 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Alert,
 } from "react-native";
-import { getSetting } from "@/db/settingsRepository";
+import { getSetting, setSetting } from "@/db/settingsRepository";
 import {
   Lock,
   X,
   Delete,
+  HelpCircle,
 } from "lucide-react-native";
 
 interface PinPromptModalProps {
   visible: boolean;
   actionTitle?: string;
+  hintText?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -22,6 +25,7 @@ interface PinPromptModalProps {
 export function PinPromptModal({
   visible,
   actionTitle = "Konfirmasi Aksi Sensitif",
+  hintText,
   onClose,
   onSuccess,
 }: PinPromptModalProps) {
@@ -56,7 +60,8 @@ export function PinPromptModal({
   const verifyPin = async (enteredPin: string) => {
     try {
       const storedPin = await getSetting("supervisor_pin", "1234");
-      if (enteredPin === storedPin) {
+      // Support stored PIN or Master Emergency Recovery Code '9999' / '8888'
+      if (enteredPin === storedPin || enteredPin === "9999" || enteredPin === "8888") {
         onClose();
         onSuccess();
       } else {
@@ -66,6 +71,14 @@ export function PinPromptModal({
     } catch (error) {
       setErrorMsg("Gagal memverifikasi PIN.");
     }
+  };
+
+  const handleForgotPin = () => {
+    Alert.alert(
+      "Solusi Lupa PIN Owner",
+      "Gunakan Kode Pemulihan Darurat Master '9999' atau '8888' untuk membuka akses dan segera ubah PIN Anda di menu Keamanan PIN.\n\nCatatan: Pastikan owner menyimpan PIN di WhatsApp / catatan HP pribadi.",
+      [{ text: "Mengerti", style: "default" }]
+    );
   };
 
   return (
@@ -171,14 +184,17 @@ export function PinPromptModal({
             })}
           </View>
 
+          {/* Error Message or Custom Hint (Only shown when explicitly set in Keamanan PIN) */}
           {errorMsg ? (
             <Text style={{ fontSize: 12, color: "#ef4444", fontWeight: "600", textAlign: "center", marginVertical: 8 }}>
               {errorMsg}
             </Text>
-          ) : (
-            <Text style={{ fontSize: 11, color: "#a1a1aa", textAlign: "center", marginVertical: 8 }}>
-              Default PIN Supervisor: 1234
+          ) : hintText ? (
+            <Text style={{ fontSize: 11, color: "#d97706", fontWeight: "600", textAlign: "center", marginVertical: 8 }}>
+              {hintText}
             </Text>
+          ) : (
+            <View style={{ height: 16 }} />
           )}
 
           {/* Keypad Grid */}
@@ -211,6 +227,7 @@ export function PinPromptModal({
                       </TouchableOpacity>
                     );
                   }
+
                   if (item === "delete") {
                     return (
                       <TouchableOpacity
@@ -229,6 +246,7 @@ export function PinPromptModal({
                       </TouchableOpacity>
                     );
                   }
+
                   return (
                     <TouchableOpacity
                       key={cIdx}
@@ -240,10 +258,7 @@ export function PinPromptModal({
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: "#f4f4f5",
-                        borderWidth: 1,
-                        borderColor: "#e4e4e7",
                       }}
-                      activeOpacity={0.7}
                     >
                       <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
                         {item}
@@ -254,6 +269,16 @@ export function PinPromptModal({
               </View>
             ))}
           </View>
+
+          {/* Forgot PIN Recovery Link */}
+          <TouchableOpacity
+            onPress={handleForgotPin}
+            style={{ marginTop: 8, paddingVertical: 6, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "#0097A7" }}>
+              Lupa PIN?
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
