@@ -114,7 +114,6 @@ export class PrinterService {
   static async generateReceiptText(data: ReceiptData): Promise<string> {
     const width = this.LINE_WIDTH;
     const divider = "-".repeat(width);
-    const doubleDivider = "=".repeat(width);
 
     const center = (text: string): string => {
       if (text.length >= width) return text.substring(0, width);
@@ -133,62 +132,82 @@ export class PrinterService {
 
     const lines: string[] = [];
 
-    // Header
-    lines.push(doubleDivider);
+    // Header (Alfamart Standard)
     lines.push(center((data.storeName || "POS OFFLINE PRO").toUpperCase()));
+    if (data.businessType) {
+      lines.push(center(data.businessType.toUpperCase()));
+    }
     if (data.storeAddress) {
-      lines.push(center(data.storeAddress));
+      lines.push(center(data.storeAddress.toUpperCase()));
     }
     if (data.storePhone) {
-      lines.push(center(`Telp: ${data.storePhone}`));
-    }
-    lines.push(doubleDivider);
-
-    // Meta
-    lines.push(row("No. Struk:", data.invoiceNumber));
-    lines.push(row("Waktu:", data.date));
-    if (data.cashierName) {
-      lines.push(row("Kasir:", data.cashierName));
-    }
-    if (data.tableNumber) {
-      lines.push(row("No. Meja:", data.tableNumber));
-    }
-    if (data.customerName) {
-      lines.push(row("Pelanggan:", data.customerName));
+      lines.push(center(`TELP: ${data.storePhone}`));
     }
     lines.push(divider);
 
-    // Items
+    // Meta: Bon & Kasir
+    const bonText = `Bon ${data.invoiceNumber}`;
+    const kasirText = `Kasir : ${(data.cashierName || "KASIR 1").toUpperCase()}`;
+    lines.push(row(bonText, kasirText));
+
+    if (data.tableNumber || data.customerName) {
+      const mejaText = data.tableNumber ? `Meja: ${data.tableNumber}` : "";
+      const plgText = data.customerName ? `Plg: ${data.customerName}` : "";
+      lines.push(row(mejaText, plgText));
+    }
+    lines.push(divider);
+
+    // Items list (Alfamart: Name on top, Qty Price Subtotal below)
+    let totalQtyCount = 0;
     data.items.forEach((item) => {
-      lines.push(item.name.substring(0, width));
-      const qtyStr = `${item.qty} ${item.unit || "pcs"} x ${item.price.toLocaleString("id-ID")}`;
-      const subtotalStr = `Rp ${item.subtotal.toLocaleString("id-ID")}`;
-      lines.push(row(`  ${qtyStr}`, subtotalStr));
+      totalQtyCount += item.qty;
+      lines.push(item.name.toUpperCase().substring(0, width));
+
+      const qtyStr = `${item.qty}`;
+      const priceStr = `${item.price.toLocaleString("id-ID")}`;
+      const subtotalStr = `${item.subtotal.toLocaleString("id-ID")}`;
+
+      const rightPart = `${priceStr.padStart(8, " ")}  ${subtotalStr.padStart(8, " ")}`;
+      lines.push(row(`  ${qtyStr}`, rightPart));
     });
 
     lines.push(divider);
 
-    // Subtotal, Discount Promo, Tax, and Totals
-    if (data.subtotalBeforeTax !== undefined) {
-      lines.push(row("Subtotal", `Rp ${data.subtotalBeforeTax.toLocaleString("id-ID")}`));
-    }
+    // Totals & Breakdown (Alfamart standard)
+    const rawSubtotal = data.subtotalBeforeTax || data.totalAmount;
+    lines.push(row(`Total Item       ${totalQtyCount}`, rawSubtotal.toLocaleString("id-ID")));
+
     if (data.discountAmount !== undefined && data.discountAmount > 0) {
-      const pLabel = data.promoName ? `Diskon (${data.promoName})` : "Diskon Promo";
-      lines.push(row(pLabel, `-Rp ${data.discountAmount.toLocaleString("id-ID")}`));
+      lines.push(row("Total Disc.", `-${data.discountAmount.toLocaleString("id-ID")}`));
     }
+
+    lines.push(row("Total Belanja", data.totalAmount.toLocaleString("id-ID")));
+
+    const payLabel = data.paymentMethod === "CASH" ? "TUNAI" : "CPM QRIS";
+    lines.push(row(payLabel, (data.cashTendered || data.totalAmount).toLocaleString("id-ID")));
+
+    if (data.paymentMethod === "CASH") {
+      lines.push(row("Kembalian", (data.changeAmount || 0).toLocaleString("id-ID")));
+    }
+
     if (data.ppnAmount !== undefined && data.ppnAmount > 0) {
-      lines.push(row(`PPN ${data.ppnPercent || 11}%`, `Rp ${data.ppnAmount.toLocaleString("id-ID")}`));
+      const dpp = (data.subtotalBeforeTax || data.totalAmount) - (data.discountAmount || 0);
+      lines.push(row("PPN", `DPP: ${dpp.toLocaleString("id-ID")}  PPN: ${data.ppnAmount.toLocaleString("id-ID")}`));
     }
 
-    lines.push(row("TOTAL", `Rp ${data.totalAmount.toLocaleString("id-ID")}`));
-    lines.push(row(data.paymentMethod === "CASH" ? "Bayar Tunai" : "QRIS", `Rp ${data.cashTendered.toLocaleString("id-ID")}`));
-    if (data.changeAmount > 0) {
-      lines.push(row("Kembalian", `Rp ${data.changeAmount.toLocaleString("id-ID")}`));
-    }
+    lines.push(divider);
 
-    lines.push(doubleDivider);
+    // Footer (Alfamart standard)
+    lines.push(center(`Tgl. ${data.date} V.2026.1`));
+    if (data.customerName) {
+      lines.push(center(`MEMBER : ${data.customerName.toUpperCase()} *****`));
+      lines.push(divider);
+    }
     lines.push(center(data.footerNote || "Terima Kasih Atas Kunjungan Anda!"));
-    lines.push(center("Silahkan Datang Kembali"));
+    if (data.storePhone) {
+      lines.push(center(`KRITIK&SARAN: ${data.storePhone}`));
+      lines.push(center(`SMS/WA: ${data.storePhone}`));
+    }
     lines.push("\n\n");
 
     return lines.filter((l) => l !== "").join("\n");

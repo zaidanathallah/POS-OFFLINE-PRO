@@ -53,36 +53,15 @@ import {
 export default function PosModalScreen() {
   const { width, height } = useWindowDimensions();
 
-  // Auto Lock to Landscape when entering cashier mode
+  // Auto Lock to Landscape when entering cashier mode (Native only, safe from Web AbortError)
   useEffect(() => {
-    async function lockLandscape() {
-      try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      } catch (e) {
-        console.log("ScreenOrientation lock error (web/unsupported):", e);
-      }
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-          if (window.screen && (window.screen as any).orientation && (window.screen as any).orientation.lock) {
-            (window.screen as any).orientation.lock("landscape").catch(() => {});
-          }
-        } catch (e) {}
-      }
+    if (Platform.OS !== "web") {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
     }
-    lockLandscape();
 
     return () => {
-      try {
-        ScreenOrientation.unlockAsync();
-      } catch (e) {
-        console.log("ScreenOrientation unlock error:", e);
-      }
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-          if (window.screen && (window.screen as any).orientation && (window.screen as any).orientation.unlock) {
-            (window.screen as any).orientation.unlock();
-          }
-        } catch (e) {}
+      if (Platform.OS !== "web") {
+        ScreenOrientation.unlockAsync().catch(() => {});
       }
     };
   }, []);
@@ -108,6 +87,7 @@ export default function PosModalScreen() {
   const [storeQris, setStoreQris] = useState("");
   const [storeLogo, setStoreLogo] = useState("");
   const [storeName, setStoreName] = useState("POS Offline Pro");
+  const [storeBusinessType, setStoreBusinessType] = useState("Makanan Dan Minuman");
   const [storeAddress, setStoreAddress] = useState("Jl. Alamat No 99 Makassar");
   const [storePhone, setStorePhone] = useState("08111111111");
   const [storeFooter, setStoreFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
@@ -302,7 +282,7 @@ export default function PosModalScreen() {
       const labaKotor = Math.max(0, subtotalAfterDiscount - totalHpp);
 
       const result = await processCheckout({
-        items,
+        items: items,
         subtotal: subtotal,
         discount_amount: discountAmount,
         promo_name: promoName || undefined,
@@ -329,8 +309,10 @@ export default function PosModalScreen() {
           minute: "2-digit",
         }),
         storeName: storeName,
+        businessType: storeBusinessType,
         storeAddress: storeAddress,
         storePhone: storePhone,
+        storeLogoUri: storeLogo || undefined,
         items: result.details.map((d) => ({
           name: d.product_name,
           qty: d.qty,
@@ -375,9 +357,11 @@ export default function PosModalScreen() {
   };
 
   const handleExitPOS = () => {
-    try {
-      ScreenOrientation.unlockAsync();
-    } catch (e) {}
+    if (Platform.OS !== "web") {
+      try {
+        ScreenOrientation.unlockAsync().catch(() => {});
+      } catch (e) {}
+    }
     if (router.canGoBack()) {
       router.back();
     } else {
