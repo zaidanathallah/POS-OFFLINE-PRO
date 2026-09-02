@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { CartItem } from "@/stores/useCartStore";
 import { formatRupiah } from "@/util/formatters";
-import { DynamicQrisView } from "./DynamicQrisView";
 import {
   X,
   CreditCard,
@@ -424,7 +423,7 @@ export function CheckoutLandscapeModal({
                         marginLeft: 6,
                       }}
                     >
-                      QRIS Dinamis
+                      QRIS
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -515,13 +514,84 @@ export function CheckoutLandscapeModal({
                     </View>
                   </View>
                 ) : (
-                  /* Dynamic QRIS View */
-                  <View style={{ alignItems: "center", paddingVertical: 6 }}>
-                    <DynamicQrisView
-                      amount={grandTotal}
-                      baseQrisPayload={storeQrisImage}
-                      size={isSmallScreen ? 135 : 155}
-                    />
+                  /* Store QRIS View */
+                  <View style={{ alignItems: "center", paddingVertical: isSmallScreen ? 6 : 10 }}>
+                    {/* Dynamic Amount Banner */}
+                    <View
+                      style={{
+                        backgroundColor: "#ecfeff",
+                        paddingHorizontal: 16,
+                        paddingVertical: 7,
+                        borderRadius: 14,
+                        marginBottom: 10,
+                        borderWidth: 1,
+                        borderColor: "#a5f3fc",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, color: "#0891b2", fontWeight: "700", textTransform: "uppercase" }}>
+                        Total Bayar QRIS
+                      </Text>
+                      <Text style={{ fontSize: 18, fontWeight: "900", color: "#0097A7", marginTop: 1 }}>
+                        {formatRupiah(grandTotal)}
+                      </Text>
+                    </View>
+
+                    {/* QRIS Image Card */}
+                    <View
+                      style={{
+                        padding: 10,
+                        borderRadius: 16,
+                        backgroundColor: "#ffffff",
+                        borderWidth: 1,
+                        borderColor: "#e5e7eb",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 6,
+                        elevation: 3,
+                      }}
+                    >
+                      {storeQrisImage ? (
+                        <Image
+                          source={{
+                            uri:
+                              storeQrisImage.startsWith("data:") ||
+                              storeQrisImage.startsWith("http") ||
+                              storeQrisImage.startsWith("file:")
+                                ? storeQrisImage
+                                : `data:image/jpeg;base64,${storeQrisImage}`,
+                          }}
+                          style={{
+                            width: isSmallScreen ? 140 : 165,
+                            height: isSmallScreen ? 140 : 165,
+                          }}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: isSmallScreen ? 140 : 165,
+                            height: isSmallScreen ? 140 : 165,
+                            backgroundColor: "#f4f4f5",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: 12,
+                          }}
+                        >
+                          <QrCode size={48} color="#a1a1aa" />
+                          <Text style={{ fontSize: 10, color: "#71717a", marginTop: 6, textAlign: "center" }}>
+                            Belum Ada QRIS{"\n"}(Atur di Pengaturan)
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#71717a", marginTop: 8, textAlign: "center" }}>
+                      Scan QRIS toko di atas lalu masukkan nominal {formatRupiah(grandTotal)}
+                    </Text>
                   </View>
                 )}
 
