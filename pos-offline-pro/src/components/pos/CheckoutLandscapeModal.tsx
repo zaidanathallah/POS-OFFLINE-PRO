@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { CartItem } from "@/stores/useCartStore";
 import { formatRupiah } from "@/util/formatters";
+import { DynamicQrisView } from "./DynamicQrisView";
 import {
   X,
   CreditCard,
@@ -515,49 +516,12 @@ export function CheckoutLandscapeModal({
                   </View>
                 ) : (
                   /* Dynamic QRIS View */
-                  <View style={{ alignItems: "center", paddingVertical: 10 }}>
-                    {/* Dynamic Amount Banner */}
-                    <View
-                      style={{
-                        backgroundColor: "#ecfeff",
-                        paddingHorizontal: 14,
-                        paddingVertical: 6,
-                        borderRadius: 12,
-                        marginBottom: 10,
-                        borderWidth: 1,
-                        borderColor: "#a5f3fc",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ fontSize: 10, color: "#0891b2", fontWeight: "600" }}>Total Bayar QRIS</Text>
-                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#0097A7" }}>
-                        {formatRupiah(grandTotal)}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={{
-                        padding: 10,
-                        borderRadius: 16,
-                        backgroundColor: "#ffffff",
-                        borderWidth: 1,
-                        borderColor: "#e5e7eb",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Image
-                        source={{
-                          uri:
-                            storeQrisImage ||
-                            `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=QRIS_OFFLINE_PRO_AMOUNT_${grandTotal}`,
-                        }}
-                        style={{ width: isSmallScreen ? 130 : 150, height: isSmallScreen ? 130 : 150 }}
-                        resizeMode="contain"
-                      />
-                    </View>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#71717a", marginTop: 6 }}>
-                      Arahkan kamera e-wallet / mobile banking ke QRIS di atas
-                    </Text>
+                  <View style={{ alignItems: "center", paddingVertical: 6 }}>
+                    <DynamicQrisView
+                      amount={grandTotal}
+                      baseQrisPayload={storeQrisImage}
+                      size={isSmallScreen ? 135 : 155}
+                    />
                   </View>
                 )}
 
