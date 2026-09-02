@@ -42,8 +42,11 @@ export default function HistoryScreen() {
 
   // Store profile
   const [storeName, setStoreName] = useState("POS Offline Pro");
+  const [storeBusinessType, setStoreBusinessType] = useState("Makanan Dan Minuman");
   const [storeAddress, setStoreAddress] = useState("Jl. Alamat No 99 Makassar");
   const [storePhone, setStorePhone] = useState("08111111111");
+  const [storeLogo, setStoreLogo] = useState("");
+  const [storeFooter, setStoreFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
 
   // Receipt Modal for Re-printing
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
@@ -77,11 +80,18 @@ export default function HistoryScreen() {
       });
 
       const sName = await getSetting("store_name", "POS Offline Pro");
+      const sType = await getSetting("store_business_type", "Makanan Dan Minuman");
       const sAddr = await getSetting("store_address", "Jl. Alamat No 99 Makassar");
       const sPhone = await getSetting("store_phone", "08111111111");
+      const sLogo = await getSetting("store_logo", "");
+      const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
+
       setStoreName(sName);
+      setStoreBusinessType(sType);
       setStoreAddress(sAddr);
       setStorePhone(sPhone);
+      setStoreLogo(sLogo);
+      setStoreFooter(sFooter);
     } catch (err) {
       console.error("Gagal load riwayat:", err);
     } finally {
@@ -161,8 +171,11 @@ export default function HistoryScreen() {
           minute: "2-digit",
         }),
         storeName: storeName,
+        businessType: storeBusinessType,
         storeAddress: storeAddress,
         storePhone: storePhone,
+        storeLogoUri: storeLogo || undefined,
+        footerNote: storeFooter,
         items: details.map((d) => ({
           name: d.product_name || "Produk",
           qty: d.qty,
@@ -172,6 +185,8 @@ export default function HistoryScreen() {
         })),
         totalAmount: trx.omset,
         subtotalBeforeTax: trx.subtotal_before_tax,
+        discountAmount: trx.discount_amount,
+        promoName: trx.promo_name,
         ppnPercent: trx.ppn_percent,
         ppnAmount: trx.ppn_amount,
         cashTendered: trx.cash_tendered || trx.omset,

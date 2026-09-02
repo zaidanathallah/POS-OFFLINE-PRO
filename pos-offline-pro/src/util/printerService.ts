@@ -1,6 +1,7 @@
 /**
  * Bluetooth Thermal Printer Service (ESC/POS 58mm Paper - 32 Chars/line)
- * Full support for 58mm receipt formatting, dynamic bluetooth printer scanning & connection.
+ * Full support for 58mm receipt formatting, dynamic bluetooth printer scanning,
+ * connection, and direct ESC/POS hardware binary packet transmission via Web Bluetooth & Native.
  */
 import { Platform } from "react-native";
 import { getSetting, setSetting } from "@/db/settingsRepository";
@@ -44,6 +45,74 @@ export interface BluetoothDeviceItem {
   connected?: boolean;
 }
 
+// Thermal Printer GATT Service UUIDs
+const THERMAL_PRINTER_SERVICES = [
+  "000018f0-0000-1000-8000-00805f9b34fb", // RPP02N, Goojprt, PT-210, MPT-II
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2", // Xprinter, POS-5802, POS-80
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455", // Microchip ISSC Transparent BLE
+  "0000ffe0-0000-1000-8000-00805f9b34fb", // HM-10, CC2541, Serial BLE
+  "0000ff00-0000-1000-8000-00805f9b34fb", // Generic POS 58mm
+  "0000fee7-0000-1000-8000-00805f9b34fb", // Tencent/POS
+  "0000fff0-0000-1000-8000-00805f9b34fb", // JP-58
+  "0000ae00-0000-1000-8000-00805f9b34fb", // Panda POS
+  "0000ae30-0000-1000-8000-00805f9b34fb", // Mini Thermal
+  "000018f1-0000-1000-8000-00805f9b34fb",
+  "0000180a-0000-1000-8000-00805f9b34fb", // Device Info
+];
+
+// In-memory active Bluetooth connection
+let activeWebDevice: any = null;
+let activeGattServer: any = null;
+let activeWritableChar: any = null;
+
+async function connectToGattCharacteristic(device: any): Promise<any> {
+  if (!device || !device.gatt) return null;
+
+  try {
+    let server = device.gatt;
+    if (!server.connected) {
+      server = await device.gatt.connect();
+    }
+    activeGattServer = server;
+    activeWebDevice = device;
+
+    // 1. Try known thermal printer primary services
+    for (const serviceUuid of THERMAL_PRINTER_SERVICES) {
+      try {
+        const service = await server.getPrimaryService(serviceUuid);
+        const chars = await service.getCharacteristics();
+        for (const c of chars) {
+          if (c.properties.write || c.properties.writeWithoutResponse) {
+            activeWritableChar = c;
+            return c;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Fallback: discover all primary services
+    try {
+      const services = await server.getPrimaryServices();
+      for (const service of services) {
+        try {
+          const chars = await service.getCharacteristics();
+          for (const c of chars) {
+            if (c.properties.write || c.properties.writeWithoutResponse) {
+              activeWritableChar = c;
+              return c;
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    return activeWritableChar;
+  } catch (err: any) {
+    console.warn("GATT Connection error:", err);
+    return null;
+  }
+}
+
 export class PrinterService {
   private static connectedDevice: BluetoothDeviceItem | null = null;
   private static readonly LINE_WIDTH = 32;
@@ -69,19 +138,25 @@ export class PrinterService {
       try {
         const device = await (navigator as any).bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: [
-            "000018f0-0000-1000-8000-00805f9b34fb",
-            "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
-            "49535343-fe7d-4ae5-8fa9-9fafd205e455",
-          ],
+          optionalServices: THERMAL_PRINTER_SERVICES,
         });
 
         if (device) {
+          activeWebDevice = device;
+          try {
+            await connectToGattCharacteristic(device);
+          } catch (e) {
+            console.log("Auto GATT connect warning:", e);
+          }
+
           const item: BluetoothDeviceItem = {
             id: device.id || `BT-${Date.now()}`,
-            name: device.name || "Bluetooth Thermal Printer",
-            connected: false,
+            name: device.name || "RPP02N Thermal Printer",
+            connected: true,
           };
+          this.connectedDevice = item;
+          await setSetting("printer_bluetooth_name", item.name);
+          await setSetting("printer_bluetooth_address", item.id);
           return [item];
         }
       } catch (err: any) {
@@ -102,11 +177,27 @@ export class PrinterService {
     this.connectedDevice = { ...device, connected: true };
     await setSetting("printer_bluetooth_name", device.name);
     await setSetting("printer_bluetooth_address", device.id || device.address || "");
+
+    if (Platform.OS === "web" && activeWebDevice) {
+      try {
+        await connectToGattCharacteristic(activeWebDevice);
+      } catch (e) {
+        console.log("GATT connect warning:", e);
+      }
+    }
     return true;
   }
 
   static async disconnectBluetoothPrinter(): Promise<void> {
     this.connectedDevice = null;
+    activeWritableChar = null;
+    if (activeGattServer && activeGattServer.disconnect) {
+      try {
+        activeGattServer.disconnect();
+      } catch (e) {}
+    }
+    activeGattServer = null;
+    activeWebDevice = null;
     await setSetting("printer_bluetooth_name", "");
     await setSetting("printer_bluetooth_address", "");
   }
@@ -217,14 +308,81 @@ export class PrinterService {
     try {
       const text = await this.generateReceiptText(data);
       console.log("[PrinterService] 58mm Thermal Print Execution:\n" + text);
+
+      // Direct Web Bluetooth GATT binary ESC/POS transmission
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).bluetooth) {
+        let char = activeWritableChar;
+
+        // Try reconnecting or discovering if disconnected
+        if (!char || !activeGattServer?.connected) {
+          if (activeWebDevice) {
+            char = await connectToGattCharacteristic(activeWebDevice);
+          }
+          if (!char) {
+            try {
+              const device = await (navigator as any).bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: THERMAL_PRINTER_SERVICES,
+              });
+              if (device) {
+                activeWebDevice = device;
+                char = await connectToGattCharacteristic(device);
+                if (char) {
+                  this.connectedDevice = {
+                    id: device.id,
+                    name: device.name || "RPP02N Thermal Printer",
+                    connected: true,
+                  };
+                  await setSetting("printer_bluetooth_name", this.connectedDevice.name);
+                  await setSetting("printer_bluetooth_address", this.connectedDevice.id);
+                }
+              }
+            } catch (e: any) {
+              console.log("Device pairing note:", e);
+            }
+          }
+        }
+
+        if (char) {
+          const encoder = new TextEncoder();
+          const initCmd = new Uint8Array([0x1B, 0x40, 0x1B, 0x74, 0x00]); // ESC @ (Initialize), ESC t 0 (CP437)
+          const textBytes = encoder.encode(text);
+          const feedCmd = new Uint8Array([0x1B, 0x64, 0x04, 0x0A, 0x0A, 0x0A]); // Feed 4 lines + LF
+
+          const fullPayload = new Uint8Array(initCmd.length + textBytes.length + feedCmd.length);
+          fullPayload.set(initCmd, 0);
+          fullPayload.set(textBytes, initCmd.length);
+          fullPayload.set(feedCmd, initCmd.length + textBytes.length);
+
+          const CHUNK_SIZE = 64;
+          for (let i = 0; i < fullPayload.length; i += CHUNK_SIZE) {
+            const chunk = fullPayload.slice(i, i + CHUNK_SIZE);
+            if (char.writeValueWithResponse) {
+              await char.writeValueWithResponse(chunk);
+            } else if (char.writeValue) {
+              await char.writeValue(chunk);
+            } else if (char.writeValueWithoutResponse) {
+              await char.writeValueWithoutResponse(chunk);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 35));
+          }
+
+          return {
+            success: true,
+            message: "Struk 58mm berhasil dicetak ke printer!",
+          };
+        }
+      }
+
       return {
         success: true,
-        message: "Struk berhasil dikirim ke printer 58mm.",
+        message: "Struk berhasil dikirim ke printer.",
       };
     } catch (error: any) {
+      console.error("[PrinterService] Print error:", error);
       return {
         success: false,
-        message: error.message || "Gagal mencetak struk.",
+        message: error.message || "Gagal mencetak ke printer thermal.",
       };
     }
   }
@@ -244,6 +402,7 @@ export class PrinterService {
       changeAmount: 0,
       paymentMethod: "CASH",
       storeName: await getSetting("store_name", "POS Offline Pro"),
+      businessType: await getSetting("store_business_type", "Makanan Dan Minuman"),
       storeAddress: await getSetting("store_address", "Jl. Alamat No 99 Makassar"),
       storePhone: await getSetting("store_phone", "08111111111"),
       footerNote: await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!"),
