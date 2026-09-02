@@ -15,6 +15,8 @@ export interface CheckoutResult {
 export interface CheckoutInput {
   items: CartItem[];
   subtotal: number;
+  discount_amount?: number;
+  promo_name?: string;
   ppn_percent: number;
   ppn_amount: number;
   grand_total: number;
@@ -50,6 +52,8 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
       invoice_no: invoiceNo,
       omset: Number(input.grand_total) || 0,
       subtotal_before_tax: Number(input.subtotal) || 0,
+      discount_amount: Number(input.discount_amount) || 0,
+      promo_name: input.promo_name || null,
       ppn_percent: Number(input.ppn_percent) || 0,
       ppn_amount: Number(input.ppn_amount) || 0,
       total_hpp: Number(input.total_hpp) || 0,
@@ -69,10 +73,10 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
     await db.runAsync(
       `INSERT INTO transactions (
         id, invoice_no, omset, total_hpp, laba_kotor, 
-        subtotal_before_tax, ppn_percent, ppn_amount, 
+        subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, 
         payment_method, cash_tendered, change_amount, 
         table_number, customer_name, is_open_bill, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newTransaction.id,
         newTransaction.invoice_no ?? null,
@@ -80,6 +84,8 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         newTransaction.total_hpp,
         newTransaction.laba_kotor,
         newTransaction.subtotal_before_tax,
+        newTransaction.discount_amount ?? 0,
+        newTransaction.promo_name ?? null,
         newTransaction.ppn_percent,
         newTransaction.ppn_amount,
         newTransaction.payment_method,
@@ -259,6 +265,8 @@ export async function createManualTransaction(data: {
   hargaJual: number;
   modalHpp: number;
   paymentMethod: "CASH" | "QRIS";
+  discountAmount?: number;
+  promoName?: string;
   customerName?: string;
   tableNumber?: string;
   customDate?: string;
@@ -273,21 +281,25 @@ export async function createManualTransaction(data: {
     const transactionId = `TRX-MNL-${Date.now()}-${randomSuffix}`;
     const createdAt = now.toISOString();
 
-    const subtotal = data.qty * data.hargaJual;
+    const rawSubtotal = data.qty * data.hargaJual;
+    const discount = data.discountAmount || 0;
+    const netOmset = Math.max(0, rawSubtotal - discount);
     const totalHpp = data.qty * data.modalHpp;
-    const labaKotor = Math.max(0, subtotal - totalHpp);
+    const labaKotor = Math.max(0, netOmset - totalHpp);
 
     const newTransaction: Transaction = {
       id: transactionId,
       invoice_no: invoiceNo,
-      omset: subtotal,
-      subtotal_before_tax: subtotal,
+      omset: netOmset,
+      subtotal_before_tax: rawSubtotal,
+      discount_amount: discount,
+      promo_name: data.promoName || null,
       ppn_percent: 0,
       ppn_amount: 0,
       total_hpp: totalHpp,
       laba_kotor: labaKotor,
       payment_method: data.paymentMethod,
-      cash_tendered: subtotal,
+      cash_tendered: netOmset,
       change_amount: 0,
       table_number: data.tableNumber || null,
       customer_name: data.customerName || null,
@@ -298,10 +310,10 @@ export async function createManualTransaction(data: {
     await db.runAsync(
       `INSERT INTO transactions (
         id, invoice_no, omset, total_hpp, laba_kotor, 
-        subtotal_before_tax, ppn_percent, ppn_amount, 
+        subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, 
         payment_method, cash_tendered, change_amount, 
         table_number, customer_name, is_open_bill, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newTransaction.id,
         newTransaction.invoice_no ?? null,
@@ -309,6 +321,8 @@ export async function createManualTransaction(data: {
         newTransaction.total_hpp,
         newTransaction.laba_kotor,
         newTransaction.subtotal_before_tax,
+        newTransaction.discount_amount ?? 0,
+        newTransaction.promo_name ?? null,
         newTransaction.ppn_percent,
         newTransaction.ppn_amount,
         newTransaction.payment_method,
@@ -337,7 +351,7 @@ export async function createManualTransaction(data: {
         data.hargaJual,
         data.modalHpp,
         data.qty,
-        subtotal,
+        rawSubtotal,
       ]
     );
 

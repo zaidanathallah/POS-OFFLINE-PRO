@@ -26,6 +26,14 @@ import {
   PeakHourItem,
 } from "@/db/reportRepository";
 import { deleteTransaction } from "@/db/transactionRepository";
+import {
+  getAllPromos,
+  createPromo,
+  updatePromo,
+  deletePromo,
+  togglePromoStatus,
+  PromoInput,
+} from "@/db/promoRepository";
 import { exportDatabaseBackup, importDatabaseBackup } from "@/util/databaseSync";
 import { exportReportToCSV } from "@/util/csvExportService";
 import { PrinterService, BluetoothDeviceItem } from "@/util/printerService";
@@ -33,7 +41,8 @@ import { useSecureAction } from "@/hooks/useSecureAction";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
-import { Transaction } from "@/db";
+import { PromoFormModal } from "@/components/PromoFormModal";
+import { Transaction, Promo } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import { compressAndConvertToBase64 } from "@/util/imageCompressor";
 import {
@@ -65,6 +74,9 @@ import {
   Trash2,
   Eye,
   Receipt,
+  Tag,
+  Gift,
+  DollarSign,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -94,6 +106,12 @@ export default function SettingsScreen() {
   const [featureAutoPrint, setFeatureAutoPrint] = useState(false);
   const [featurePpn, setFeaturePpn] = useState(true);
   const [ppnRate, setPpnRate] = useState("11");
+  const [featurePromo, setFeaturePromo] = useState(true);
+
+  // Promo State
+  const [promosList, setPromosList] = useState<Promo[]>([]);
+  const [promoFormVisible, setPromoFormVisible] = useState(false);
+  const [selectedPromoForEdit, setSelectedPromoForEdit] = useState<Promo | null>(null);
 
   // Detailed Report State
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("7days");
@@ -144,6 +162,15 @@ export default function SettingsScreen() {
     handlePinClose,
   } = useSecureAction();
 
+  const loadPromosData = useCallback(async () => {
+    try {
+      const list = await getAllPromos();
+      setPromosList(list);
+    } catch (e) {
+      console.error("Gagal load promos:", e);
+    }
+  }, []);
+
   const loadAllSettings = useCallback(async () => {
     const sName = await getSetting("store_name", "POS Offline Pro");
     const bType = await getSetting("store_business_type", "Jenis toko");
@@ -163,6 +190,7 @@ export default function SettingsScreen() {
     const fAutoPrint = await getSetting("feature_auto_print", "0");
     const fPpn = await getSetting("feature_ppn", "1");
     const pRate = await getSetting("ppn_rate", "11");
+    const fPromo = await getSetting("feature_promo", "1");
 
     setStoreName(sName);
     setBusinessType(bType);
@@ -182,10 +210,12 @@ export default function SettingsScreen() {
     setFeatureAutoPrint(fAutoPrint === "1");
     setFeaturePpn(fPpn === "1");
     setPpnRate(pRate);
+    setFeaturePromo(fPromo === "1");
 
+    await loadPromosData();
     const printer = await PrinterService.getConnectedPrinter();
     setConnectedPrinter(printer);
-  }, []);
+  }, [loadPromosData]);
 
   const loadReportData = useCallback(async () => {
     try {
@@ -213,7 +243,10 @@ export default function SettingsScreen() {
     if (activeSubpage === "laporan") {
       loadReportData();
     }
-  }, [activeSubpage, loadReportData]);
+    if (activeSubpage === "promos") {
+      loadPromosData();
+    }
+  }, [activeSubpage, loadReportData, loadPromosData]);
 
   // Image Picker for Logo or QRIS with Automatic Compression
   const handlePickStoreImage = async (type: "logo" | "qris") => {
@@ -463,6 +496,62 @@ export default function SettingsScreen() {
     }, "Masukkan PIN Supervisor untuk menghapus transaksi");
   };
 
+  // Promo CRUD Handlers (Protected by PIN)
+  const handleOpenCreatePromo = () => {
+    executeSecureAction(() => {
+      setSelectedPromoForEdit(null);
+      setPromoFormVisible(true);
+    }, "Masukkan PIN Supervisor untuk membuat promo baru");
+  };
+
+  const handleOpenEditPromo = (promo: Promo) => {
+    executeSecureAction(() => {
+      setSelectedPromoForEdit(promo);
+      setPromoFormVisible(true);
+    }, "Masukkan PIN Supervisor untuk mengubah promo");
+  };
+
+  const handleTogglePromoStatus = (promo: Promo, newStatus: boolean) => {
+    executeSecureAction(async () => {
+      await togglePromoStatus(promo.id, newStatus);
+      await loadPromosData();
+    }, "Masukkan PIN Supervisor untuk mengubah status promo");
+  };
+
+  const handleDeletePromo = (promo: Promo) => {
+    executeSecureAction(() => {
+      Alert.alert(
+        "Hapus Promo",
+        `Hapus promo "${promo.name}"?`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deletePromo(promo.id);
+                await loadPromosData();
+                Alert.alert("Sukses", "Promo berhasil dihapus.");
+              } catch (e: any) {
+                Alert.alert("Gagal", e.message || "Gagal menghapus promo.");
+              }
+            },
+          },
+        ]
+      );
+    }, "Masukkan PIN Supervisor untuk menghapus promo");
+  };
+
+  const handleSavePromo = async (data: PromoInput, id?: string) => {
+    if (id) {
+      await updatePromo(id, data);
+    } else {
+      await createPromo(data);
+    }
+    await loadPromosData();
+  };
+
   const peakHourRecord = peakHours.find((p) => p.isPeak);
 
   return (
@@ -499,6 +588,8 @@ export default function SettingsScreen() {
               ? "Manajemen Data"
               : activeSubpage === "pin"
               ? "Keamanan PIN"
+              : activeSubpage === "promos"
+              ? "Promo & Diskon"
               : activeSubpage === "toko"
               ? "Atur Toko"
               : activeSubpage === "aplikasi"
@@ -677,7 +768,46 @@ export default function SettingsScreen() {
               <ChevronRight size={18} color="#a1a1aa" />
             </TouchableOpacity>
 
-            {/* 5. Atur Toko */}
+            {/* 5. Promo & Diskon */}
+            <TouchableOpacity
+              onPress={() => setActiveSubpage("promos")}
+              activeOpacity={0.7}
+              style={{
+                padding: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottomWidth: 1,
+                borderBottomColor: "#f4f4f5",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 14,
+                    backgroundColor: "#ecfeff",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 14,
+                  }}
+                >
+                  <Tag size={20} color="#0097A7" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
+                    Promo & Diskon
+                  </Text>
+                  <Text style={{ fontSize: 10, color: "#71717a" }}>
+                    Beli 2 gratis 1, diskon combo & min. belanja
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={18} color="#a1a1aa" />
+            </TouchableOpacity>
+
+            {/* 6. Atur Toko */}
             <TouchableOpacity
               onPress={() => setActiveSubpage("toko")}
               activeOpacity={0.7}
@@ -1611,7 +1741,221 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Subpage 5: Atur Toko */}
+      {/* Subpage 5: Promo & Diskon */}
+      {activeSubpage === "promos" && (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Action Button: Tambah Promo Baru */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#18181b" }}>
+                Daftar Promo & Diskon
+              </Text>
+              <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
+                Promo otomatis terhitung saat bertransaksi di kasir
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleOpenCreatePromo}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 16,
+                backgroundColor: "#0097A7",
+                shadowColor: "#0097A7",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <Plus size={16} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>
+                Tambah Promo
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* List of Promos */}
+          {promosList.length === 0 ? (
+            <View
+              style={{
+                padding: 32,
+                borderRadius: 24,
+                backgroundColor: "#ffffff",
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "#e5e7eb",
+              }}
+            >
+              <Tag size={40} color="#a1a1aa" />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#27272a", marginTop: 12 }}>
+                Belum Ada Promo
+              </Text>
+              <Text style={{ fontSize: 11, color: "#71717a", marginTop: 4, textAlign: "center", maxWidth: 280 }}>
+                Buat promo seperti Beli 3 Mie Instan Diskon Rp 2.000 atau Beli 2 Gratis 1 untuk menarik pelanggan.
+              </Text>
+              <TouchableOpacity
+                onPress={handleOpenCreatePromo}
+                style={{
+                  marginTop: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 14,
+                  backgroundColor: "#ecfeff",
+                  borderWidth: 1,
+                  borderColor: "#0097A7",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
+                  + Buat Promo Pertama
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            promosList.map((promo) => {
+              const isB2G1 = promo.promo_type === "BUY_X_GET_Y";
+              const isCombo = promo.promo_type === "COMBO_DISCOUNT";
+              const isMinSpend = promo.promo_type === "MIN_SPEND";
+
+              const badgeColor = isB2G1 ? "#059669" : isCombo ? "#0097A7" : "#d97706";
+              const badgeBg = isB2G1 ? "#ecfdf5" : isCombo ? "#ecfeff" : "#fffbeb";
+              const typeLabel = isB2G1
+                ? "🎁 Beli X Gratis Y"
+                : isCombo
+                ? "% Diskon Bundling / Grosir"
+                : "💰 Minimal Belanja";
+
+              let ruleText = "";
+              if (isB2G1) {
+                ruleText = `Beli ${promo.min_qty} Gratis ${promo.reward_free_qty} (${promo.target_name || "Semua Produk"})`;
+              } else if (isCombo) {
+                const discText = promo.discount_amount > 0 ? formatRupiah(promo.discount_amount) : `${promo.discount_percent}%`;
+                ruleText = `Beli min. ${promo.min_qty} pcs ${promo.target_name || "item"} diskon ${discText}`;
+              } else if (isMinSpend) {
+                const discText = promo.discount_amount > 0 ? formatRupiah(promo.discount_amount) : `${promo.discount_percent}%`;
+                ruleText = `Belanja min. ${formatRupiah(promo.min_spend)} diskon ${discText}`;
+              }
+
+              return (
+                <View
+                  key={promo.id}
+                  style={{
+                    padding: 16,
+                    borderRadius: 20,
+                    backgroundColor: "#ffffff",
+                    borderWidth: 1,
+                    borderColor: promo.is_active ? "#e5e7eb" : "#f4f4f5",
+                    marginBottom: 12,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 2,
+                    elevation: 1,
+                    opacity: promo.is_active ? 1 : 0.65,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 8,
+                            backgroundColor: badgeBg,
+                            marginRight: 8,
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: badgeColor }}>
+                            {typeLabel}
+                          </Text>
+                        </View>
+                        {promo.target_type !== "ALL" && (
+                          <Text style={{ fontSize: 10, color: "#71717a" }}>
+                            Target: {promo.target_name}
+                          </Text>
+                        )}
+                      </View>
+
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b" }}>
+                        {promo.name}
+                      </Text>
+
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: "#0097A7", marginTop: 4 }}>
+                        {ruleText}
+                      </Text>
+                    </View>
+
+                    {/* Switch Active */}
+                    <Switch
+                      value={promo.is_active === 1}
+                      onValueChange={(val) => handleTogglePromoStatus(promo, val)}
+                      trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+                    />
+                  </View>
+
+                  {/* Actions: Edit & Delete */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      marginTop: 12,
+                      paddingTop: 10,
+                      borderTopWidth: 1,
+                      borderTopColor: "#f4f4f5",
+                      gap: 8,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => handleOpenEditPromo(promo)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 10,
+                        backgroundColor: "#f4f4f5",
+                      }}
+                    >
+                      <Edit2 size={13} color="#52525b" style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: "#52525b" }}>Edit</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleDeletePromo(promo)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 10,
+                        backgroundColor: "#fef2f2",
+                      }}
+                    >
+                      <Trash2 size={13} color="#ef4444" style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: "#ef4444" }}>Hapus</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
+
+      {/* Subpage 6: Atur Toko */}
       {activeSubpage === "toko" && (
         <ScrollView
           style={{ flex: 1 }}
@@ -2050,6 +2394,23 @@ export default function SettingsScreen() {
                 </View>
               )}
             </View>
+
+            {/* 8. Fitur Promo & Diskon */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#f4f4f5" }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                  Fitur Promo & Diskon
+                </Text>
+                <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
+                  Hitung otomatis diskon beli 2 gratis 1 & promo bundling saat transaksi kasir
+                </Text>
+              </View>
+              <Switch
+                value={featurePromo}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_promo", val, setFeaturePromo)}
+                trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+              />
+            </View>
           </View>
         </ScrollView>
       )}
@@ -2224,6 +2585,14 @@ export default function SettingsScreen() {
         visible={detailModalVisible}
         transaction={selectedTrxForDetail}
         onClose={() => setDetailModalVisible(false)}
+      />
+
+      {/* Promo Form Modal for Promo CRUD */}
+      <PromoFormModal
+        visible={promoFormVisible}
+        promoToEdit={selectedPromoForEdit}
+        onClose={() => setPromoFormVisible(false)}
+        onSave={handleSavePromo}
       />
 
       {/* Secure PIN Prompt Modal */}

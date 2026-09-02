@@ -37,11 +37,11 @@ export async function exportReportToCSV(
 
     // Daftar Transaksi
     csv += `DAFTAR DETAIL TRANSAKSI\n`;
-    csv += `No;Invoice;Waktu;Metode;Meja;Pelanggan;Subtotal;PPN;Total Omset;Modal HPP;Laba Kotor\n`;
+    csv += `No;Invoice;Waktu;Metode;Meja;Pelanggan;Subtotal;Diskon Promo;Nama Promo;PPN;Total Omset;Modal HPP;Laba Kotor\n`;
 
     transactions.forEach((trx, idx) => {
       const timeFormatted = new Date(trx.created_at).toLocaleString("id-ID");
-      csv += `${idx + 1};${trx.invoice_no || trx.id};${timeFormatted};${trx.payment_method};${trx.table_number || "-"};${trx.customer_name || "-"};${trx.subtotal_before_tax};${trx.ppn_amount};${trx.omset};${trx.total_hpp};${trx.laba_kotor}\n`;
+      csv += `${idx + 1};${trx.invoice_no || trx.id};${timeFormatted};${trx.payment_method};${trx.table_number || "-"};${trx.customer_name || "-"};${trx.subtotal_before_tax};${trx.discount_amount || 0};${trx.promo_name || "-"};${trx.ppn_amount};${trx.omset};${trx.total_hpp};${trx.laba_kotor}\n`;
     });
 
     // 2. Export on Web vs Native

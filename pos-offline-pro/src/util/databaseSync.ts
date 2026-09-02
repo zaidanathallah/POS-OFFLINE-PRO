@@ -37,6 +37,7 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
       const backupData = await runInDbQueue(async (db) => {
         const categories = await db.getAllAsync("SELECT * FROM categories;");
         const products = await db.getAllAsync("SELECT * FROM products;");
+        const promos = await db.getAllAsync("SELECT * FROM promos;");
         const transactions = await db.getAllAsync("SELECT * FROM transactions;");
         const transactionDetails = await db.getAllAsync("SELECT * FROM transaction_details;");
         const settings = await db.getAllAsync("SELECT * FROM settings;");
@@ -47,6 +48,7 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
           tables: {
             categories,
             products,
+            promos,
             transactions,
             transaction_details: transactionDetails,
             settings,
@@ -85,6 +87,7 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
     const backupData = await runInDbQueue(async (db) => {
       const categories = await db.getAllAsync("SELECT * FROM categories;");
       const products = await db.getAllAsync("SELECT * FROM products;");
+      const promos = await db.getAllAsync("SELECT * FROM promos;");
       const transactions = await db.getAllAsync("SELECT * FROM transactions;");
       const transactionDetails = await db.getAllAsync("SELECT * FROM transaction_details;");
       const settings = await db.getAllAsync("SELECT * FROM settings;");
@@ -95,6 +98,7 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
         tables: {
           categories,
           products,
+          promos,
           transactions,
           transaction_details: transactionDetails,
           settings,
@@ -249,7 +253,7 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
  */
 async function restoreJsonTables(tables: any): Promise<void> {
   await runInDbQueue(async (db) => {
-    const { categories, products, transactions, transaction_details, settings } = tables;
+    const { categories, products, promos, transactions, transaction_details, settings } = tables;
 
     if (categories && Array.isArray(categories)) {
       for (const c of categories) {
@@ -284,12 +288,38 @@ async function restoreJsonTables(tables: any): Promise<void> {
       }
     }
 
+    if (promos && Array.isArray(promos)) {
+      for (const pr of promos) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO promos (
+            id, name, promo_type, target_type, target_id, target_name, 
+            min_qty, min_spend, reward_free_qty, discount_amount, discount_percent, is_active, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            pr.id,
+            pr.name,
+            pr.promo_type,
+            pr.target_type || "ALL",
+            pr.target_id || null,
+            pr.target_name || null,
+            pr.min_qty || 1,
+            pr.min_spend || 0,
+            pr.reward_free_qty || 0,
+            pr.discount_amount || 0,
+            pr.discount_percent || 0,
+            pr.is_active !== undefined ? pr.is_active : 1,
+            pr.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
     if (transactions && Array.isArray(transactions)) {
       for (const t of transactions) {
         await db.runAsync(
           `INSERT OR REPLACE INTO transactions (
-            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, is_open_bill, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, is_open_bill, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             t.id,
             t.invoice_no,
@@ -297,6 +327,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
             t.total_hpp,
             t.laba_kotor,
             t.subtotal_before_tax || 0,
+            t.discount_amount || 0,
+            t.promo_name || null,
             t.ppn_percent || 0,
             t.ppn_amount || 0,
             t.payment_method || "CASH",

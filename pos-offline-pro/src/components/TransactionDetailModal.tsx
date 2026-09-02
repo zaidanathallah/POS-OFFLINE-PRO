@@ -179,6 +179,17 @@ export function TransactionDetailModal({
 
             {/* Financial Summary */}
             <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#e5e7eb" }}>
+              {transaction.discount_amount && transaction.discount_amount > 0 ? (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "700" }}>
+                    {transaction.promo_name ? `Diskon (${transaction.promo_name})` : "Diskon Promo"}
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a" }}>
+                    -{formatRupiah(transaction.discount_amount)}
+                  </Text>
+                </View>
+              ) : null}
+
               {transaction.ppn_amount && transaction.ppn_amount > 0 ? (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
                   <Text style={{ fontSize: 11, color: "#71717a" }}>PPN {transaction.ppn_percent}%</Text>

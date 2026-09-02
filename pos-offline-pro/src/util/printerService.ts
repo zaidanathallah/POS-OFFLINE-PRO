@@ -21,6 +21,8 @@ export interface ReceiptData {
   customerName?: string | null;
   items: ReceiptItem[];
   subtotalBeforeTax?: number;
+  discountAmount?: number;
+  promoName?: string | null;
   ppnPercent?: number;
   ppnAmount?: number;
   totalAmount: number;
@@ -166,9 +168,15 @@ export class PrinterService {
 
     lines.push(divider);
 
-    // Subtotal, Tax, and Totals
-    if (data.subtotalBeforeTax !== undefined && data.ppnAmount !== undefined && data.ppnAmount > 0) {
+    // Subtotal, Discount Promo, Tax, and Totals
+    if (data.subtotalBeforeTax !== undefined) {
       lines.push(row("Subtotal", `Rp ${data.subtotalBeforeTax.toLocaleString("id-ID")}`));
+    }
+    if (data.discountAmount !== undefined && data.discountAmount > 0) {
+      const pLabel = data.promoName ? `Diskon (${data.promoName})` : "Diskon Promo";
+      lines.push(row(pLabel, `-Rp ${data.discountAmount.toLocaleString("id-ID")}`));
+    }
+    if (data.ppnAmount !== undefined && data.ppnAmount > 0) {
       lines.push(row(`PPN ${data.ppnPercent || 11}%`, `Rp ${data.ppnAmount.toLocaleString("id-ID")}`));
     }
 

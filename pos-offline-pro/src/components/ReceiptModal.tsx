@@ -211,6 +211,17 @@ export function ReceiptModal({
                   </Text>
                 </View>
 
+                {receiptData.discountAmount && receiptData.discountAmount > 0 ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#16a34a", fontWeight: "700" }}>
+                      Diskon Promo:
+                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#16a34a", fontWeight: "700" }}>
+                      -{formatRupiah(receiptData.discountAmount)}
+                    </Text>
+                  </View>
+                ) : null}
+
                 {receiptData.ppnAmount && receiptData.ppnAmount > 0 ? (
                   <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                     <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#71717a" }}>

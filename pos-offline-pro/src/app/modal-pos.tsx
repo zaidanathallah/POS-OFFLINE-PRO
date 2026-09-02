@@ -14,13 +14,15 @@ import {
 import { router } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useCartStore, CartItem } from "@/stores/useCartStore";
-import { Product, ProductVariant, Transaction } from "@/db";
+import { Product, ProductVariant, Transaction, Promo } from "@/db";
 import { getAllProducts, getProductByBarcode, createProduct } from "@/db/productRepository";
 import { getAllCategories } from "@/db/categoryRepository";
+import { getActivePromos } from "@/db/promoRepository";
 import { processCheckout } from "@/db/transactionRepository";
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData, printBluetoothReceipt58mm } from "@/util/printerService";
 import { formatRupiah } from "@/util/formatters";
+import { evaluateCartPromos, AppliedPromoResult } from "@/util/promoEngine";
 import {
   lookupSupermarketBarcode,
   generateSmartSupermarketProduct,
@@ -44,6 +46,8 @@ import {
   Sparkles,
   Receipt,
   RotateCw,
+  Tag,
+  Gift,
 } from "lucide-react-native";
 
 export default function PosModalScreen() {
@@ -97,6 +101,8 @@ export default function PosModalScreen() {
   const [featureBarcode, setFeatureBarcode] = useState(true);
   const [featureVariants, setFeatureVariants] = useState(true);
   const [featureAutoPrint, setFeatureAutoPrint] = useState(false);
+  const [featurePromo, setFeaturePromo] = useState(true);
+  const [activePromos, setActivePromos] = useState<Promo[]>([]);
 
   // Store Profile & Footer
   const [storeQris, setStoreQris] = useState("");
@@ -138,9 +144,15 @@ export default function PosModalScreen() {
     getTotalItemCount,
   } = useCartStore();
 
-  const subtotal = getSubtotal();
-  const ppnAmount = isPpnActive ? Math.round((subtotal * ppnRate) / 100) : 0;
-  const grandTotal = subtotal + ppnAmount;
+  const rawSubtotal = getSubtotal();
+  const promoEvaluation = featurePromo ? evaluateCartPromos(items, activePromos) : { appliedPromos: [], totalDiscount: 0, netSubtotal: rawSubtotal };
+  const discountAmount = promoEvaluation.totalDiscount;
+  const appliedPromos = promoEvaluation.appliedPromos;
+  const promoName = appliedPromos.map((p) => p.promo.name).join(", ");
+  const subtotal = rawSubtotal;
+  const subtotalAfterDiscount = promoEvaluation.netSubtotal;
+  const ppnAmount = isPpnActive ? Math.round((subtotalAfterDiscount * ppnRate) / 100) : 0;
+  const grandTotal = subtotalAfterDiscount + ppnAmount;
   const totalItemCount = getTotalItemCount();
 
   const loadData = useCallback(async () => {
@@ -152,6 +164,9 @@ export default function PosModalScreen() {
       const data = await getAllProducts(selectedCategory === "Semua" ? undefined : selectedCategory);
       setProducts(data);
 
+      const dbPromos = await getActivePromos();
+      setActivePromos(dbPromos);
+
       const fPpn = await getSetting("feature_ppn", "1");
       const pRate = await getSetting("ppn_rate", "11");
       const fTable = await getSetting("feature_table_number", "0");
@@ -160,6 +175,17 @@ export default function PosModalScreen() {
       const fBar = await getSetting("feature_barcode", "1");
       const fVar = await getSetting("feature_variants", "1");
       const fAuto = await getSetting("feature_auto_print", "0");
+      const fPromo = await getSetting("feature_promo", "1");
+
+      setIsPpnActive(fPpn === "1");
+      setPpnRate(Number(pRate) || 11);
+      setFeatureTable(fTable === "1");
+      setFeatureCustomer(fCust === "1");
+      setFeatureOpenBill(fOpen === "1");
+      setFeatureBarcode(fBar === "1");
+      setFeatureVariants(fVar === "1");
+      setFeatureAutoPrint(fAuto === "1");
+      setFeaturePromo(fPromo === "1");
 
       setIsPpnActive(fPpn === "1");
       setPpnRate(Number(pRate) || 11);
@@ -273,11 +299,13 @@ export default function PosModalScreen() {
         (acc, i) => acc + (i.modalHpp || i.product.modal_hpp || 0) * i.qty,
         0
       );
-      const labaKotor = Math.max(0, subtotal - totalHpp);
+      const labaKotor = Math.max(0, subtotalAfterDiscount - totalHpp);
 
       const result = await processCheckout({
         items,
-        subtotal,
+        subtotal: subtotal,
+        discount_amount: discountAmount,
+        promo_name: promoName || undefined,
         ppn_percent: isPpnActive ? ppnRate : 0,
         ppn_amount: ppnAmount,
         grand_total: grandTotal,
@@ -312,6 +340,8 @@ export default function PosModalScreen() {
         })),
         totalAmount: result.transaction.omset,
         subtotalBeforeTax: result.transaction.subtotal_before_tax,
+        discountAmount: discountAmount,
+        promoName: promoName || undefined,
         ppnPercent: result.transaction.ppn_percent,
         ppnAmount: result.transaction.ppn_amount,
         cashTendered: result.transaction.cash_tendered,
@@ -724,6 +754,41 @@ export default function PosModalScreen() {
                 </View>
               ))
             )}
+            {/* Active Promo Badges in Cart */}
+            {appliedPromos.length > 0 && (
+              <View
+                style={{
+                  backgroundColor: "#ECFDF5",
+                  borderRadius: 12,
+                  padding: 8,
+                  marginTop: 8,
+                  borderWidth: 1,
+                  borderColor: "#A7F3D0",
+                }}
+              >
+                {appliedPromos.map((ap, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginVertical: 2,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 4 }}>
+                      <Tag size={12} color="#059669" style={{ marginRight: 4 }} />
+                      <Text numberOfLines={1} style={{ fontSize: 10, fontWeight: "700", color: "#065F46" }}>
+                        {ap.description}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: "#059669" }}>
+                      -{formatRupiah(ap.discountAmount)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </ScrollView>
 
           {/* Cart Bottom: Total & Full-Width Cyan Payment Button */}
@@ -734,7 +799,22 @@ export default function PosModalScreen() {
               backgroundColor: "#FAF8F5",
             }}
           >
-            {/* Subtotal / PPN if active */}
+            {/* Subtotal & Promo Discount */}
+            {discountAmount > 0 && (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                <Text style={{ fontSize: 10, color: "#78716C" }}>Subtotal</Text>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: "#292524" }}>{formatRupiah(subtotal)}</Text>
+              </View>
+            )}
+
+            {discountAmount > 0 && (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                <Text style={{ fontSize: 10, color: "#059669", fontWeight: "700" }}>Diskon Promo</Text>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#059669" }}>-{formatRupiah(discountAmount)}</Text>
+              </View>
+            )}
+
+            {/* PPN if active */}
             {isPpnActive && ppnAmount > 0 && (
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
                 <Text style={{ fontSize: 10, color: "#78716C" }}>PPN {ppnRate}%</Text>
@@ -829,6 +909,8 @@ export default function PosModalScreen() {
         visible={checkoutModalVisible}
         items={items}
         subtotal={subtotal}
+        discountAmount={discountAmount}
+        promoName={promoName}
         ppnPercent={isPpnActive ? ppnRate : 0}
         ppnAmount={ppnAmount}
         grandTotal={grandTotal}

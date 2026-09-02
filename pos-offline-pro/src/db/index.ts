@@ -35,6 +35,24 @@ export interface Product {
   created_at?: string;
 }
 
+export type PromoType = "BUY_X_GET_Y" | "COMBO_DISCOUNT" | "MIN_SPEND";
+
+export interface Promo {
+  id: string;
+  name: string;
+  promo_type: PromoType;
+  target_type: "CATEGORY" | "PRODUCT" | "ALL";
+  target_id?: string | null;
+  target_name?: string | null;
+  min_qty: number;
+  min_spend: number;
+  reward_free_qty: number;
+  discount_amount: number;
+  discount_percent: number;
+  is_active: number; // 1 or 0
+  created_at?: string;
+}
+
 export interface Transaction {
   id: string;
   invoice_no: string;
@@ -42,6 +60,8 @@ export interface Transaction {
   total_hpp: number;
   laba_kotor: number;
   subtotal_before_tax: number;
+  discount_amount?: number;
+  promo_name?: string | null;
   ppn_percent: number;
   ppn_amount: number;
   payment_method: string; // 'CASH' | 'QRIS'
@@ -182,6 +202,22 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       variants_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS promos (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      promo_type TEXT NOT NULL,
+      target_type TEXT NOT NULL DEFAULT 'ALL',
+      target_id TEXT,
+      target_name TEXT,
+      min_qty REAL NOT NULL DEFAULT 1,
+      min_spend REAL NOT NULL DEFAULT 0,
+      reward_free_qty REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      discount_percent REAL NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY NOT NULL,
       invoice_no TEXT,
@@ -189,6 +225,8 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       total_hpp REAL NOT NULL,
       laba_kotor REAL NOT NULL,
       subtotal_before_tax REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      promo_name TEXT,
       ppn_percent REAL NOT NULL DEFAULT 0,
       ppn_amount REAL NOT NULL DEFAULT 0,
       payment_method TEXT NOT NULL DEFAULT 'CASH',
@@ -219,6 +257,8 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   // Run dynamic column migrations for existing databases
   await ensureColumnExists(db, "transactions", "invoice_no", "TEXT");
   await ensureColumnExists(db, "transactions", "subtotal_before_tax", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "discount_amount", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transactions", "promo_name", "TEXT");
   await ensureColumnExists(db, "transactions", "ppn_percent", "REAL NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transactions", "ppn_amount", "REAL NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transactions", "payment_method", "TEXT NOT NULL DEFAULT 'CASH'");
@@ -263,6 +303,7 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     feature_auto_print: "0",
     feature_ppn: "1",
     ppn_rate: "11",
+    feature_promo: "1",
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {
@@ -276,6 +317,21 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
         [key, value]
       );
     }
+  }
+
+  // Seed sample promos if table is empty
+  const promoCountRes = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM promos"
+  );
+  if (!promoCountRes || promoCountRes.count === 0) {
+    await db.runAsync(`
+      INSERT INTO promos (
+        id, name, promo_type, target_type, target_id, target_name, 
+        min_qty, min_spend, reward_free_qty, discount_amount, discount_percent, is_active
+      ) VALUES 
+      ('PRM-MIE-01', 'Promo Mie Instan: Beli 3 Diskon Rp 2.000', 'COMBO_DISCOUNT', 'CATEGORY', 'Makanan', 'Makanan', 3, 0, 0, 2000, 0, 1),
+      ('PRM-B2G1-01', 'Promo Beli 2 Gratis 1 (Minuman)', 'BUY_X_GET_Y', 'CATEGORY', 'Minuman', 'Minuman', 2, 0, 1, 0, 0, 1);
+    `);
   }
 
   // Seed default categories if table is empty

@@ -31,6 +31,8 @@ interface CheckoutLandscapeModalProps {
   visible: boolean;
   items: CartItem[];
   subtotal: number;
+  discountAmount?: number;
+  promoName?: string;
   ppnPercent: number;
   ppnAmount: number;
   grandTotal: number;
@@ -55,6 +57,8 @@ export function CheckoutLandscapeModal({
   visible,
   items,
   subtotal,
+  discountAmount = 0,
+  promoName = "",
   ppnPercent,
   ppnAmount,
   grandTotal,
@@ -337,6 +341,17 @@ export function CheckoutLandscapeModal({
                         <Text style={{ fontSize: 10, color: "#71717a" }}>Subtotal</Text>
                         <Text style={{ fontSize: 10, fontWeight: "600", color: "#18181b" }}>{formatRupiah(subtotal)}</Text>
                       </View>
+
+                      {discountAmount > 0 && (
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+                          <Text style={{ fontSize: 10, color: "#16a34a", fontWeight: "700" }}>
+                            {promoName ? `Diskon (${promoName})` : "Diskon Promo"}
+                          </Text>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#16a34a" }}>
+                            -{formatRupiah(discountAmount)}
+                          </Text>
+                        </View>
+                      )}
 
                       {ppnAmount > 0 && (
                         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
