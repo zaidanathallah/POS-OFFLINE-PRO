@@ -45,6 +45,8 @@ import { PromoFormModal } from "@/components/PromoFormModal";
 import { Transaction, Promo } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import { compressAndConvertToBase64 } from "@/util/imageCompressor";
+import { decodeQrFromImage } from "@/util/qrDecoder";
+import { parseQrisMetadata, DEFAULT_BASE_QRIS } from "@/util/qrisEngine";
 import {
   BarChart2,
   Printer,
@@ -77,6 +79,7 @@ import {
   Tag,
   Gift,
   DollarSign,
+  QrCode,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -89,6 +92,8 @@ export default function SettingsScreen() {
   const [storePhone, setStorePhone] = useState("08111111111");
   const [storeLogo, setStoreLogo] = useState("");
   const [storeQris, setStoreQris] = useState("");
+  const [storeQrisPayload, setStoreQrisPayload] = useState(DEFAULT_BASE_QRIS);
+  const [showPayloadInput, setShowPayloadInput] = useState(false);
   const [receiptFooter, setReceiptFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
 
   // PIN Settings
@@ -178,6 +183,7 @@ export default function SettingsScreen() {
     const sPhone = await getSetting("store_phone", "08111111111");
     const sLogo = await getSetting("store_logo", "");
     const sQris = await getSetting("store_qris", "");
+    const sQrisPayload = await getSetting("store_qris_payload", DEFAULT_BASE_QRIS);
     const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
 
     const pinActive = await getSetting("is_pin_active", "0");
@@ -198,6 +204,7 @@ export default function SettingsScreen() {
     setStorePhone(sPhone);
     setStoreLogo(sLogo);
     setStoreQris(sQris);
+    setStoreQrisPayload(sQrisPayload || DEFAULT_BASE_QRIS);
     setReceiptFooter(sFooter);
 
     setIsPinActive(pinActive === "1");
@@ -211,11 +218,7 @@ export default function SettingsScreen() {
     setFeaturePpn(fPpn === "1");
     setPpnRate(pRate);
     setFeaturePromo(fPromo === "1");
-
-    await loadPromosData();
-    const printer = await PrinterService.getConnectedPrinter();
-    setConnectedPrinter(printer);
-  }, [loadPromosData]);
+  }, []);
 
   const loadReportData = useCallback(async () => {
     try {
@@ -237,7 +240,17 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadAllSettings();
-  }, [loadAllSettings]);
+    loadPromosData();
+    loadReportData();
+    checkConnectedPrinter();
+  }, [loadAllSettings, loadPromosData, loadReportData]);
+
+  const checkConnectedPrinter = async () => {
+    const dev = await PrinterService.getConnectedPrinter();
+    if (dev) {
+      setConnectedPrinter(dev);
+    }
+  };
 
   useEffect(() => {
     if (activeSubpage === "laporan") {
@@ -248,7 +261,7 @@ export default function SettingsScreen() {
     }
   }, [activeSubpage, loadReportData, loadPromosData]);
 
-  // Image Picker for Logo or QRIS with Automatic Compression
+  // Upload Logo & QRIS with Auto-Compression and Auto QR Decoding
   const handlePickStoreImage = async (type: "logo" | "qris") => {
     try {
       if (Platform.OS === "web") {
@@ -259,16 +272,32 @@ export default function SettingsScreen() {
           const file = e.target?.files?.[0];
           if (file) {
             const reader = new FileReader();
-            reader.onload = async () => {
-              if (reader.result) {
-                const rawUri = reader.result.toString();
-                const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
-                if (type === "logo") {
-                  setStoreLogo(compressed);
-                  await setSetting("store_logo", compressed);
-                } else {
-                  setStoreQris(compressed);
-                  await setSetting("store_qris", compressed);
+            reader.onload = async (event) => {
+              const rawBase64 = event.target?.result as string;
+              const compressed = await compressAndConvertToBase64(rawBase64, 400, 0.65);
+              if (type === "logo") {
+                setStoreLogo(compressed);
+                await setSetting("store_logo", compressed);
+              } else {
+                setStoreQris(compressed);
+                await setSetting("store_qris", compressed);
+
+                // Auto decode QR from uploaded image
+                try {
+                  const decoded =
+                    (await decodeQrFromImage(rawBase64)) ||
+                    (await decodeQrFromImage(compressed));
+                  if (decoded && decoded.length > 20) {
+                    setStoreQrisPayload(decoded);
+                    await setSetting("store_qris_payload", decoded);
+                    const meta = parseQrisMetadata(decoded);
+                    Alert.alert(
+                      "QRIS Berhasil Dipindai",
+                      `Data QRIS Berhasil Diekstrak:\nNama: ${meta.merchantName}\nNMID: ${meta.nmid}\nKota: ${meta.merchantCity}`
+                    );
+                  }
+                } catch (e) {
+                  console.warn("Decode QR warning:", e);
                 }
               }
             };
@@ -300,6 +329,23 @@ export default function SettingsScreen() {
           } else {
             setStoreQris(compressed);
             await setSetting("store_qris", compressed);
+
+            try {
+              const decoded =
+                (await decodeQrFromImage(rawUri)) ||
+                (await decodeQrFromImage(compressed));
+              if (decoded && decoded.length > 20) {
+                setStoreQrisPayload(decoded);
+                await setSetting("store_qris_payload", decoded);
+                const meta = parseQrisMetadata(decoded);
+                Alert.alert(
+                  "QRIS Berhasil Dipindai",
+                  `Data QRIS Berhasil Diekstrak:\nNama: ${meta.merchantName}\nNMID: ${meta.nmid}\nKota: ${meta.merchantCity}`
+                );
+              }
+            } catch (e) {
+              console.warn("Decode QR warning:", e);
+            }
           }
         }
       }
@@ -324,7 +370,8 @@ export default function SettingsScreen() {
       await setSetting("store_address", storeAddress);
       await setSetting("store_phone", storePhone);
       await setSetting("store_receipt_footer", receiptFooter);
-      Alert.alert("Sukses", "Profil toko & ucapan struk berhasil disimpan.");
+      await setSetting("store_qris_payload", storeQrisPayload);
+      Alert.alert("Sukses", "Profil toko & payload QRIS berhasil disimpan.");
     }, "Masukkan PIN Supervisor untuk menyimpan profil toko");
   };
 
@@ -2100,6 +2147,62 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
+
+              {/* Detected Merchant & NMID badge */}
+              {(() => {
+                const meta = parseQrisMetadata(storeQrisPayload || DEFAULT_BASE_QRIS);
+                return (
+                  <View
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: "#f0fdf4",
+                      borderWidth: 1,
+                      borderColor: "#bbf7d0",
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "800", color: "#166534" }}>
+                        ✓ QRIS Terdeteksi: {meta.merchantName}
+                      </Text>
+                      <TouchableOpacity onPress={() => setShowPayloadInput(!showPayloadInput)}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
+                          {showPayloadInput ? "Sembunyikan" : "Lihat Payload"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 10, color: "#15803d", marginTop: 2 }}>
+                      NMID: {meta.nmid} • Kota: {meta.merchantCity}
+                    </Text>
+
+                    {showPayloadInput && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#374151", marginBottom: 2 }}>
+                          Teks Kode QRIS (EMVCo String Payload):
+                        </Text>
+                        <TextInput
+                          value={storeQrisPayload}
+                          onChangeText={setStoreQrisPayload}
+                          multiline
+                          placeholder="000201010211..."
+                          style={{
+                            backgroundColor: "#ffffff",
+                            borderWidth: 1,
+                            borderColor: "#cbd5e1",
+                            borderRadius: 8,
+                            padding: 8,
+                            fontSize: 10,
+                            color: "#1e293b",
+                            fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                            maxHeight: 70,
+                          }}
+                        />
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Inputs */}

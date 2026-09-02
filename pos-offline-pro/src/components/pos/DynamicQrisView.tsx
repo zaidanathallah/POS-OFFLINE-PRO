@@ -141,7 +141,7 @@ export function DynamicQrisView({
           {metadata.merchantName || storeName}
         </Text>
         <Text style={{ fontSize: 9, color: "#71717a", textAlign: "center", marginBottom: 8 }}>
-          NMID: {metadata.merchantCity} (ShopeePay / Semua Bank)
+          NMID: {metadata.nmid || "ID1026502074846"} - {metadata.merchantCity}
         </Text>
 
         {/* Crisp Offline SVG QR Code */}

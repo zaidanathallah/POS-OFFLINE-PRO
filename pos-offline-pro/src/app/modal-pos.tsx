@@ -177,6 +177,7 @@ export default function PosModalScreen() {
       setFeatureAutoPrint(fAuto === "1");
 
       const sLogo = await getSetting("store_logo", "");
+      const sQrisPayload = await getSetting("store_qris_payload", "");
       const sQris = await getSetting("store_qris", "");
       const sName = await getSetting("store_name", "POS Offline Pro");
       const sAddr = await getSetting("store_address", "Jl. Alamat No 99 Makassar");
@@ -184,7 +185,7 @@ export default function PosModalScreen() {
       const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
 
       setStoreLogo(sLogo);
-      setStoreQris(sQris);
+      setStoreQris(sQrisPayload || sQris || "");
       setStoreName(sName);
       setStoreAddress(sAddr);
       setStorePhone(sPhone);

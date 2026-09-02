@@ -26,26 +26,27 @@ export function calculateCRC16(str: string): string {
 }
 
 /**
- * Standard Default QRIS Base for Sukrimu / Padi Halal Slaughter / Indonesian Merchants
- * Acquirer: ShopeePay (ID: 9360-0918-0022-8956-811), ASPI QRIS Compliant
+ * Real Decoded QRIS Payload for Sukrimu Frozen Milk (ShopeePay / NMID ID1026502074846)
  */
 export const DEFAULT_BASE_QRIS =
-  "00020101021126680016ID.CO.SHOPEE.PAY0118936009180022895681102150000000000000000303UME51440014ID.CO.QRIS.WWW0215ID10200228956810303UME5204541153033605802ID5920SUKRIMU FROZEN MILK6008SURABAYA61056029362070703A016304";
+  "00020101021126610016ID.CO.SHOPEE.WWW01189360091800228956810208228956810303UMI51440014ID.CO.QRIS.WWW0215ID10265020748460303UMI5204581253033605802ID5919SUKRIMU FROZEN MILK6008SURABAYA61056029562070703A01630400DA";
 
 export interface ParsedQrisMetadata {
   merchantName: string;
   merchantCity: string;
+  nmid?: string;
   postalCode?: string;
   acquirerName?: string;
   isDynamic: boolean;
 }
 
 /**
- * Parse human readable metadata from QRIS string
+ * Parse human readable metadata from any QRIS string
  */
 export function parseQrisMetadata(qrisStr: string): ParsedQrisMetadata {
-  let name = "Toko POS Offline Pro";
+  let name = "SUKRIMU FROZEN MILK";
   let city = "SURABAYA";
+  let nmid = "ID1026502074846";
   let isDynamic = false;
 
   try {
@@ -62,6 +63,10 @@ export function parseQrisMetadata(qrisStr: string): ParsedQrisMetadata {
         name = val;
       } else if (tag === "60") {
         city = val;
+      } else if (tag === "51") {
+        // Tag 51 QRIS NMID: 0215ID1026502074846
+        const nmidMatch = val.match(/ID\d{10,15}/);
+        if (nmidMatch) nmid = nmidMatch[0];
       }
       index += 4 + len;
     }
@@ -70,6 +75,7 @@ export function parseQrisMetadata(qrisStr: string): ParsedQrisMetadata {
   return {
     merchantName: name,
     merchantCity: city,
+    nmid,
     isDynamic,
   };
 }
@@ -77,7 +83,7 @@ export function parseQrisMetadata(qrisStr: string): ParsedQrisMetadata {
 /**
  * Convert any static or base QRIS into an Official Dynamic QRIS with exact nominal amount
  * Tag 01: '11' (Static) -> '12' (Dynamic)
- * Tag 54: Added with exact amount (e.g. 540538850 for Rp 38.850)
+ * Tag 54: Added with exact amount (e.g. 540553550 for Rp 53.550)
  * Tag 63: CRC16 recalculated
  */
 export function convertToDynamicQris(
@@ -107,7 +113,7 @@ export function convertToDynamicQris(
   const tag54Regex = /54\d{2}\d+(\.\d{2})?/;
   cleanQris = cleanQris.replace(tag54Regex, "");
 
-  // 4. Format Nominal Amount for Tag 54 (e.g. "38850")
+  // 4. Format Nominal Amount for Tag 54 (e.g. "53550")
   const roundedAmount = Math.round(nominalAmount);
   const amountStr = roundedAmount.toString();
   const amountLen = amountStr.length.toString().padStart(2, "0");
