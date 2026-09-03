@@ -66,6 +66,7 @@ export default function PosModalScreen() {
     };
   }, []);
 
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("Semua");
@@ -86,10 +87,10 @@ export default function PosModalScreen() {
   // Store Profile & Footer
   const [storeQris, setStoreQris] = useState("");
   const [storeLogo, setStoreLogo] = useState("");
-  const [storeName, setStoreName] = useState("POS Offline Pro");
-  const [storeBusinessType, setStoreBusinessType] = useState("Makanan Dan Minuman");
-  const [storeAddress, setStoreAddress] = useState("Jl. Alamat No 99 Makassar");
-  const [storePhone, setStorePhone] = useState("08111111111");
+  const [storeName, setStoreName] = useState("Padi Tech Solutions");
+  const [storeBusinessType, setStoreBusinessType] = useState("Halal Food & Drink");
+  const [storeAddress, setStoreAddress] = useState("Jl. Tambak Medokan Ayu GG III B");
+  const [storePhone, setStorePhone] = useState("081259384244");
   const [storeFooter, setStoreFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
 
   // Transaction metadata
@@ -141,8 +142,8 @@ export default function PosModalScreen() {
       if (dbCategories.length > 0) {
         setCategories(["Semua", ...dbCategories.map((c) => c.name)]);
       }
-      const data = await getAllProducts(selectedCategory === "Semua" ? undefined : selectedCategory);
-      setProducts(data);
+      const data = await getAllProducts();
+      setAllProducts(data);
 
       const dbPromos = await getActivePromos();
       setActivePromos(dbPromos);
@@ -167,15 +168,6 @@ export default function PosModalScreen() {
       setFeatureAutoPrint(fAuto === "1");
       setFeaturePromo(fPromo === "1");
 
-      setIsPpnActive(fPpn === "1");
-      setPpnRate(Number(pRate) || 11);
-      setFeatureTable(fTable === "1");
-      setFeatureCustomer(fCust === "1");
-      setFeatureOpenBill(fOpen === "1");
-      setFeatureBarcode(fBar === "1");
-      setFeatureVariants(fVar === "1");
-      setFeatureAutoPrint(fAuto === "1");
-
       const sLogo = await getSetting("store_logo", "");
       const sQris = await getSetting("store_qris", "");
       const sName = await getSetting("store_name", "Padi Tech Solutions");
@@ -196,11 +188,24 @@ export default function PosModalScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory]);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Real-time synchronization when switching categories
+  useEffect(() => {
+    if (selectedCategory === "Semua") {
+      setProducts(allProducts);
+    } else {
+      setProducts(
+        allProducts.filter(
+          (p) => (p.category || "").trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+        )
+      );
+    }
+  }, [selectedCategory, allProducts]);
 
   const handleProductPress = (product: Product) => {
     if (product.is_decimal) {
@@ -874,7 +879,7 @@ export default function PosModalScreen() {
 
       <ProductSearchModal
         visible={searchModalVisible}
-        products={products}
+        products={allProducts}
         onClose={() => setSearchModalVisible(false)}
         onSelectProduct={(p) => {
           setSearchModalVisible(false);

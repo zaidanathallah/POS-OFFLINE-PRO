@@ -26,12 +26,12 @@ export async function getAllProducts(
     const params: any[] = [];
 
     if (categoryFilter && categoryFilter !== "Semua") {
-      query += " AND category = ?";
+      query += " AND LOWER(TRIM(category)) = LOWER(TRIM(?))";
       params.push(categoryFilter);
     }
 
     if (searchQuery && searchQuery.trim().length > 0) {
-      query += " AND (name LIKE ? OR barcode LIKE ?)";
+      query += " AND (LOWER(name) LIKE LOWER(?) OR barcode LIKE ?)";
       params.push(`%${searchQuery.trim()}%`, `%${searchQuery.trim()}%`);
     }
 
