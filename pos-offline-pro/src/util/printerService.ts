@@ -2,6 +2,7 @@
  * Bluetooth Thermal Printer Service (ESC/POS 58mm Paper - 32 Chars/line)
  * Full support for 58mm receipt formatting, dynamic bluetooth printer scanning,
  * connection, and direct ESC/POS hardware binary packet transmission via Web Bluetooth & Native.
+ * Includes monochrome bitmap rasterizer (GS v 0) for printing store logo on thermal paper.
  */
 import { Platform } from "react-native";
 import { getSetting, setSetting } from "@/db/settingsRepository";
@@ -111,6 +112,133 @@ async function connectToGattCharacteristic(device: any): Promise<any> {
     console.warn("GATT Connection error:", err);
     return null;
   }
+}
+
+/**
+ * Convert an image Base64/URI into ESC/POS GS v 0 1-bit monochrome raster bitmap command
+ * Tailored for 58mm thermal printers (width ~ 192 - 240 dots, centered)
+ */
+export async function convertImageToEscPosBitmap(
+  imageUriOrBase64: string,
+  targetWidth: number = 200
+): Promise<Uint8Array | null> {
+  if (!imageUriOrBase64) return null;
+
+  try {
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      return new Promise((resolve) => {
+        const img = new (window as any).Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+          try {
+            const rawW = img.naturalWidth || img.width;
+            const rawH = img.naturalHeight || img.height;
+            const width = Math.floor(Math.min(targetWidth, rawW) / 8) * 8 || 192;
+            const scale = width / rawW;
+            const height = Math.round(rawH * scale);
+
+            if (width <= 0 || height <= 0) {
+              resolve(null);
+              return;
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              resolve(null);
+              return;
+            }
+
+            // Solid white background (thermal paper)
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const pixels = imgData.data;
+
+            const bytesPerLine = width / 8;
+            const bitmapData = new Uint8Array(bytesPerLine * height);
+
+            for (let y = 0; y < height; y++) {
+              for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const r = pixels[idx];
+                const g = pixels[idx + 1];
+                const b = pixels[idx + 2];
+                const a = pixels[idx + 3];
+
+                const lum = a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+                const isBlack = lum < 165;
+
+                if (isBlack) {
+                  const byteIdx = y * bytesPerLine + Math.floor(x / 8);
+                  const bitOffset = 7 - (x % 8);
+                  bitmapData[byteIdx] |= 1 << bitOffset;
+                }
+              }
+            }
+
+            // ESC/POS GS v 0 0 xL xH yL yH
+            const xL = bytesPerLine & 0xff;
+            const xH = (bytesPerLine >> 8) & 0xff;
+            const yL = height & 0xff;
+            const yH = (height >> 8) & 0xff;
+
+            const header = new Uint8Array([
+              0x1b,
+              0x61,
+              0x01, // Center align
+              0x1d,
+              0x76,
+              0x30,
+              0x00,
+              xL,
+              xH,
+              yL,
+              yH,
+            ]);
+            const footer = new Uint8Array([
+              0x0a, // Line feed
+              0x1b,
+              0x61,
+              0x00, // Reset align left
+            ]);
+
+            const fullCmd = new Uint8Array(
+              header.length + bitmapData.length + footer.length
+            );
+            fullCmd.set(header, 0);
+            fullCmd.set(bitmapData, header.length);
+            fullCmd.set(footer, header.length + bitmapData.length);
+
+            resolve(fullCmd);
+          } catch (e) {
+            console.error("Thermal bitmap conversion error:", e);
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+
+        let src = imageUriOrBase64;
+        if (
+          !src.startsWith("data:") &&
+          !src.startsWith("http") &&
+          !src.startsWith("blob:") &&
+          !src.startsWith("file:")
+        ) {
+          src = `data:image/jpeg;base64,${src}`;
+        }
+        img.src = src;
+      });
+    }
+  } catch (err) {
+    console.warn("Bitmap conversion warning:", err);
+  }
+
+  return null;
 }
 
 export class PrinterService {
@@ -306,6 +434,23 @@ export class PrinterService {
 
   static async printReceipt(data: ReceiptData): Promise<{ success: boolean; message?: string }> {
     try {
+      // Ensure latest store profile if not passed
+      if (!data.storeName) {
+        data.storeName = await getSetting("store_name", "POS OFFLINE PRO");
+      }
+      if (!data.businessType) {
+        data.businessType = await getSetting("store_business_type", "");
+      }
+      if (!data.storeAddress) {
+        data.storeAddress = await getSetting("store_address", "");
+      }
+      if (!data.storePhone) {
+        data.storePhone = await getSetting("store_phone", "");
+      }
+      if (!data.storeLogoUri) {
+        data.storeLogoUri = await getSetting("store_logo", "");
+      }
+
       const text = await this.generateReceiptText(data);
       console.log("[PrinterService] 58mm Thermal Print Execution:\n" + text);
 
@@ -344,15 +489,38 @@ export class PrinterService {
         }
 
         if (char) {
-          const encoder = new TextEncoder();
-          const initCmd = new Uint8Array([0x1B, 0x40, 0x1B, 0x74, 0x00]); // ESC @ (Initialize), ESC t 0 (CP437)
-          const textBytes = encoder.encode(text);
-          const feedCmd = new Uint8Array([0x1B, 0x64, 0x04, 0x0A, 0x0A, 0x0A]); // Feed 4 lines + LF
+          // 1. Process monochrome logo bitmap (GS v 0) if logo exists
+          let logoBytes: Uint8Array | null = null;
+          if (data.storeLogoUri) {
+            try {
+              logoBytes = await convertImageToEscPosBitmap(data.storeLogoUri, 192);
+            } catch (e) {
+              console.warn("Logo bitmap conversion error:", e);
+            }
+          }
 
-          const fullPayload = new Uint8Array(initCmd.length + textBytes.length + feedCmd.length);
-          fullPayload.set(initCmd, 0);
-          fullPayload.set(textBytes, initCmd.length);
-          fullPayload.set(feedCmd, initCmd.length + textBytes.length);
+          const encoder = new TextEncoder();
+          const initCmd = new Uint8Array([0x1b, 0x40, 0x1b, 0x74, 0x00]); // ESC @ (Initialize), ESC t 0 (CP437)
+          const textBytes = encoder.encode(text);
+          const feedCmd = new Uint8Array([0x1b, 0x64, 0x04, 0x0a, 0x0a, 0x0a]); // Feed 4 lines + LF
+
+          const logoLen = logoBytes ? logoBytes.length : 0;
+          const fullPayload = new Uint8Array(
+            initCmd.length + logoLen + textBytes.length + feedCmd.length
+          );
+          let offset = 0;
+          fullPayload.set(initCmd, offset);
+          offset += initCmd.length;
+
+          if (logoBytes) {
+            fullPayload.set(logoBytes, offset);
+            offset += logoBytes.length;
+          }
+
+          fullPayload.set(textBytes, offset);
+          offset += textBytes.length;
+
+          fullPayload.set(feedCmd, offset);
 
           const CHUNK_SIZE = 64;
           for (let i = 0; i < fullPayload.length; i += CHUNK_SIZE) {
@@ -388,6 +556,13 @@ export class PrinterService {
   }
 
   static async testPrint58mm(): Promise<boolean> {
+    const sName = await getSetting("store_name", "Padi Tech Solutions");
+    const bType = await getSetting("store_business_type", "Halal Food & Drink");
+    const sAddr = await getSetting("store_address", "Jl. Tambak Medokan Ayu GG III B");
+    const sPhone = await getSetting("store_phone", "081259384244");
+    const sLogo = await getSetting("store_logo", "");
+    const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
+
     const sampleData: ReceiptData = {
       invoiceNumber: "TEST-58MM-OK",
       date: new Date().toLocaleString("id-ID"),
@@ -401,11 +576,12 @@ export class PrinterService {
       cashTendered: 10000,
       changeAmount: 0,
       paymentMethod: "CASH",
-      storeName: await getSetting("store_name", "POS Offline Pro"),
-      businessType: await getSetting("store_business_type", "Makanan Dan Minuman"),
-      storeAddress: await getSetting("store_address", "Jl. Alamat No 99 Makassar"),
-      storePhone: await getSetting("store_phone", "08111111111"),
-      footerNote: await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!"),
+      storeName: sName,
+      businessType: bType,
+      storeAddress: sAddr,
+      storePhone: sPhone,
+      storeLogoUri: sLogo,
+      footerNote: sFooter,
     };
     const res = await this.printReceipt(sampleData);
     return res.success;

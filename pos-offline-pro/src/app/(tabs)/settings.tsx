@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { getSetting, setSetting } from "@/db/settingsRepository";
 import {
@@ -44,7 +45,7 @@ import { TransactionDetailModal } from "@/components/TransactionDetailModal";
 import { PromoFormModal } from "@/components/PromoFormModal";
 import { Transaction, Promo } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
-import { compressAndConvertToBase64 } from "@/util/imageCompressor";
+import { compressAndConvertToBase64, compressAndConvertToMonochromeBase64 } from "@/util/imageCompressor";
 import { decodeQrFromImage } from "@/util/qrDecoder";
 import { parseQrisMetadata, DEFAULT_BASE_QRIS } from "@/util/qrisEngine";
 import {
@@ -238,12 +239,15 @@ export default function SettingsScreen() {
     }
   }, [reportPeriod, customStartDate, customEndDate]);
 
-  useEffect(() => {
-    loadAllSettings();
-    loadPromosData();
-    loadReportData();
-    checkConnectedPrinter();
-  }, [loadAllSettings, loadPromosData, loadReportData]);
+  // Real-time automatic synchronization on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadAllSettings();
+      loadPromosData();
+      loadReportData();
+      checkConnectedPrinter();
+    }, [loadAllSettings, loadPromosData, loadReportData])
+  );
 
   const checkConnectedPrinter = async () => {
     const dev = await PrinterService.getConnectedPrinter();
@@ -274,11 +278,12 @@ export default function SettingsScreen() {
             const reader = new FileReader();
             reader.onload = async (event) => {
               const rawBase64 = event.target?.result as string;
-              const compressed = await compressAndConvertToBase64(rawBase64, 400, 0.65);
               if (type === "logo") {
-                setStoreLogo(compressed);
-                await setSetting("store_logo", compressed);
+                const monoCompressed = await compressAndConvertToMonochromeBase64(rawBase64, 260);
+                setStoreLogo(monoCompressed);
+                await setSetting("store_logo", monoCompressed);
               } else {
+                const compressed = await compressAndConvertToBase64(rawBase64, 400, 0.65);
                 setStoreQris(compressed);
                 await setSetting("store_qris", compressed);
 
@@ -322,11 +327,12 @@ export default function SettingsScreen() {
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
           const rawUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-          const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
           if (type === "logo") {
-            setStoreLogo(compressed);
-            await setSetting("store_logo", compressed);
+            const monoCompressed = await compressAndConvertToMonochromeBase64(rawUri, 260);
+            setStoreLogo(monoCompressed);
+            await setSetting("store_logo", monoCompressed);
           } else {
+            const compressed = await compressAndConvertToBase64(rawUri, 400, 0.65);
             setStoreQris(compressed);
             await setSetting("store_qris", compressed);
 
