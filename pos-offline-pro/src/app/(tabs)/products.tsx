@@ -11,6 +11,7 @@ import {
   TextInput,
   Image,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { ProductFormModal } from "@/components/ProductFormModal";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
@@ -90,10 +91,13 @@ export default function ProductsScreen() {
     }
   }, [searchQuery, selectedCategory]);
 
-  useEffect(() => {
-    loadCategories();
-    loadProducts();
-  }, [loadCategories, loadProducts]);
+  // Real-time automatic synchronization on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadCategories();
+      loadProducts();
+    }, [loadCategories, loadProducts])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

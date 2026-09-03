@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
@@ -100,9 +101,12 @@ export default function HistoryScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadTransactions();
-  }, [loadTransactions]);
+  // Real-time automatic synchronization on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadTransactions();
+    }, [loadTransactions])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
