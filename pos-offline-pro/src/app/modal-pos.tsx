@@ -32,6 +32,10 @@ import { VariantSelectionModal } from "@/components/pos/VariantSelectionModal";
 import { ProductSearchModal } from "@/components/pos/ProductSearchModal";
 import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
 import { CheckoutLandscapeModal } from "@/components/pos/CheckoutLandscapeModal";
+import { ItemDiscountModal } from "@/components/pos/ItemDiscountModal";
+import { CustomerSelectModal } from "@/components/pos/CustomerSelectModal";
+import { getOpenBills, getTransactionDetailsWithProducts } from "@/db/transactionRepository";
+import { User, Percent } from "lucide-react-native";
 import { OpenBillManagerModal } from "@/components/pos/OpenBillManagerModal";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import {
@@ -93,9 +97,7 @@ export default function PosModalScreen() {
   const [storePhone, setStorePhone] = useState("081259384244");
   const [storeFooter, setStoreFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
 
-  // Transaction metadata
-  const [tableNumber, setTableNumber] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  // Transaction metadata managed via useCartStore
 
   // Notification Banner
   const [notificationBanner, setNotificationBanner] = useState<string>("");
@@ -107,6 +109,10 @@ export default function PosModalScreen() {
   const [barcodeModalVisible, setBarcodeModalVisible] = useState(false);
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [openBillModalVisible, setOpenBillModalVisible] = useState(false);
+  const [itemDiscountModalVisible, setItemDiscountModalVisible] = useState(false);
+  const [selectedItemForDiscount, setSelectedItemForDiscount] = useState<CartItem | null>(null);
+  const [customerModalVisible, setCustomerModalVisible] = useState(false);
+  const [openBillsCount, setOpenBillsCount] = useState(0);
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
 
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
@@ -115,14 +121,25 @@ export default function PosModalScreen() {
   // Cart State
   const {
     items,
+    customerName,
+    customerPhone,
+    tableNumber,
+    activeOpenBillId,
     addItem,
     updateQty,
     removeItem,
     clearCart,
+    setCustomerName,
+    setCustomerPhone,
+    setTableNumber,
+    setItemDiscount,
+    clearItemDiscount,
+    loadItemsFromOpenBill,
     getSubtotal,
     getPpnAmount,
     getGrandTotal,
     getTotalItemCount,
+    getTotalItemDiscount,
   } = useCartStore();
 
   const rawSubtotal = getSubtotal();
@@ -147,6 +164,9 @@ export default function PosModalScreen() {
 
       const dbPromos = await getActivePromos();
       setActivePromos(dbPromos);
+
+      const activeBills = await getOpenBills();
+      setOpenBillsCount(activeBills.length);
 
       const fPpn = await getSetting("feature_ppn", "1");
       const pRate = await getSetting("ppn_rate", "11");
@@ -469,26 +489,33 @@ export default function PosModalScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Open Bill List Button */}
-          {featureOpenBill && (
+          {/* Open Bill / Piutang List Button (Always active if feature enabled or bills exist) */}
+          {(featureOpenBill || openBillsCount > 0) && (
             <TouchableOpacity
               onPress={() => setOpenBillModalVisible(true)}
               activeOpacity={0.8}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: "#FEF3C7",
+                backgroundColor: openBillsCount > 0 ? "#FEF3C7" : "#F3F4F6",
                 paddingHorizontal: 10,
                 paddingVertical: 5,
                 borderRadius: 20,
                 marginRight: 6,
                 borderWidth: 1,
-                borderColor: "#FDE68A",
+                borderColor: openBillsCount > 0 ? "#FDE68A" : "#E5E7EB",
               }}
             >
-              <Receipt size={12} color="#D97706" />
-              <Text style={{ fontSize: 11, fontWeight: "700", color: "#B45309", marginLeft: 4 }}>
-                Open Bill
+              <Receipt size={12} color={openBillsCount > 0 ? "#D97706" : "#6B7280"} />
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: openBillsCount > 0 ? "#B45309" : "#4B5563",
+                  marginLeft: 4,
+                }}
+              >
+                Open Bill {openBillsCount > 0 ? `(${openBillsCount})` : ""}
               </Text>
             </TouchableOpacity>
           )}
@@ -527,11 +554,37 @@ export default function PosModalScreen() {
           </ScrollView>
         </View>
 
-        {/* Right Side: Keranjang Title & Selesai Menjual (Matches Right Column) */}
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ fontSize: 13, fontWeight: "700", color: "#44403C", marginRight: 14 }}>
-            Keranjang
-          </Text>
+        {/* Right Side: Customer Selector & Selesai Menjual */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setCustomerModalVisible(true)}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 20,
+              backgroundColor: customerName ? "#EFF6FF" : "#FFFFFF",
+              borderWidth: 1,
+              borderColor: customerName ? "#BFDBFE" : "#D6D1CA",
+            }}
+          >
+            <User size={12} color={customerName ? "#2563EB" : "#6B7280"} />
+            <Text
+              numberOfLines={1}
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: customerName ? "#1D4ED8" : "#4B5563",
+                marginLeft: 4,
+                maxWidth: 100,
+              }}
+            >
+              {customerName || "Pelanggan"}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={handleExitPOS}
             activeOpacity={0.8}
@@ -826,28 +879,60 @@ export default function PosModalScreen() {
               </Text>
             </View>
 
-            {/* Big Cyan Payment Button: Lanjutkan ke Pembayaran */}
-            <TouchableOpacity
-              onPress={() => {
-                if (items.length === 0) {
-                  Alert.alert("Keranjang Kosong", "Pilih produk terlebih dahulu.");
-                  return;
-                }
-                setCheckoutModalVisible(true);
-              }}
-              activeOpacity={items.length > 0 ? 0.85 : 1}
-              style={{
-                backgroundColor: items.length > 0 ? "#0097A7" : "#A2E2EA",
-                paddingVertical: 11,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#FFFFFF" }}>
-                Lanjutkan ke Pembayaran
-              </Text>
-            </TouchableOpacity>
+            {/* Action Buttons: Simpan Bill (Open Bill) & Pembayaran */}
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {/* Simpan Bill (Bayar Nanti / Piutang) */}
+              <TouchableOpacity
+                onPress={async () => {
+                  if (items.length === 0) {
+                    Alert.alert("Keranjang Kosong", "Pilih produk terlebih dahulu.");
+                    return;
+                  }
+                  await handleCheckoutSuccess("CASH", grandTotal, 0, true);
+                  const activeBills = await getOpenBills();
+                  setOpenBillsCount(activeBills.length);
+                }}
+                activeOpacity={items.length > 0 ? 0.8 : 1}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 20,
+                  backgroundColor: items.length > 0 ? "#FEF3C7" : "#F3F4F6",
+                  borderWidth: 1,
+                  borderColor: items.length > 0 ? "#FDE68A" : "#E5E7EB",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: items.length > 0 ? "#B45309" : "#9CA3AF" }}>
+                  Simpan Bill
+                </Text>
+              </TouchableOpacity>
+
+              {/* Lanjutkan ke Pembayaran */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (items.length === 0) {
+                    Alert.alert("Keranjang Kosong", "Pilih produk terlebih dahulu.");
+                    return;
+                  }
+                  setCheckoutModalVisible(true);
+                }}
+                activeOpacity={items.length > 0 ? 0.85 : 1}
+                style={{
+                  flex: 1,
+                  backgroundColor: items.length > 0 ? "#0097A7" : "#A2E2EA",
+                  paddingVertical: 10,
+                  borderRadius: 20,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#FFFFFF" }}>
+                  Lanjutkan ke Pembayaran
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -924,12 +1009,91 @@ export default function PosModalScreen() {
 
       <OpenBillManagerModal
         visible={openBillModalVisible}
-        onClose={() => setOpenBillModalVisible(false)}
+        onClose={async () => {
+          setOpenBillModalVisible(false);
+          const activeBills = await getOpenBills();
+          setOpenBillsCount(activeBills.length);
+        }}
         onSelectSettleBill={async (bill: Transaction) => {
           setOpenBillModalVisible(false);
           setTableNumber(bill.table_number || "");
           setCustomerName(bill.customer_name || "");
+          setCustomerPhone(bill.customer_phone || "");
           setCheckoutModalVisible(true);
+        }}
+        onSelectEditBill={async (bill: Transaction) => {
+          try {
+            const details = await getTransactionDetailsWithProducts(bill.id);
+            const loadedItems: CartItem[] = details.map((d, idx) => {
+              const matchedProduct = allProducts.find((p) => p.id === d.product_id) || {
+                id: d.product_id,
+                name: d.product_name,
+                harga_jual: d.harga_jual,
+                modal_hpp: d.modal_hpp,
+                stock: 999,
+                unit: d.unit || "pcs",
+                is_decimal: 0,
+                barcode: null,
+                image_uri: null,
+                category: "Umum",
+                has_variants: 0,
+              };
+
+              return {
+                id: `${d.product_id}_${idx}`,
+                product: matchedProduct,
+                variant: d.variant_name ? { id: `VAR-${idx}`, name: d.variant_name, harga_jual: d.harga_jual, modal_hpp: d.modal_hpp, stock: 999 } : null,
+                unitPrice: d.harga_jual,
+                modalHpp: d.modal_hpp,
+                qty: d.qty,
+                unit: d.unit || "pcs",
+                subtotal: d.subtotal,
+                subtotalHpp: d.qty * d.modal_hpp,
+                discountType: d.discount_type || null,
+                discountValue: d.discount_value || 0,
+                discountAmount: d.discount_amount || 0,
+              };
+            });
+
+            loadItemsFromOpenBill(loadedItems, {
+              tableNumber: bill.table_number || "",
+              customerName: bill.customer_name || "",
+              customerPhone: bill.customer_phone || "",
+              openBillId: bill.id,
+            });
+
+            setOpenBillModalVisible(false);
+            setNotificationBanner(`Memuat bill tersimpan: ${bill.invoice_no || bill.id}`);
+            setTimeout(() => setNotificationBanner(""), 4000);
+          } catch (err) {
+            console.log("Failed to load open bill items:", err);
+          }
+        }}
+      />
+
+      <ItemDiscountModal
+        visible={itemDiscountModalVisible}
+        item={selectedItemForDiscount}
+        onClose={() => {
+          setItemDiscountModalVisible(false);
+          setSelectedItemForDiscount(null);
+        }}
+        onApplyDiscount={(itemId, type, val) => {
+          setItemDiscount(itemId, type, val);
+        }}
+        onClearDiscount={(itemId) => {
+          clearItemDiscount(itemId);
+        }}
+      />
+
+      <CustomerSelectModal
+        visible={customerModalVisible}
+        selectedCustomerName={customerName}
+        selectedCustomerPhone={customerPhone}
+        onClose={() => setCustomerModalVisible(false)}
+        onSelectCustomer={(c) => {
+          setCustomerName(c.name);
+          setCustomerPhone(c.phone || "");
         }}
       />
 

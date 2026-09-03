@@ -53,6 +53,35 @@ export interface Promo {
   created_at?: string;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  total_orders: number;
+  total_spent: number;
+  created_at?: string;
+}
+
+export type StockMovementType = 'SALE' | 'DAMAGE' | 'EXPIRED' | 'LOST' | 'IN' | 'ADJUSTMENT';
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  product_name: string;
+  variant_name?: string | null;
+  type: StockMovementType;
+  qty: number;
+  previous_stock: number;
+  current_stock: number;
+  unit: string;
+  notes?: string | null;
+  reference_id?: string | null;
+  created_at?: string;
+}
+
 export interface Transaction {
   id: string;
   invoice_no: string;
@@ -69,6 +98,8 @@ export interface Transaction {
   change_amount: number;
   table_number?: string | null;
   customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_id?: string | null;
   is_open_bill: number;
   created_at: string;
 }
@@ -84,6 +115,9 @@ export interface TransactionDetail {
   modal_hpp: number;
   qty: number; // supports float for kg/decimal
   subtotal: number;
+  discount_type?: 'PERCENT' | 'NOMINAL' | null;
+  discount_value?: number;
+  discount_amount?: number;
 }
 
 export interface Setting {
@@ -116,15 +150,28 @@ export async function initDatabase(): Promise<void> {
   await getDatabase();
 }
 
+let activeDbQueueContext: SQLite.SQLiteDatabase | null = null;
+
 /**
- * Sequential execution queue to prevent OPFS access handle collisions on Web
+ * Sequential execution queue to prevent OPFS access handle collisions on Web.
+ * Fully re-entrant: allows nested repository calls without deadlocking.
  */
 export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
+  if (activeDbQueueContext) {
+    return await task(activeDbQueueContext);
+  }
+
   const db = await getDatabase();
-  const next = queuePromise.then(
-    () => task(db),
-    () => task(db)
-  );
+  const execute = async () => {
+    activeDbQueueContext = db;
+    try {
+      return await task(db);
+    } finally {
+      activeDbQueueContext = null;
+    }
+  };
+
+  const next = queuePromise.then(execute, execute);
   queuePromise = next.catch(() => {});
   return next;
 }
@@ -249,8 +296,38 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       modal_hpp REAL NOT NULL DEFAULT 0,
       qty REAL NOT NULL,
       subtotal REAL NOT NULL,
+      discount_type TEXT,
+      discount_value REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
       FOREIGN KEY (transaction_id) REFERENCES transactions (id) ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+    );
+
+    CREATE TABLE IF NOT EXISTS customers (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      notes TEXT,
+      total_orders INTEGER NOT NULL DEFAULT 0,
+      total_spent REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS stock_movements (
+      id TEXT PRIMARY KEY NOT NULL,
+      product_id TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      variant_name TEXT,
+      type TEXT NOT NULL,
+      qty REAL NOT NULL,
+      previous_stock REAL NOT NULL DEFAULT 0,
+      current_stock REAL NOT NULL DEFAULT 0,
+      unit TEXT NOT NULL DEFAULT 'pcs',
+      notes TEXT,
+      reference_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -284,6 +361,12 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await ensureColumnExists(db, "transaction_details", "variant_name", "TEXT");
   await ensureColumnExists(db, "transaction_details", "unit", "TEXT NOT NULL DEFAULT 'pcs'");
   await ensureColumnExists(db, "transaction_details", "modal_hpp", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transaction_details", "discount_type", "TEXT");
+  await ensureColumnExists(db, "transaction_details", "discount_value", "REAL NOT NULL DEFAULT 0");
+  await ensureColumnExists(db, "transaction_details", "discount_amount", "REAL NOT NULL DEFAULT 0");
+
+  await ensureColumnExists(db, "transactions", "customer_phone", "TEXT");
+  await ensureColumnExists(db, "transactions", "customer_id", "TEXT");
 
   // Default settings
   const defaultSettings: Record<string, string> = {

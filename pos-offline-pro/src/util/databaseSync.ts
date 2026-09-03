@@ -40,6 +40,8 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
         const promos = await db.getAllAsync("SELECT * FROM promos;");
         const transactions = await db.getAllAsync("SELECT * FROM transactions;");
         const transactionDetails = await db.getAllAsync("SELECT * FROM transaction_details;");
+        const customers = await db.getAllAsync("SELECT * FROM customers;");
+        const stockMovements = await db.getAllAsync("SELECT * FROM stock_movements;");
         const settings = await db.getAllAsync("SELECT * FROM settings;");
 
         return {
@@ -51,6 +53,8 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
             promos,
             transactions,
             transaction_details: transactionDetails,
+            customers,
+            stock_movements: stockMovements,
             settings,
           },
         };
@@ -90,6 +94,8 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
       const promos = await db.getAllAsync("SELECT * FROM promos;");
       const transactions = await db.getAllAsync("SELECT * FROM transactions;");
       const transactionDetails = await db.getAllAsync("SELECT * FROM transaction_details;");
+      const customers = await db.getAllAsync("SELECT * FROM customers;");
+      const stockMovements = await db.getAllAsync("SELECT * FROM stock_movements;");
       const settings = await db.getAllAsync("SELECT * FROM settings;");
 
       return {
@@ -101,6 +107,8 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
           promos,
           transactions,
           transaction_details: transactionDetails,
+          customers,
+          stock_movements: stockMovements,
           settings,
         },
       };
@@ -253,7 +261,7 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
  */
 async function restoreJsonTables(tables: any): Promise<void> {
   await runInDbQueue(async (db) => {
-    const { categories, products, promos, transactions, transaction_details, settings } = tables;
+    const { categories, products, promos, transactions, transaction_details, customers, stock_movements, settings } = tables;
 
     if (categories && Array.isArray(categories)) {
       for (const c of categories) {
@@ -318,8 +326,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
       for (const t of transactions) {
         await db.runAsync(
           `INSERT OR REPLACE INTO transactions (
-            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, is_open_bill, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, customer_phone, customer_id, is_open_bill, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             t.id,
             t.invoice_no,
@@ -336,6 +344,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
             t.change_amount || 0,
             t.table_number || null,
             t.customer_name || null,
+            t.customer_phone || null,
+            t.customer_id || null,
             t.is_open_bill || 0,
             t.created_at || new Date().toISOString(),
           ]
@@ -347,8 +357,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
       for (const d of transaction_details) {
         await db.runAsync(
           `INSERT OR REPLACE INTO transaction_details (
-            id, transaction_id, product_id, product_name, variant_name, unit, harga_jual, modal_hpp, qty, subtotal
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, transaction_id, product_id, product_name, variant_name, unit, harga_jual, modal_hpp, qty, subtotal, discount_type, discount_value, discount_amount
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             d.id,
             d.transaction_id,
@@ -360,6 +370,54 @@ async function restoreJsonTables(tables: any): Promise<void> {
             d.modal_hpp || 0,
             d.qty,
             d.subtotal,
+            d.discount_type || null,
+            d.discount_value || 0,
+            d.discount_amount || 0,
+          ]
+        );
+      }
+    }
+
+    if (customers && Array.isArray(customers)) {
+      for (const cu of customers) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO customers (
+            id, name, phone, email, address, notes, total_orders, total_spent, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            cu.id,
+            cu.name,
+            cu.phone || null,
+            cu.email || null,
+            cu.address || null,
+            cu.notes || null,
+            cu.total_orders || 0,
+            cu.total_spent || 0,
+            cu.created_at || new Date().toISOString(),
+          ]
+        );
+      }
+    }
+
+    if (stock_movements && Array.isArray(stock_movements)) {
+      for (const sm of stock_movements) {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO stock_movements (
+            id, product_id, product_name, variant_name, type, qty, previous_stock, current_stock, unit, notes, reference_id, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            sm.id,
+            sm.product_id,
+            sm.product_name,
+            sm.variant_name || null,
+            sm.type,
+            sm.qty,
+            sm.previous_stock || 0,
+            sm.current_stock || 0,
+            sm.unit || "pcs",
+            sm.notes || null,
+            sm.reference_id || null,
+            sm.created_at || new Date().toISOString(),
           ]
         );
       }

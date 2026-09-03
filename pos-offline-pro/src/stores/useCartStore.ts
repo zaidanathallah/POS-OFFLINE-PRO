@@ -11,6 +11,9 @@ export interface CartItem {
   unit: string;
   subtotal: number;
   subtotalHpp: number;
+  discountType?: "PERCENT" | "NOMINAL" | null;
+  discountValue?: number;
+  discountAmount?: number;
 }
 
 interface CartState {
@@ -18,12 +21,16 @@ interface CartState {
   note: string;
   tableNumber: string;
   customerName: string;
+  customerPhone: string;
+  activeOpenBillId?: string | null;
   isPpnEnabled: boolean;
   ppnRate: number; // e.g. 11
 
   setNote: (note: string) => void;
   setTableNumber: (tableNumber: string) => void;
   setCustomerName: (customerName: string) => void;
+  setCustomerPhone: (customerPhone: string) => void;
+  setActiveOpenBillId: (activeOpenBillId?: string | null) => void;
   setPpnEnabled: (enabled: boolean) => void;
   setPpnRate: (rate: number) => void;
 
@@ -36,6 +43,21 @@ interface CartState {
 
   removeItem: (itemId: string) => void;
   updateQty: (itemId: string, newQty: number) => { success: boolean; message?: string };
+  setItemDiscount: (
+    itemId: string,
+    discountType: "PERCENT" | "NOMINAL",
+    discountValue: number
+  ) => void;
+  clearItemDiscount: (itemId: string) => void;
+  loadItemsFromOpenBill: (
+    items: CartItem[],
+    billMeta: {
+      tableNumber?: string;
+      customerName?: string;
+      customerPhone?: string;
+      openBillId: string;
+    }
+  ) => void;
   clearCart: () => void;
 
   getSubtotal: () => number;
@@ -44,6 +66,26 @@ interface CartState {
   getTotalHpp: () => number;
   getTotalLabaKotor: () => number;
   getTotalItemCount: () => number;
+  getTotalItemDiscount: () => number;
+}
+
+function calculateItemSubtotal(
+  qty: number,
+  unitPrice: number,
+  discountType?: "PERCENT" | "NOMINAL" | null,
+  discountValue?: number
+): { subtotal: number; discountAmount: number } {
+  const rawTotal = qty * unitPrice;
+  let discountAmount = 0;
+
+  if (discountType === "PERCENT" && discountValue && discountValue > 0) {
+    discountAmount = Math.round((rawTotal * Math.min(100, discountValue)) / 100);
+  } else if (discountType === "NOMINAL" && discountValue && discountValue > 0) {
+    discountAmount = Math.min(rawTotal, Math.round(discountValue));
+  }
+
+  const subtotal = Math.max(0, Math.round(rawTotal - discountAmount));
+  return { subtotal, discountAmount };
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -51,12 +93,16 @@ export const useCartStore = create<CartState>((set, get) => ({
   note: "",
   tableNumber: "",
   customerName: "",
+  customerPhone: "",
+  activeOpenBillId: null,
   isPpnEnabled: true,
   ppnRate: 11,
 
   setNote: (note: string) => set({ note }),
   setTableNumber: (tableNumber: string) => set({ tableNumber }),
   setCustomerName: (customerName: string) => set({ customerName }),
+  setCustomerPhone: (customerPhone: string) => set({ customerPhone }),
+  setActiveOpenBillId: (activeOpenBillId?: string | null) => set({ activeOpenBillId }),
   setPpnEnabled: (isPpnEnabled: boolean) => set({ isPpnEnabled }),
   setPpnRate: (ppnRate: number) => set({ ppnRate }),
 
@@ -77,8 +123,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
 
     if (existingIndex > -1) {
-      const currentQty = items[existingIndex].qty;
-      const targetQty = currentQty + addQty;
+      const currentItem = items[existingIndex];
+      const targetQty = currentItem.qty + addQty;
 
       if (targetQty > maxStock) {
         return {
@@ -87,11 +133,19 @@ export const useCartStore = create<CartState>((set, get) => ({
         };
       }
 
+      const { subtotal, discountAmount } = calculateItemSubtotal(
+        targetQty,
+        price,
+        currentItem.discountType,
+        currentItem.discountValue
+      );
+
       const updatedItems = [...items];
       updatedItems[existingIndex] = {
-        ...updatedItems[existingIndex],
+        ...currentItem,
         qty: targetQty,
-        subtotal: Math.round(targetQty * price),
+        subtotal,
+        discountAmount,
         subtotalHpp: Math.round(targetQty * hpp),
       };
 
@@ -105,6 +159,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         };
       }
 
+      const { subtotal, discountAmount } = calculateItemSubtotal(addQty, price, null, 0);
+
       const newItem: CartItem = {
         id: itemId,
         product,
@@ -113,7 +169,10 @@ export const useCartStore = create<CartState>((set, get) => ({
         modalHpp: hpp,
         qty: addQty,
         unit: product.unit || "pcs",
-        subtotal: Math.round(addQty * price),
+        subtotal,
+        discountAmount,
+        discountType: null,
+        discountValue: 0,
         subtotalHpp: Math.round(addQty * hpp),
       };
 
@@ -151,16 +210,79 @@ export const useCartStore = create<CartState>((set, get) => ({
       };
     }
 
+    const { subtotal, discountAmount } = calculateItemSubtotal(
+      newQty,
+      item.unitPrice,
+      item.discountType,
+      item.discountValue
+    );
+
     const updatedItems = [...items];
     updatedItems[existingIndex] = {
       ...item,
       qty: newQty,
-      subtotal: Math.round(newQty * item.unitPrice),
+      subtotal,
+      discountAmount,
       subtotalHpp: Math.round(newQty * item.modalHpp),
     };
 
     set({ items: updatedItems });
     return { success: true };
+  },
+
+  setItemDiscount: (itemId, discountType, discountValue) => {
+    const { items } = get();
+    const existingIndex = items.findIndex((i) => i.id === itemId);
+    if (existingIndex === -1) return;
+
+    const item = items[existingIndex];
+    const { subtotal, discountAmount } = calculateItemSubtotal(
+      item.qty,
+      item.unitPrice,
+      discountType,
+      discountValue
+    );
+
+    const updatedItems = [...items];
+    updatedItems[existingIndex] = {
+      ...item,
+      discountType,
+      discountValue,
+      discountAmount,
+      subtotal,
+    };
+
+    set({ items: updatedItems });
+  },
+
+  clearItemDiscount: (itemId) => {
+    const { items } = get();
+    const existingIndex = items.findIndex((i) => i.id === itemId);
+    if (existingIndex === -1) return;
+
+    const item = items[existingIndex];
+    const { subtotal, discountAmount } = calculateItemSubtotal(item.qty, item.unitPrice, null, 0);
+
+    const updatedItems = [...items];
+    updatedItems[existingIndex] = {
+      ...item,
+      discountType: null,
+      discountValue: 0,
+      discountAmount,
+      subtotal,
+    };
+
+    set({ items: updatedItems });
+  },
+
+  loadItemsFromOpenBill: (items, billMeta) => {
+    set({
+      items,
+      tableNumber: billMeta.tableNumber || "",
+      customerName: billMeta.customerName || "",
+      customerPhone: billMeta.customerPhone || "",
+      activeOpenBillId: billMeta.openBillId,
+    });
   },
 
   clearCart: () =>
@@ -169,6 +291,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       note: "",
       tableNumber: "",
       customerName: "",
+      customerPhone: "",
+      activeOpenBillId: null,
     }),
 
   getSubtotal: () => {
@@ -196,5 +320,9 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   getTotalItemCount: () => {
     return get().items.reduce((acc, item) => acc + (item.unit === "kg" ? 1 : item.qty), 0);
+  },
+
+  getTotalItemDiscount: () => {
+    return get().items.reduce((acc, item) => acc + (item.discountAmount || 0), 0);
   },
 }));

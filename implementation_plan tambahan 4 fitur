@@ -1,0 +1,138 @@
+# Rencana Penambahan 4 Fitur Utama POS Offline Pro
+
+Rencana ini merinci penambahan 4 fitur esensial pada aplikasi **POS Offline Pro** sesuai kebutuhan operasional toko/restoran:
+1. **Diskon per Item Produk** (Persen % & Nominal Rp di keranjang kasir).
+2. **Manajemen Pelanggan (CRM)** (Data Kontak, Riwayat Belanja & Integrasi Kasir).
+3. **Laporan Stok Keluar** (Audit Pergerakan Stok: Penjualan, Barang Rusak, Hilang, Kadaluarsa, & Opname).
+4. **Fitur Piutang / Open Bill Terintegrasi Penuh di Menu Kasir**.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Skema Database SQLite Lokal**: Penambahan tabel baru (`customers`, `stock_movements`) dan kolom tambahan (`discount_type`, `discount_value`, `discount_amount` pada `transaction_details`, serta `customer_phone` pada `transactions`) akan dieksekusi secara otomatis melalui mekanisme migrasi `ensureColumnExists` dan `CREATE TABLE IF NOT EXISTS` sehingga data produk & riwayat transaksi Anda yang sudah ada tetap aman 100%.
+> - **Akses Open Bill di Kasir**: Tombol Open Bill akan disematkan langsung di panel atas dan bawah kasir dengan badge counter jumlah tagihan terbuka (misal: "3 Bill Aktif") agar kasir dapat melihat atau melunasi piutang/pesanan meja dengan 1 ketukan.
+
+---
+
+## Proposed Changes
+
+### 1. Database & Schema Migration Layer (`src/db/`)
+
+#### [MODIFY] [index.ts](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/db/index.ts)
+- Tambahkan antarmuka data TypeScript:
+  - `Customer` (`id`, `name`, `phone`, `email`, `address`, `notes`, `total_orders`, `total_spent`, `created_at`).
+  - `StockMovement` (`id`, `product_id`, `product_name`, `variant_name`, `type`, `qty`, `previous_stock`, `current_stock`, `unit`, `notes`, `reference_id`, `created_at`).
+  - Update `CartItem` & `TransactionDetail` dengan properti `discount_type?: 'PERCENT' | 'NOMINAL'`, `discount_value?: number`, `discount_amount?: number`.
+- Tambahkan pembuatan tabel `customers` dan `stock_movements` di `setupDatabaseSchema`.
+- Tambahkan migrasi kolom otomatis `ensureColumnExists`.
+
+#### [NEW] [customerRepository.ts](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/db/customerRepository.ts)
+- Fungsi CRUD Customer: `getAllCustomers()`, `getCustomerById()`, `getCustomerByPhone()`, `searchCustomers(query)`, `createCustomer()`, `updateCustomer()`, `deleteCustomer()`.
+- Fungsi akumulasi: `updateCustomerStats(phoneOrName, transactionTotal)` untuk mencatat poin/total belanja setia secara otomatis setiap kali checkout berhasil.
+
+#### [NEW] [stockMovementRepository.ts](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/db/stockMovementRepository.ts)
+- Fungsi pencatatan pergerakan stok:
+  - `recordStockMovement(movement)`: Memotong/menambah stok di tabel `products` sekaligus mencatat alasan (`SALE`, `DAMAGE`, `EXPIRED`, `LOST`, `ADJUSTMENT`, `RESTOCK`).
+  - `getStockMovements(filter)`: Mengambil daftar pergerakan stok dengan filter rentang tanggal, produk, dan tipe alasan.
+  - `getStockMovementSummary(period)`: Rekapitulasi total kuantitas barang keluar penjualan vs barang rusak/hilang/kadaluarsa.
+
+#### [MODIFY] [transactionRepository.ts](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/db/transactionRepository.ts)
+- Update `processCheckout` agar:
+  1. Menyimpan data diskon per baris item ke `transaction_details`.
+  2. Merekam otomatis log `stock_movements` bertipe `'SALE'` untuk setiap item yang dibeli.
+  3. Memperbarui statistik akumulasi pelanggan di `customers` jika nama/no HP pelanggan diisi.
+- Tambahkan fungsi `loadOpenBillToCart(transactionId)` agar kasir bisa memuat kembali item dari open bill yang sedang berlangsung ke keranjang untuk diedit/ditambah item baru sebelum pelunasan.
+
+---
+
+### 2. State Management (`src/stores/`)
+
+#### [MODIFY] [useCartStore.ts](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/stores/useCartStore.ts)
+- Tambahkan field di `CartItem`:
+  - `discountType?: 'PERCENT' | 'NOMINAL'`
+  - `discountValue?: number`
+  - `discountAmount?: number`
+- Tambahkan actions:
+  - `setItemDiscount(itemId, type, value)`: Menghitung diskon item dan subtotal baris secara dinamis.
+  - `clearItemDiscount(itemId)`: Menghapus diskon item.
+  - `customerPhone`: state nomor telepon pelanggan.
+  - `setCustomerPhone(phone)`: Mengatur nomor telepon pelanggan.
+  - `activeOpenBillId?: string`: Menyimpan ID Open Bill jika kasir sedang mengedit bill tersimpan.
+
+---
+
+### 3. Komponen Kasir POS & Modals (`src/components/` & `src/app/modal-pos.tsx`)
+
+#### [NEW] [ItemDiscountModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/pos/ItemDiscountModal.tsx)
+- Modal interaktif untuk kasir:
+  - Input pilihan: **Persen (%)** atau **Nominal (Rp)**.
+  - Pilihan cepat (Quick chips: 5%, 10%, 15%, 20%, 50% atau Rp 1.000, Rp 2.000, Rp 5.000, Rp 10.000).
+  - Preview langsung: Harga Asli $\rightarrow$ Potongan $\rightarrow$ Harga Akhir.
+
+#### [NEW] [CustomerSelectModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/pos/CustomerSelectModal.tsx)
+- Modal pemilih pelanggan di kasir:
+  - Pencarian cepat nama / nomor HP pelanggan.
+  - Tombol "+ Tambah Pelanggan Baru Cepat".
+  - Menampilkan riwayat transaksi singkat pelanggan terpilih.
+
+#### [MODIFY] [modal-pos.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/app/modal-pos.tsx)
+- **Diskon per Item**: Pada item list keranjang belanja, tambahkan tombol badge diskon (% / Tag) di samping harga.
+- **Manajemen Pelanggan**: Tampilkan chip pelanggan di header keranjang (Nama & No HP) yang dapat diklik untuk memilih dari CRM.
+- **Piutang / Open Bill**:
+  - Tombol **"Open Bill / Piutang"** selalu terlihat di bar atas kasir dengan indikator jumlah bill pending (*Badge Counter*).
+  - Tombol **"Simpan Bill (Bayar Nanti)"** di panel bawah keranjang kasir.
+  - Integrasi aksi: Kasir dapat langsung melunasi dari modal atau memuat kembali bill ke kasir untuk menambah pesanan.
+
+#### [MODIFY] [CheckoutLandscapeModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/pos/CheckoutLandscapeModal.tsx) & [ReceiptModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/ReceiptModal.tsx)
+- Menampilkan rincian diskon per item di ringkasan pesanan dan struk belanja (*thermal 58mm bluetooth & web receipt*).
+
+---
+
+### 4. Manajemen Pelanggan (CRM) & Laporan Stok Keluar (`src/app/(tabs)/`)
+
+#### [NEW] [CustomerManagerModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/CustomerManagerModal.tsx)
+- Modal CRUD Manajemen Pelanggan lengkap:
+  - Daftar semua pelanggan dengan filter pencarian & urutan (Total Belanja terbanyak, Terbaru, Nama A-Z).
+  - Form Tambah / Edit Pelanggan (Nama, No HP/WhatsApp, Alamat, Catatan).
+  - Tombol aksi cepat: Hubungi via WhatsApp (`wa.me`), lihat riwayat belanja, dan hapus.
+
+#### [NEW] [StockAdjustmentModal.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/components/StockAdjustmentModal.tsx)
+- Modal pencatatan barang rusak / kadaluarsa / hilang / opname di menu Stok Produk (`products.tsx`).
+- Pilihan alasan:
+  - 🔴 **Barang Rusak (Damage)**
+  - 🟠 **Kadaluarsa (Expired)**
+  - 🟣 **Barang Hilang (Lost)**
+  - 🔵 **Koreksi Stok / Opname (Adjustment)**
+  - 🟢 **Stok Masuk / Restock (In)**
+- Form jumlah pengurangan & catatan keterangan.
+
+#### [MODIFY] [products.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/app/(tabs)/products.tsx)
+- Tambahkan tombol **"Catat Barang Rusak / Penyesuaian Stok"** di header produk.
+
+#### [MODIFY] [history.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/app/(tabs)/history.tsx)
+- Tambahkan Tab / Filter **"Pergerakan & Stok Keluar"**:
+  - Kartu Metrik: **Total Terjual**, **Total Rusak/Expired**, **Total Hilang**.
+  - Tabel log riwayat pergerakan stok lengkap dengan tanggal, nama produk, jenis pergerakan, kuantitas, dan keterangan.
+  - Fitur Ekspor CSV Riwayat Pergerakan Stok.
+
+#### [MODIFY] [settings.tsx](file:///d:/POS%20Offline%20PRO/pos-offline-pro/src/app/(tabs)/settings.tsx)
+- Tambahkan menu **"Manajemen Pelanggan (CRM)"** di pengaturan untuk mengelola seluruh basis data pelanggan toko.
+
+---
+
+## Verification Plan
+
+### Automated & Static Verification
+1. Jalankan `npx tsc --noEmit` di direktori `D:\POS Offline PRO\pos-offline-pro` untuk memastikan 100% tipe data TypeScript valid tanpa error.
+
+### Manual Functional Verification
+1. **Diskon per Item**:
+   - Tambah produk ke keranjang kasir $\rightarrow$ Berikan diskon 10% atau Rp 2.000 pada item 1 $\rightarrow$ Verifikasi subtotal terpotong akurat $\rightarrow$ Checkout $\rightarrow$ Cek struk.
+2. **Manajemen Pelanggan (CRM)**:
+   - Buat pelanggan baru di menu CRM $\rightarrow$ Buka kasir $\rightarrow$ Pilih pelanggan tersebut $\rightarrow$ Selesaikan checkout $\rightarrow$ Cek total belanja dan kunjungan pelanggan bertambah.
+3. **Laporan Stok Keluar**:
+   - Lakukan penjualan produk $\rightarrow$ Catat barang rusak 2 pcs di menu Stok $\rightarrow$ Buka tab Laporan $\rightarrow$ Verifikasi pergerakan stok 'SALE' dan 'DAMAGE' muncul di laporan.
+4. **Fitur Piutang / Open Bill**:
+   - Masukkan produk ke keranjang $\rightarrow$ Klik "Simpan Bill (Bayar Nanti)" $\rightarrow$ Cek counter badge bertambah $\rightarrow$ Buka daftar Open Bill $\rightarrow$ Lakukan pelunasan atau tambah item baru.

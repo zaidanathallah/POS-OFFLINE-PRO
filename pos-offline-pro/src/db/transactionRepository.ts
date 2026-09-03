@@ -3,6 +3,8 @@
  */
 import { runInDbQueue, Transaction, TransactionDetail } from "./index";
 import { CartItem } from "@/stores/useCartStore";
+import { recordCustomerTransaction } from "./customerRepository";
+import { recordStockMovement } from "./stockMovementRepository";
 
 export interface CheckoutResult {
   transaction: Transaction;
@@ -27,8 +29,11 @@ export interface CheckoutInput {
   change_amount: number;
   table_number?: string;
   customer_name?: string;
+  customer_phone?: string;
+  customer_id?: string;
   is_open_bill?: number;
   note?: string;
+  previous_open_bill_id?: string;
 }
 
 export async function processCheckout(input: CheckoutInput): Promise<CheckoutResult> {
@@ -63,11 +68,23 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
       change_amount: Number(input.change_amount) || 0,
       table_number: input.table_number || null,
       customer_name: input.customer_name || null,
+      customer_phone: input.customer_phone || null,
+      customer_id: input.customer_id || null,
       is_open_bill: input.is_open_bill || 0,
       created_at: createdAt,
     };
 
     const detailedItems: (TransactionDetail & { product_name: string; harga_jual: number })[] = [];
+
+    // If updating from an existing open bill, delete previous open bill
+    if (input.previous_open_bill_id) {
+      try {
+        await db.runAsync("DELETE FROM transaction_details WHERE transaction_id = ?", [input.previous_open_bill_id]);
+        await db.runAsync("DELETE FROM transactions WHERE id = ?", [input.previous_open_bill_id]);
+      } catch (err) {
+        console.log("Clean previous open bill notice:", err);
+      }
+    }
 
     // 1. Insert into transactions table
     await db.runAsync(
@@ -75,8 +92,8 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         id, invoice_no, omset, total_hpp, laba_kotor, 
         subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, 
         payment_method, cash_tendered, change_amount, 
-        table_number, customer_name, is_open_bill, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        table_number, customer_name, customer_phone, customer_id, is_open_bill, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newTransaction.id,
         newTransaction.invoice_no ?? null,
@@ -93,6 +110,8 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         newTransaction.change_amount,
         newTransaction.table_number ?? null,
         newTransaction.customer_name ?? null,
+        newTransaction.customer_phone ?? null,
+        newTransaction.customer_id ?? null,
         newTransaction.is_open_bill,
         newTransaction.created_at,
       ]
@@ -112,11 +131,16 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
       const unit = item.unit || item.product?.unit || "pcs";
       const productId = item.product?.id || `PRD-${i + 1}`;
 
+      const discType = item.discountType || null;
+      const discVal = Number(item.discountValue) || 0;
+      const discAmt = Number(item.discountAmount) || 0;
+
       await db.runAsync(
         `INSERT INTO transaction_details (
           id, transaction_id, product_id, product_name, 
-          variant_name, unit, harga_jual, modal_hpp, qty, subtotal
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          variant_name, unit, harga_jual, modal_hpp, qty, subtotal,
+          discount_type, discount_value, discount_amount
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           detailId,
           transactionId,
@@ -128,8 +152,34 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
           modalHpp,
           qty,
           subtotal,
+          discType,
+          discVal,
+          discAmt,
         ]
       );
+
+      // Record stock movement if not an open bill or upon checkout
+      try {
+        const movId = `MOV-${Date.now()}-${i + 1}`;
+        await db.runAsync(
+          `INSERT INTO stock_movements (
+            id, product_id, product_name, variant_name, type, qty, unit, notes, reference_id, created_at
+          ) VALUES (?, ?, ?, ?, 'SALE', ?, ?, ?, ?, ?)`,
+          [
+            movId,
+            productId,
+            displayName,
+            item.variant?.name || null,
+            qty,
+            unit,
+            `Penjualan kasir ${invoiceNo}`,
+            invoiceNo,
+            createdAt,
+          ]
+        );
+      } catch (errMov) {
+        console.log("Stock movement record notice:", errMov);
+      }
 
       // Decrement product stock safely
       if (item.product?.id) {
@@ -155,6 +205,19 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         qty: qty,
         subtotal: subtotal,
       });
+    }
+
+    // Record customer transaction stats if name/phone provided
+    if (input.customer_name || input.customer_phone) {
+      try {
+        await recordCustomerTransaction(
+          input.customer_name,
+          input.customer_phone,
+          newTransaction.omset
+        );
+      } catch (errCust) {
+        console.log("Customer stats update notice:", errCust);
+      }
     }
 
     return {

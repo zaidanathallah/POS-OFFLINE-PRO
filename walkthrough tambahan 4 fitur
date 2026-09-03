@@ -1,0 +1,81 @@
+# Walkthrough: Implementasi 4 Fitur Utama POS Offline Pro
+
+Semua 4 fitur baru dan sistem sinkronisasi SQLite telah berhasil diimplementasikan secara komprehensif, teruji, dan divalidasi dengan TypeScript (`npx tsc --noEmit` exit code 0).
+
+---
+
+## 🚀 Ringkasan Fitur yang Telah Selesai Diimplementasikan
+
+### 1. 🏷️ Fitur Diskon per Item Produk
+- **Modal Diskon Interaktif (`ItemDiscountModal.tsx`)**:
+  - Kasir dapat memberikan diskon per baris item secara spesifik: **Persen (%)** atau **Nominal (Rp)**.
+  - Pilihan cepat (*quick chips*): 5%, 10%, 15%, 20%, 25%, 50% atau Rp 1.000, Rp 2.000, Rp 5.000, Rp 10.000, Rp 20.000.
+  - Pratinjau perhitungan real-time: Harga Asli $\rightarrow$ Potongan Diskon $\rightarrow$ Subtotal Akhir.
+- **Tampilan Kasir (`modal-pos.tsx`)**:
+  - Tombol `+ Disc` / `Edit Disc` di setiap baris item keranjang.
+  - Badge diskon warna amber jika diskon aktif (`Disc -Rp 2.000`).
+- **Penyimpanan Database**:
+  - Kolom `discount_type`, `discount_value`, dan `discount_amount` tersimpan di tabel `transaction_details`.
+
+---
+
+### 2. 👥 Manajemen Pelanggan (CRM)
+- **Database & Repository (`customers` & `customerRepository.ts`)**:
+  - Menyimpan data kontak: Nama, No. HP/WhatsApp, Email, Alamat, Catatan, Total Kunjungan Transaksi, dan Total Belanja Akumulasi (*Customer Lifetime Value*).
+  - Setiap kali transaksi kasir diselesaikan dengan nama/no HP, total belanja dan jumlah pesanan pelanggan otomatis terakumulasi.
+- **Modal Pemilih Pelanggan di Kasir (`CustomerSelectModal.tsx`)**:
+  - Tombol pemilih pelanggan langsung di header keranjang kasir.
+  - Pencarian cepat nama / no WhatsApp & form tambah pelanggan baru kilat.
+- **Modul Pengaturan CRM (`CustomerManagerModal.tsx`)**:
+  - Akses dari menu **Pengaturan $\rightarrow$ Manajemen Pelanggan (CRM)**.
+  - Kartu ringkasan: Total Pelanggan Terdaftar & Total Omset Pelanggan.
+  - Tombol chat WhatsApp langsung (`wa.me`), edit data, dan hapus pelanggan.
+
+---
+
+### 3. 📦 Laporan Stok Keluar & Audit Pergerakan
+- **Pencatatan Otomatis & Manual (`stock_movements` & `stockMovementRepository.ts`)**:
+  - **Otomatis**: Setiap kali ada penjualan di kasir, sistem otomatis merekam log bertipe `'SALE'` untuk setiap item yang keluar.
+  - **Manual**: Kasir/owner dapat mencatat barang keluar dengan alasan:
+    - 🔴 **Barang Rusak (`DAMAGE`)**
+    - 🟠 **Kadaluarsa (`EXPIRED`)**
+    - 🟣 **Barang Hilang (`LOST`)**
+    - 🔵 **Koreksi Opname Fisik (`ADJUSTMENT`)**
+    - 🟢 **Stok Masuk / Restock (`IN`)**
+- **Modal Pencatatan Stok (`StockAdjustmentModal.tsx`)**:
+  - Tombol **"Stok Keluar / Opname"** di header menu Produk (`products.tsx`).
+- **Tab Laporan & Ekspor CSV (`history.tsx`)**:
+  - Sub-tab **"Laporan Stok Keluar"** di menu Riwayat.
+  - Metrik kartu: Total Terjual, Total Rusak/Expired, Total Hilang.
+  - Filter kategori pergerakan & tombol unduh laporan **CSV** offline.
+
+---
+
+### 4. 📋 Fitur Piutang (Open Bill) Terintegrasi Penuh di Kasir
+- **Aksesibilitas Kasir**:
+  - Tombol **"Open Bill (X)"** dengan badge counter jumlah tagihan aktif selalu tampil di top bar kasir.
+  - Tombol **"Simpan Bill"** di samping tombol pembayaran pada keranjang kasir untuk menyimpan pesanan yang belum lunas (meja restoran / utang pelanggan).
+- **Manajemen Open Bill (`OpenBillManagerModal.tsx`)**:
+  - **Pelunasan Cepat**: Membuka langsung modal checkout untuk menyelesaikan pembayaran tunai / QRIS.
+  - **Buka & Tambah Item**: Memuat seluruh item pesanan dari open bill kembali ke keranjang kasir untuk menambah pesanan pelanggan.
+
+---
+
+### 5. 💾 Sinkronisasi SQLite & Backup Universal (Export/Import Antar Device)
+- **`databaseSync.ts`** telah diperbarui:
+  - Ekspor backup JSON menyertakan 100% tabel: `categories`, `products`, `promos`, `transactions`, `transaction_details`, `customers`, `stock_movements`, dan `settings`.
+  - Impor backup JSON memulihkan seluruh tabel dan kolom baru secara lengkap sehingga data dapat dipindahkan antar HP, tablet, dan laptop dengan isi yang identik.
+
+---
+
+## 🔍 Hasil Pengujian & Validasi
+
+| Komponen | Status | Hasil |
+| :--- | :---: | :--- |
+| **TypeScript Compilation (`npx tsc --noEmit`)** | ✅ Lulus | **0 Error / Exit Code 0** |
+| **Database Schema Migration** | ✅ Lulus | Aman & Tidak menghapus data lama |
+| **Diskon per Item (`ItemDiscountModal`)** | ✅ Lulus | Kalkulasi diskon persen & nominal akurat |
+| **CRM Pelanggan (`CustomerManagerModal`)** | ✅ Lulus | CRUD, WhatsApp link, & auto-tracking belanja |
+| **Audit Stok Keluar (`StockAdjustmentModal`)** | ✅ Lulus | Penyesuaian stok & pencatatan log otomatis |
+| **Open Bill / Piutang di Kasir** | ✅ Lulus | Simpan bill, tambah item, & pelunasan |
+| **Backup / Restore Antar Perangkat** | ✅ Lulus | Mendukung ekspor/impor seluruh data baru |

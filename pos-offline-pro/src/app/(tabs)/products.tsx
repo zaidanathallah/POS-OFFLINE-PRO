@@ -14,6 +14,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { ProductFormModal } from "@/components/ProductFormModal";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
+import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { Product } from "@/db";
@@ -36,6 +37,7 @@ import {
   Layers,
   Tag,
   Settings,
+  AlertTriangle,
 } from "lucide-react-native";
 
 export default function ProductsScreen() {
@@ -58,6 +60,8 @@ export default function ProductsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [categoryManagerVisible, setCategoryManagerVisible] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+  const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
+  const [selectedProductForAdjustment, setSelectedProductForAdjustment] = useState<Product | null>(null);
 
   // Secure Action Hook for PIN Protection
   const {

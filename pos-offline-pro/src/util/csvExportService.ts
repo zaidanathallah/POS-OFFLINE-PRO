@@ -77,3 +77,74 @@ export async function exportReportToCSV(
     return { success: false, error: error.message || "Gagal mengunduh CSV." };
   }
 }
+
+import { StockMovement } from "@/db";
+
+export async function exportStockMovementsToCSV(
+  movements: StockMovement[],
+  periodLabel: string = "Semua"
+): Promise<{ success: boolean; fileName?: string; error?: string }> {
+  try {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const fileName = `Laporan_Pergerakan_Stok_${dateStr}_${timeStr}.csv`;
+
+    let csv = `LAPORAN PERGERAKAN & STOK KELUAR - POS OFFLINE PRO
+`;
+    csv += `Periode;${periodLabel}
+`;
+    csv += `Tanggal Export;${now.toLocaleString("id-ID")}
+
+`;
+
+    csv += `No;Waktu;Nama Produk;Varian;Jenis Pergerakan;Jumlah Qty;Satuan;Stok Sebelum;Stok Sesudah;Keterangan;No Referensi
+`;
+
+    movements.forEach((m, idx) => {
+      const timeFormatted = new Date(m.created_at || now).toLocaleString("id-ID");
+      let typeLabel: string = m.type;
+      if (m.type === "SALE") typeLabel = "Penjualan";
+      else if (m.type === "DAMAGE") typeLabel = "Barang Rusak";
+      else if (m.type === "EXPIRED") typeLabel = "Kadaluarsa";
+      else if (m.type === "LOST") typeLabel = "Barang Hilang";
+      else if (m.type === "ADJUSTMENT") typeLabel = "Opname / Penyesuaian";
+      else if (m.type === "IN") typeLabel = "Stok Masuk";
+
+      csv += `${idx + 1};${timeFormatted};${m.product_name};${m.variant_name || "-"};${typeLabel};${m.qty};${m.unit};${m.previous_stock};${m.current_stock};"${(m.notes || "-").replace(/"/g, '""')}";${m.reference_id || "-"}
+`;
+    });
+
+    if (Platform.OS === "web") {
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return { success: true, fileName };
+    } else {
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, "﻿" + csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export Laporan Pergerakan Stok",
+          UTI: "public.comma-separated-values-text",
+        });
+      }
+      return { success: true, fileName };
+    }
+  } catch (error: any) {
+    console.error("Export Stock CSV Error:", error);
+    return { success: false, error: error.message || "Gagal mengunduh CSV." };
+  }
+}

@@ -43,6 +43,7 @@ import { PinPromptModal } from "@/components/PinPromptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
 import { PromoFormModal } from "@/components/PromoFormModal";
+import { CustomerManagerModal } from "@/components/CustomerManagerModal";
 import { Transaction, Promo } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import { compressAndConvertToBase64, compressAndConvertToMonochromeBase64 } from "@/util/imageCompressor";
@@ -81,6 +82,7 @@ import {
   Gift,
   DollarSign,
   QrCode,
+  Users,
 } from "lucide-react-native";
 
 export default function SettingsScreen() {
@@ -117,6 +119,7 @@ export default function SettingsScreen() {
   // Promo State
   const [promosList, setPromosList] = useState<Promo[]>([]);
   const [promoFormVisible, setPromoFormVisible] = useState(false);
+  const [customerManagerVisible, setCustomerManagerVisible] = useState(false);
   const [selectedPromoForEdit, setSelectedPromoForEdit] = useState<Promo | null>(null);
 
   // Detailed Report State

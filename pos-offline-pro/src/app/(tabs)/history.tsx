@@ -25,6 +25,10 @@ import {
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
 import { formatRupiah } from "@/util/formatters";
+import { StockMovement, StockMovementType } from "@/db";
+import { getStockMovements, getStockMovementSummary } from "@/db/stockMovementRepository";
+import { exportStockMovementsToCSV } from "@/util/csvExportService";
+import { Package, AlertTriangle, ArrowDownRight, ArrowUpRight, RotateCcw, Download, Filter, RefreshCw } from "lucide-react-native";
 import {
   Receipt,
   Printer,
@@ -40,6 +44,20 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({ totalOmset: 0, totalLaba: 0 });
+  // Sub-Tab Switcher: 'TRANSACTIONS' or 'STOCK_MOVEMENTS'
+  const [activeTab, setActiveTab] = useState<"TRANSACTIONS" | "STOCK_MOVEMENTS">("TRANSACTIONS");
+
+  // Stock Movement State
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [movementFilter, setMovementFilter] = useState<StockMovementType | "ALL">("ALL");
+  const [stockSummary, setStockSummary] = useState({
+    totalSoldQty: 0,
+    totalDamageQty: 0,
+    totalExpiredQty: 0,
+    totalLostQty: 0,
+    totalRestockedQty: 0,
+  });
+  const [isExportingStock, setIsExportingStock] = useState(false);
 
   // Store profile
   const [storeName, setStoreName] = useState("POS Offline Pro");
@@ -93,6 +111,14 @@ export default function HistoryScreen() {
       setStorePhone(sPhone);
       setStoreLogo(sLogo);
       setStoreFooter(sFooter);
+
+      const movList = await getStockMovements({
+        type: movementFilter === "ALL" ? undefined : movementFilter,
+      });
+      setMovements(movList);
+
+      const movSum = await getStockMovementSummary(30);
+      setStockSummary(movSum);
     } catch (err) {
       console.error("Gagal load riwayat:", err);
     } finally {
@@ -107,6 +133,22 @@ export default function HistoryScreen() {
       loadTransactions();
     }, [loadTransactions])
   );
+
+  const handleExportStockCSV = async () => {
+    setIsExportingStock(true);
+    try {
+      const res = await exportStockMovementsToCSV(movements, movementFilter);
+      if (res.success) {
+        Alert.alert("Export Berhasil", `File CSV ${res.fileName} berhasil dibuat.`);
+      } else {
+        Alert.alert("Gagal Export", res.error || "Terjadi kesalahan.");
+      }
+    } catch (e: any) {
+      Alert.alert("Gagal Export", e.message);
+    } finally {
+      setIsExportingStock(false);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
