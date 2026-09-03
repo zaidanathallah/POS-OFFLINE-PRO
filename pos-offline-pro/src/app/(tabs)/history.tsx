@@ -207,15 +207,17 @@ export default function HistoryScreen() {
   const handlePrintReceipt = async (trx: Transaction) => {
     try {
       const details = await getTransactionDetailsWithProducts(trx.id);
+      const txDate = new Date(trx.created_at);
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const formattedDate = `${txDate.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })}, ${pad(txDate.getHours())}:${pad(txDate.getMinutes())}:${pad(txDate.getSeconds())}`;
+
       const receiptData: ReceiptData = {
         invoiceNumber: trx.invoice_no || trx.id,
-        date: new Date(trx.created_at).toLocaleString("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        date: formattedDate,
         storeName: storeName,
         businessType: storeBusinessType,
         storeAddress: storeAddress,
@@ -238,7 +240,7 @@ export default function HistoryScreen() {
         cashTendered: trx.cash_tendered || trx.omset,
         changeAmount: trx.change_amount || 0,
         paymentMethod: trx.payment_method || "CASH",
-        cashierName: "Kasir 1",
+        cashierName: trx.cashier_name || "Kasir 1",
         tableNumber: trx.table_number || undefined,
         customerName: trx.customer_name || undefined,
       };
@@ -398,16 +400,21 @@ export default function HistoryScreen() {
               </View>
 
               {/* Body Struk */}
-              <View style={{ paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={{ fontSize: 11, color: "#71717a" }}>
-                  {new Date(trx.created_at).toLocaleString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
+              <View style={{ paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontSize: 11, color: "#71717a" }}>
+                    {(() => {
+                      const t = new Date(trx.created_at);
+                      const pad = (n: number) => n.toString().padStart(2, "0");
+                      return `${t.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}, ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+                    })()}
+                  </Text>
+                  <View style={{ backgroundColor: "#f0fdfa", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, borderWidth: 1, borderColor: "#ccfbf1" }}>
+                    <Text style={{ fontSize: 9, fontWeight: "700", color: "#0d9488" }}>
+                      Kasir: {trx.cashier_name || "Kasir 1"}
+                    </Text>
+                  </View>
+                </View>
                 {trx.ppn_amount && trx.ppn_amount > 0 ? (
                   <Text style={{ fontSize: 10, color: "#71717a", fontFamily: "monospace" }}>
                     PPN {trx.ppn_percent}%: {formatRupiah(trx.ppn_amount)}

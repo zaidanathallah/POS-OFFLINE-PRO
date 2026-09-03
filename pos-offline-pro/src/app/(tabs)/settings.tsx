@@ -98,6 +98,7 @@ export default function SettingsScreen() {
   const [storeQrisPayload, setStoreQrisPayload] = useState(DEFAULT_BASE_QRIS);
   const [showPayloadInput, setShowPayloadInput] = useState(false);
   const [receiptFooter, setReceiptFooter] = useState("Terima Kasih Atas Kunjungan Anda!");
+  const [activeCashier, setActiveCashier] = useState("Kasir 1");
 
   // PIN Settings
   const [isPinActive, setIsPinActive] = useState(false);
@@ -189,6 +190,7 @@ export default function SettingsScreen() {
     const sQris = await getSetting("store_qris", "");
     const sQrisPayload = await getSetting("store_qris_payload", DEFAULT_BASE_QRIS);
     const sFooter = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
+    const sCashier = await getSetting("active_cashier_name", "Kasir 1");
 
     const pinActive = await getSetting("is_pin_active", "0");
 
@@ -210,6 +212,7 @@ export default function SettingsScreen() {
     setStoreQris(sQris);
     setStoreQrisPayload(sQrisPayload || DEFAULT_BASE_QRIS);
     setReceiptFooter(sFooter);
+    setActiveCashier(sCashier);
 
     setIsPinActive(pinActive === "1");
 
@@ -380,7 +383,8 @@ export default function SettingsScreen() {
       await setSetting("store_phone", storePhone);
       await setSetting("store_receipt_footer", receiptFooter);
       await setSetting("store_qris_payload", storeQrisPayload);
-      Alert.alert("Sukses", "Profil toko & payload QRIS berhasil disimpan.");
+      await setSetting("active_cashier_name", activeCashier.trim() || "Kasir 1");
+      Alert.alert("Sukses", "Profil toko, kasir shift & payload QRIS berhasil disimpan.");
     }, "Masukkan PIN Supervisor untuk menyimpan profil toko");
   };
 
@@ -2292,6 +2296,25 @@ export default function SettingsScreen() {
                 value={receiptFooter}
                 onChangeText={setReceiptFooter}
                 placeholder="Terima Kasih Atas Kunjungan Anda!"
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: "#f4f4f5",
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                  fontSize: 13,
+                  fontWeight: "600",
+                  color: "#18181b",
+                }}
+              />
+
+              <Text style={{ fontSize: 11, color: "#71717a", marginTop: 12, marginBottom: 4 }}>
+                Nama Kasir / Shift Aktif (Default)
+              </Text>
+              <TextInput
+                value={activeCashier}
+                onChangeText={setActiveCashier}
+                placeholder="Kasir 1 / Siti / Zaidan"
                 style={{
                   padding: 12,
                   borderRadius: 14,

@@ -326,8 +326,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
       for (const t of transactions) {
         await db.runAsync(
           `INSERT OR REPLACE INTO transactions (
-            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, customer_phone, customer_id, is_open_bill, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, invoice_no, omset, total_hpp, laba_kotor, subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, payment_method, cash_tendered, change_amount, table_number, customer_name, customer_phone, customer_id, cashier_name, is_open_bill, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             t.id,
             t.invoice_no,
@@ -346,6 +346,7 @@ async function restoreJsonTables(tables: any): Promise<void> {
             t.customer_name || null,
             t.customer_phone || null,
             t.customer_id || null,
+            t.cashier_name || "Kasir 1",
             t.is_open_bill || 0,
             t.created_at || new Date().toISOString(),
           ]

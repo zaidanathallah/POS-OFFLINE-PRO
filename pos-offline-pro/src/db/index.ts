@@ -100,6 +100,7 @@ export interface Transaction {
   customer_name?: string | null;
   customer_phone?: string | null;
   customer_id?: string | null;
+  cashier_name?: string | null;
   is_open_bill: number;
   created_at: string;
 }
@@ -281,6 +282,9 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       change_amount REAL NOT NULL DEFAULT 0,
       table_number TEXT,
       customer_name TEXT,
+      customer_phone TEXT,
+      customer_id TEXT,
+      cashier_name TEXT NOT NULL DEFAULT 'Kasir 1',
       is_open_bill INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -343,6 +347,9 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await ensureColumnExists(db, "transactions", "change_amount", "REAL NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transactions", "table_number", "TEXT");
   await ensureColumnExists(db, "transactions", "customer_name", "TEXT");
+  await ensureColumnExists(db, "transactions", "customer_phone", "TEXT");
+  await ensureColumnExists(db, "transactions", "customer_id", "TEXT");
+  await ensureColumnExists(db, "transactions", "cashier_name", "TEXT NOT NULL DEFAULT 'Kasir 1'");
   await ensureColumnExists(db, "transactions", "is_open_bill", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transactions", "omset", "REAL NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transactions", "total_hpp", "REAL NOT NULL DEFAULT 0");
@@ -365,9 +372,6 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await ensureColumnExists(db, "transaction_details", "discount_value", "REAL NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "transaction_details", "discount_amount", "REAL NOT NULL DEFAULT 0");
 
-  await ensureColumnExists(db, "transactions", "customer_phone", "TEXT");
-  await ensureColumnExists(db, "transactions", "customer_id", "TEXT");
-
   // Default settings
   const defaultSettings: Record<string, string> = {
     store_name: "POS Offline Pro",
@@ -376,6 +380,7 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     store_phone: "08111111111",
     store_logo: "",
     store_qris: "",
+    active_cashier_name: "Kasir 1",
     is_pin_active: "0",
     supervisor_pin: "1234",
     feature_table_number: "0",

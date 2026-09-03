@@ -102,13 +102,18 @@ export function TransactionDetailModal({
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
                 <Text style={{ fontSize: 11, color: "#71717a" }}>Waktu Transaksi</Text>
                 <Text style={{ fontSize: 11, fontWeight: "600", color: "#18181b" }}>
-                  {new Date(transaction.created_at).toLocaleString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {(() => {
+                    const t = new Date(transaction.created_at);
+                    const pad = (n: number) => n.toString().padStart(2, "0");
+                    return `${t.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}, ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+                  })()}
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                <Text style={{ fontSize: 11, color: "#71717a" }}>Kasir / Shift</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#0d9488" }}>
+                  {transaction.cashier_name || "Kasir 1"}
                 </Text>
               </View>
 

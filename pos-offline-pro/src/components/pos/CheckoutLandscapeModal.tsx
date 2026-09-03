@@ -39,8 +39,10 @@ interface CheckoutLandscapeModalProps {
   storeQrisImage?: string;
   tableNumber?: string;
   customerName?: string;
+  cashierName?: string;
   onTableNumberChange?: (val: string) => void;
   onCustomerNameChange?: (val: string) => void;
+  onCashierNameChange?: (val: string) => void;
   featureTable?: boolean;
   featureCustomer?: boolean;
   featureOpenBill?: boolean;
@@ -65,8 +67,10 @@ export function CheckoutLandscapeModal({
   storeQrisImage,
   tableNumber = "",
   customerName = "",
+  cashierName = "Kasir 1",
   onTableNumberChange,
   onCustomerNameChange,
+  onCashierNameChange,
   featureTable = false,
   featureCustomer = false,
   featureOpenBill = false,
@@ -219,64 +223,88 @@ export function CheckoutLandscapeModal({
                   padding: isSmallScreen ? 12 : 16,
                 }}
               >
-                {/* Table Number & Customer Name Inputs (if features are active) */}
-                {(featureTable || featureCustomer) && (
-                  <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e5e7eb" }}>
-                    {featureTable && (
-                      <View style={{ marginBottom: 6 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
-                          <Hash size={12} color="#0097A7" />
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
-                            Nomor Meja
-                          </Text>
-                        </View>
-                        <TextInput
-                          value={tableNumber}
-                          onChangeText={onTableNumberChange}
-                          placeholder="Misal: Meja 05"
-                          style={{
-                            backgroundColor: "#ffffff",
-                            borderWidth: 1,
-                            borderColor: "#e5e7eb",
-                            borderRadius: 10,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            fontSize: 12,
-                            fontWeight: "600",
-                            color: "#18181b",
-                          }}
-                        />
-                      </View>
-                    )}
-
-                    {featureCustomer && (
-                      <View>
-                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
-                          <Users size={12} color="#0097A7" />
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
-                            Nama Pelanggan
-                          </Text>
-                        </View>
-                        <TextInput
-                          value={customerName}
-                          onChangeText={onCustomerNameChange}
-                          placeholder="Misal: Budi / 08123xxx"
-                          style={{
-                            backgroundColor: "#ffffff",
-                            borderWidth: 1,
-                            borderColor: "#e5e7eb",
-                            borderRadius: 10,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            fontSize: 12,
-                            fontWeight: "600",
-                            color: "#18181b",
-                          }}
-                        />
-                      </View>
-                    )}
+                {/* Cashier Name, Table Number & Customer Name Inputs */}
+                <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e5e7eb" }}>
+                  {/* Nama Kasir (Shift) */}
+                  <View style={{ marginBottom: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                      <Users size={12} color="#0097A7" />
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
+                        Nama Kasir (Shift)
+                      </Text>
+                    </View>
+                    <TextInput
+                      value={cashierName}
+                      onChangeText={onCashierNameChange}
+                      placeholder="Misal: Kasir 1 / Zaidan / Siti"
+                      style={{
+                        backgroundColor: "#ffffff",
+                        borderWidth: 1,
+                        borderColor: "#e5e7eb",
+                        borderRadius: 10,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: "#18181b",
+                      }}
+                    />
                   </View>
-                )}
+
+                  {featureTable && (
+                    <View style={{ marginBottom: 6 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                        <Hash size={12} color="#0097A7" />
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
+                          Nomor Meja
+                        </Text>
+                      </View>
+                      <TextInput
+                        value={tableNumber}
+                        onChangeText={onTableNumberChange}
+                        placeholder="Misal: Meja 05"
+                        style={{
+                          backgroundColor: "#ffffff",
+                          borderWidth: 1,
+                          borderColor: "#e5e7eb",
+                          borderRadius: 10,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: "#18181b",
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {featureCustomer && (
+                    <View>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                        <Users size={12} color="#0097A7" />
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#3f3f46", marginLeft: 4 }}>
+                          Nama Pelanggan
+                        </Text>
+                      </View>
+                      <TextInput
+                        value={customerName}
+                        onChangeText={onCustomerNameChange}
+                        placeholder="Misal: Budi / 08123xxx"
+                        style={{
+                          backgroundColor: "#ffffff",
+                          borderWidth: 1,
+                          borderColor: "#e5e7eb",
+                          borderRadius: 10,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: "#18181b",
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
 
                 {/* Mobile Collapsible Header */}
                 {!isLandscape && (

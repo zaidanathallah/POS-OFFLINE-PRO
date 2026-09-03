@@ -31,6 +31,7 @@ export interface CheckoutInput {
   customer_name?: string;
   customer_phone?: string;
   customer_id?: string;
+  cashier_name?: string;
   is_open_bill?: number;
   note?: string;
   previous_open_bill_id?: string;
@@ -70,6 +71,7 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
       customer_name: input.customer_name || null,
       customer_phone: input.customer_phone || null,
       customer_id: input.customer_id || null,
+      cashier_name: input.cashier_name || "Kasir 1",
       is_open_bill: input.is_open_bill || 0,
       created_at: createdAt,
     };
@@ -92,8 +94,8 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         id, invoice_no, omset, total_hpp, laba_kotor, 
         subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, 
         payment_method, cash_tendered, change_amount, 
-        table_number, customer_name, customer_phone, customer_id, is_open_bill, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        table_number, customer_name, customer_phone, customer_id, cashier_name, is_open_bill, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newTransaction.id,
         newTransaction.invoice_no ?? null,
@@ -112,6 +114,7 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
         newTransaction.customer_name ?? null,
         newTransaction.customer_phone ?? null,
         newTransaction.customer_id ?? null,
+        newTransaction.cashier_name ?? "Kasir 1",
         newTransaction.is_open_bill,
         newTransaction.created_at,
       ]
@@ -332,6 +335,7 @@ export async function createManualTransaction(data: {
   promoName?: string;
   customerName?: string;
   tableNumber?: string;
+  cashierName?: string;
   customDate?: string;
 }): Promise<Transaction> {
   return await runInDbQueue(async (db) => {
@@ -366,6 +370,7 @@ export async function createManualTransaction(data: {
       change_amount: 0,
       table_number: data.tableNumber || null,
       customer_name: data.customerName || null,
+      cashier_name: data.cashierName || "Kasir 1",
       is_open_bill: 0,
       created_at: createdAt,
     };
@@ -375,8 +380,8 @@ export async function createManualTransaction(data: {
         id, invoice_no, omset, total_hpp, laba_kotor, 
         subtotal_before_tax, discount_amount, promo_name, ppn_percent, ppn_amount, 
         payment_method, cash_tendered, change_amount, 
-        table_number, customer_name, is_open_bill, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        table_number, customer_name, cashier_name, is_open_bill, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newTransaction.id,
         newTransaction.invoice_no ?? null,
@@ -393,6 +398,7 @@ export async function createManualTransaction(data: {
         newTransaction.change_amount,
         newTransaction.table_number ?? null,
         newTransaction.customer_name ?? null,
+        newTransaction.cashier_name ?? "Kasir 1",
         newTransaction.is_open_bill,
         newTransaction.created_at,
       ]
@@ -434,6 +440,7 @@ export async function updateTransaction(
     payment_method?: string;
     customer_name?: string;
     table_number?: string;
+    cashier_name?: string;
     created_at?: string;
   }
 ): Promise<void> {
@@ -450,13 +457,14 @@ export async function updateTransaction(
     const newPayment = updates.payment_method || current.payment_method;
     const newCust = updates.customer_name !== undefined ? (updates.customer_name || null) : (current.customer_name || null);
     const newTable = updates.table_number !== undefined ? (updates.table_number || null) : (current.table_number || null);
+    const newCashier = updates.cashier_name !== undefined ? (updates.cashier_name || "Kasir 1") : (current.cashier_name || "Kasir 1");
     const newCreatedAt = updates.created_at || current.created_at;
 
     await db.runAsync(
       `UPDATE transactions 
-       SET omset = ?, total_hpp = ?, laba_kotor = ?, payment_method = ?, customer_name = ?, table_number = ?, created_at = ?
+       SET omset = ?, total_hpp = ?, laba_kotor = ?, payment_method = ?, customer_name = ?, table_number = ?, cashier_name = ?, created_at = ?
        WHERE id = ?;`,
-      [newOmset, newHpp, newLaba, newPayment, newCust, newTable, newCreatedAt, transactionId]
+      [newOmset, newHpp, newLaba, newPayment, newCust, newTable, newCashier, newCreatedAt, transactionId]
     );
   });
 }

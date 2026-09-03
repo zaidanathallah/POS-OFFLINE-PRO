@@ -39,6 +39,7 @@ export function TransactionFormModal({
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "QRIS">("CASH");
   const [customerName, setCustomerName] = useState("");
   const [tableNumber, setTableNumber] = useState("");
+  const [cashierName, setCashierName] = useState("Kasir 1");
   const [omsetEdit, setOmsetEdit] = useState("");
   const [customDate, setCustomDate] = useState("");
 
@@ -52,6 +53,7 @@ export function TransactionFormModal({
         setPaymentMethod((transaction.payment_method as "CASH" | "QRIS") || "CASH");
         setCustomerName(transaction.customer_name || "");
         setTableNumber(transaction.table_number || "");
+        setCashierName(transaction.cashier_name || "Kasir 1");
         setOmsetEdit(String(transaction.omset || 0));
         setCustomDate(transaction.created_at || new Date().toISOString());
       } else {
@@ -62,6 +64,7 @@ export function TransactionFormModal({
         setPaymentMethod("CASH");
         setCustomerName("");
         setTableNumber("");
+        setCashierName("Kasir 1");
         setOmsetEdit("");
         setCustomDate(new Date().toISOString().slice(0, 16).replace("T", " "));
       }
@@ -82,6 +85,7 @@ export function TransactionFormModal({
           payment_method: paymentMethod,
           customer_name: customerName.trim() || undefined,
           table_number: tableNumber.trim() || undefined,
+          cashier_name: cashierName.trim() || "Kasir 1",
         });
 
         Alert.alert("Sukses", "Data transaksi berhasil diperbarui.");
@@ -107,6 +111,7 @@ export function TransactionFormModal({
           paymentMethod: paymentMethod,
           customerName: customerName.trim() || undefined,
           tableNumber: tableNumber.trim() || undefined,
+          cashierName: cashierName.trim() || "Kasir 1",
           customDate: customDate || undefined,
         });
 
@@ -332,8 +337,8 @@ export function TransactionFormModal({
               ))}
             </View>
 
-            {/* Optional Customer & Table */}
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+            {/* Optional Customer, Table & Cashier */}
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Nama Pelanggan (Opsi)</Text>
                 <TextInput
@@ -369,6 +374,25 @@ export function TransactionFormModal({
                   }}
                 />
               </View>
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 11, color: "#71717a", marginBottom: 4 }}>Nama Kasir / Shift</Text>
+              <TextInput
+                value={cashierName}
+                onChangeText={setCashierName}
+                placeholder="Kasir 1 / Siti / Zaidan"
+                style={{
+                  padding: 12,
+                  backgroundColor: "#f4f4f5",
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "#e4e4e7",
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: "#18181b",
+                }}
+              />
             </View>
 
             {/* Action Buttons */}

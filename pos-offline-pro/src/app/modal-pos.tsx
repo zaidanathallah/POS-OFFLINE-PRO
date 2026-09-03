@@ -19,7 +19,7 @@ import { getAllProducts, getProductByBarcode, createProduct } from "@/db/product
 import { getAllCategories } from "@/db/categoryRepository";
 import { getActivePromos } from "@/db/promoRepository";
 import { processCheckout } from "@/db/transactionRepository";
-import { getSetting } from "@/db/settingsRepository";
+import { getSetting, setSetting } from "@/db/settingsRepository";
 import { ReceiptData, printBluetoothReceipt58mm } from "@/util/printerService";
 import { formatRupiah } from "@/util/formatters";
 import { evaluateCartPromos, AppliedPromoResult } from "@/util/promoEngine";
@@ -34,8 +34,9 @@ import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
 import { CheckoutLandscapeModal } from "@/components/pos/CheckoutLandscapeModal";
 import { ItemDiscountModal } from "@/components/pos/ItemDiscountModal";
 import { CustomerSelectModal } from "@/components/pos/CustomerSelectModal";
+import { CashierShiftModal } from "@/components/pos/CashierShiftModal";
 import { getOpenBills, getTransactionDetailsWithProducts } from "@/db/transactionRepository";
-import { User, Percent } from "lucide-react-native";
+import { User, Percent, UserCheck } from "lucide-react-native";
 import { OpenBillManagerModal } from "@/components/pos/OpenBillManagerModal";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import {
@@ -117,6 +118,8 @@ export default function PosModalScreen() {
 
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<ReceiptData | null>(null);
+  const [cashierName, setCashierName] = useState<string>("Kasir 1");
+  const [cashierModalVisible, setCashierModalVisible] = useState(false);
 
   // Cart State
   const {
@@ -177,6 +180,7 @@ export default function PosModalScreen() {
       const fVar = await getSetting("feature_variants", "1");
       const fAuto = await getSetting("feature_auto_print", "0");
       const fPromo = await getSetting("feature_promo", "1");
+      const sCashier = await getSetting("active_cashier_name", "Kasir 1");
 
       setIsPpnActive(fPpn === "1");
       setPpnRate(Number(pRate) || 11);
@@ -187,6 +191,7 @@ export default function PosModalScreen() {
       setFeatureVariants(fVar === "1");
       setFeatureAutoPrint(fAuto === "1");
       setFeaturePromo(fPromo === "1");
+      setCashierName(sCashier);
 
       const sLogo = await getSetting("store_logo", "");
       const sQris = await getSetting("store_qris", "");
@@ -323,18 +328,23 @@ export default function PosModalScreen() {
         change_amount: changeAmount,
         table_number: tableNumber || undefined,
         customer_name: customerName || undefined,
+        customer_phone: customerPhone || undefined,
+        cashier_name: cashierName || "Kasir 1",
         is_open_bill: isOpenBill ? 1 : 0,
+        previous_open_bill_id: activeOpenBillId || undefined,
       });
+
+      const txDate = new Date(result.transaction.created_at || Date.now());
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const formattedDate = `${txDate.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })}, ${pad(txDate.getHours())}:${pad(txDate.getMinutes())}:${pad(txDate.getSeconds())}`;
 
       const receiptData: ReceiptData = {
         invoiceNumber: result.transaction.invoice_no || result.transaction.id,
-        date: new Date(result.transaction.created_at).toLocaleString("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        date: formattedDate,
         storeName: storeName,
         businessType: storeBusinessType,
         storeAddress: storeAddress,
@@ -356,7 +366,7 @@ export default function PosModalScreen() {
         cashTendered: result.transaction.cash_tendered,
         changeAmount: result.transaction.change_amount,
         paymentMethod: result.transaction.payment_method,
-        cashierName: "Kasir 1",
+        cashierName: result.transaction.cashier_name || cashierName || "Kasir 1",
         tableNumber: result.transaction.table_number || undefined,
         customerName: result.transaction.customer_name || undefined,
         footerNote: storeFooter,
@@ -554,8 +564,38 @@ export default function PosModalScreen() {
           </ScrollView>
         </View>
 
-        {/* Right Side: Customer Selector & Selesai Menjual */}
+        {/* Right Side: Cashier Switcher, Customer Selector & Selesai Menjual */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {/* Shift / Cashier Switcher */}
+          <TouchableOpacity
+            onPress={() => setCashierModalVisible(true)}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 20,
+              backgroundColor: "#F0FDFA",
+              borderWidth: 1,
+              borderColor: "#99F6E4",
+            }}
+          >
+            <UserCheck size={12} color="#0D9488" />
+            <Text
+              numberOfLines={1}
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: "#0F766E",
+                marginLeft: 4,
+                maxWidth: 110,
+              }}
+            >
+              {cashierName || "Kasir 1"}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => setCustomerModalVisible(true)}
             activeOpacity={0.8}
@@ -993,8 +1033,13 @@ export default function PosModalScreen() {
         storeQrisImage={storeQris}
         tableNumber={tableNumber}
         customerName={customerName}
+        cashierName={cashierName}
         onTableNumberChange={setTableNumber}
         onCustomerNameChange={setCustomerName}
+        onCashierNameChange={async (val) => {
+          setCashierName(val);
+          await setSetting("active_cashier_name", val);
+        }}
         featureTable={featureTable}
         featureCustomer={featureCustomer}
         featureOpenBill={featureOpenBill}
@@ -1094,6 +1139,18 @@ export default function PosModalScreen() {
         onSelectCustomer={(c) => {
           setCustomerName(c.name);
           setCustomerPhone(c.phone || "");
+        }}
+      />
+
+      <CashierShiftModal
+        visible={cashierModalVisible}
+        currentCashier={cashierName}
+        onClose={() => setCashierModalVisible(false)}
+        onSelectCashier={async (name) => {
+          setCashierName(name);
+          await setSetting("active_cashier_name", name);
+          setNotificationBanner(`✓ Kasir shift diubah ke: ${name}`);
+          setTimeout(() => setNotificationBanner(""), 3500);
         }}
       />
 
