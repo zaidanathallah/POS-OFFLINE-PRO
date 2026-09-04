@@ -32,8 +32,9 @@ export function ReceiptModal({
   onClose,
   onNewTransaction,
 }: ReceiptModalProps) {
-  const { height } = useWindowDimensions();
-  const isSmallScreen = height < 750;
+  const { height, width } = useWindowDimensions();
+  const isShortScreen = height < 500;
+  const isSmallScreen = height < 750 || width < 400;
 
   if (!receiptData) return null;
 
@@ -126,17 +127,17 @@ export function ReceiptModal({
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "rgba(0,0,0,0.65)",
-          padding: isSmallScreen ? 10 : 20,
+          padding: isShortScreen ? 6 : (isSmallScreen ? 10 : 20),
         }}
       >
         <View
           style={{
             width: "100%",
-            maxWidth: 420,
+            maxWidth: 440,
             backgroundColor: "#ffffff",
-            borderRadius: 24,
-            padding: isSmallScreen ? 14 : 20,
-            maxHeight: "95%",
+            borderRadius: isShortScreen ? 16 : 24,
+            padding: isShortScreen ? 10 : (isSmallScreen ? 14 : 20),
+            maxHeight: isShortScreen ? "96%" : "94%",
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
@@ -177,7 +178,7 @@ export function ReceiptModal({
                 padding: 14,
                 borderWidth: 1,
                 borderColor: "#e4e4e7",
-                maxHeight: isSmallScreen ? 320 : 380,
+                maxHeight: isShortScreen ? 160 : (isSmallScreen ? 280 : 360),
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.05,
