@@ -151,9 +151,18 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = ".json,.db,.sqlite";
+      input.accept = ".json,application/json,.db,.sqlite";
+      input.style.position = "fixed";
+      input.style.top = "-1000px";
+      input.style.left = "-1000px";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+
       input.onchange = async (e: any) => {
         const file = e.target?.files?.[0];
+        if (input.parentNode) {
+          document.body.removeChild(input);
+        }
         if (!file) {
           resolve({ success: false, error: "Pemilihan file dibatalkan." });
           return;
@@ -164,7 +173,10 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
           const parsed = JSON.parse(text);
 
           if (!parsed.tables) {
-            resolve({ success: false, error: "Format file JSON backup tidak valid." });
+            resolve({
+              success: false,
+              error: "Format file JSON backup tidak valid. Objek 'tables' tidak ditemukan.",
+            });
             return;
           }
 
@@ -175,6 +187,14 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
           resolve({ success: false, error: err.message || "Gagal memproses file import." });
         }
       };
+
+      input.oncancel = () => {
+        if (input.parentNode) {
+          document.body.removeChild(input);
+        }
+        resolve({ success: false, error: "Pemilihan file dibatalkan." });
+      };
+
       input.click();
     });
   }
@@ -182,7 +202,7 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
   // Native Mobile import (supports .json, .db, .sqlite)
   try {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ["*/*", "application/json", "application/x-sqlite3", "application/octet-stream"],
+      type: ["*/*", "application/json", "text/*", "application/x-sqlite3", "application/octet-stream"],
       copyToCacheDirectory: true,
     });
 
@@ -197,7 +217,7 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
     const fileName = selectedFile.name.toLowerCase();
 
     // 1. If JSON backup file
-    if (fileName.endsWith(".json")) {
+    if (fileName.endsWith(".json") || selectedFile.mimeType === "application/json" || selectedFile.mimeType?.includes("json")) {
       const content = await FileSystem.readAsStringAsync(selectedFile.uri, {
         encoding: FileSystem.EncodingType.UTF8,
       });
@@ -243,6 +263,22 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
       };
     }
 
+    // Fallback: try parsing as JSON anyway in case extension was stripped
+    try {
+      const content = await FileSystem.readAsStringAsync(selectedFile.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const parsed = JSON.parse(content);
+      if (parsed.tables) {
+        await restoreJsonTables(parsed.tables);
+        await reloadDatabase();
+        return {
+          success: true,
+          fileName: selectedFile.name,
+        };
+      }
+    } catch (_) {}
+
     return {
       success: false,
       error: "Format file tidak didukung. Harap pilih file .json atau .db cadangan.",
@@ -261,7 +297,16 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
  */
 async function restoreJsonTables(tables: any): Promise<void> {
   await runInDbQueue(async (db) => {
-    const { categories, products, promos, transactions, transaction_details, customers, stock_movements, settings } = tables;
+    const {
+      categories,
+      products,
+      promos,
+      transactions,
+      transaction_details,
+      customers,
+      stock_movements,
+      settings,
+    } = tables;
 
     if (categories && Array.isArray(categories)) {
       for (const c of categories) {
@@ -281,15 +326,15 @@ async function restoreJsonTables(tables: any): Promise<void> {
           [
             p.id,
             p.name,
-            p.harga_jual,
-            p.modal_hpp,
-            p.stock,
+            Number(p.harga_jual) || 0,
+            Number(p.modal_hpp) || 0,
+            Number(p.stock) || 0,
             p.unit || "pcs",
-            p.is_decimal || 0,
+            p.is_decimal ? 1 : 0,
             p.barcode || null,
             p.image_uri || null,
             p.category || "Umum",
-            p.has_variants || 0,
+            p.has_variants ? 1 : 0,
             p.variants_json || null,
           ]
         );
@@ -310,12 +355,12 @@ async function restoreJsonTables(tables: any): Promise<void> {
             pr.target_type || "ALL",
             pr.target_id || null,
             pr.target_name || null,
-            pr.min_qty || 1,
-            pr.min_spend || 0,
-            pr.reward_free_qty || 0,
-            pr.discount_amount || 0,
-            pr.discount_percent || 0,
-            pr.is_active !== undefined ? pr.is_active : 1,
+            Number(pr.min_qty) || 1,
+            Number(pr.min_spend) || 0,
+            Number(pr.reward_free_qty) || 0,
+            Number(pr.discount_amount) || 0,
+            Number(pr.discount_percent) || 0,
+            pr.is_active !== undefined ? Number(pr.is_active) : 1,
             pr.created_at || new Date().toISOString(),
           ]
         );
@@ -330,24 +375,24 @@ async function restoreJsonTables(tables: any): Promise<void> {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             t.id,
-            t.invoice_no,
-            t.omset,
-            t.total_hpp,
-            t.laba_kotor,
-            t.subtotal_before_tax || 0,
-            t.discount_amount || 0,
+            t.invoice_no || null,
+            Number(t.omset) || 0,
+            Number(t.total_hpp) || 0,
+            Number(t.laba_kotor) || 0,
+            Number(t.subtotal_before_tax) || 0,
+            Number(t.discount_amount) || 0,
             t.promo_name || null,
-            t.ppn_percent || 0,
-            t.ppn_amount || 0,
+            Number(t.ppn_percent) || 0,
+            Number(t.ppn_amount) || 0,
             t.payment_method || "CASH",
-            t.cash_tendered || 0,
-            t.change_amount || 0,
+            Number(t.cash_tendered) || 0,
+            Number(t.change_amount) || 0,
             t.table_number || null,
             t.customer_name || null,
             t.customer_phone || null,
             t.customer_id || null,
             t.cashier_name || "Kasir 1",
-            t.is_open_bill || 0,
+            t.is_open_bill ? 1 : 0,
             t.created_at || new Date().toISOString(),
           ]
         );
@@ -367,13 +412,13 @@ async function restoreJsonTables(tables: any): Promise<void> {
             d.product_name || "Produk",
             d.variant_name || null,
             d.unit || "pcs",
-            d.harga_jual,
-            d.modal_hpp || 0,
-            d.qty,
-            d.subtotal,
+            Number(d.harga_jual) || 0,
+            Number(d.modal_hpp) || 0,
+            Number(d.qty) || 1,
+            Number(d.subtotal) || 0,
             d.discount_type || null,
-            d.discount_value || 0,
-            d.discount_amount || 0,
+            Number(d.discount_value) || 0,
+            Number(d.discount_amount) || 0,
           ]
         );
       }
@@ -392,8 +437,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
             cu.email || null,
             cu.address || null,
             cu.notes || null,
-            cu.total_orders || 0,
-            cu.total_spent || 0,
+            Number(cu.total_orders) || 0,
+            Number(cu.total_spent) || 0,
             cu.created_at || new Date().toISOString(),
           ]
         );
@@ -412,9 +457,9 @@ async function restoreJsonTables(tables: any): Promise<void> {
             sm.product_name,
             sm.variant_name || null,
             sm.type,
-            sm.qty,
-            sm.previous_stock || 0,
-            sm.current_stock || 0,
+            Number(sm.qty) || 1,
+            Number(sm.previous_stock) || 0,
+            Number(sm.current_stock) || 0,
             sm.unit || "pcs",
             sm.notes || null,
             sm.reference_id || null,
@@ -428,7 +473,7 @@ async function restoreJsonTables(tables: any): Promise<void> {
       for (const s of settings) {
         await db.runAsync(
           "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);",
-          [s.key, s.value]
+          [s.key, String(s.value || "")]
         );
       }
     }

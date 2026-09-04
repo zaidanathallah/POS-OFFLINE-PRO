@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
@@ -806,33 +807,64 @@ export default function PosModalScreen() {
                     <TouchableOpacity
                       onPress={() => updateQty(item.id, item.qty - (item.product.is_decimal ? 0.5 : 1))}
                       style={{
-                        width: 22,
-                        height: 22,
+                        width: 24,
+                        height: 24,
                         borderRadius: 6,
                         backgroundColor: "#EFEBE4",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Minus size={10} color="#44403C" />
+                      <Minus size={11} color="#44403C" />
                     </TouchableOpacity>
 
-                    <Text style={{ minWidth: 24, textAlign: "center", fontSize: 11, fontWeight: "700", color: "#292524" }}>
-                      {item.qty}
-                    </Text>
+                    <TextInput
+                      defaultValue={String(item.qty)}
+                      key={`${item.id}_${item.qty}`}
+                      onChangeText={(val: string) => {
+                        const clean = val.replace(/,/g, ".");
+                        const num = parseFloat(clean);
+                        if (!isNaN(num) && num > 0) {
+                          updateQty(item.id, num);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!item.qty || item.qty <= 0) {
+                          updateQty(item.id, 1);
+                        }
+                      }}
+                      selectTextOnFocus
+                      keyboardType={item.product.is_decimal ? "decimal-pad" : "number-pad"}
+                      style={{
+                        minWidth: 38,
+                        maxWidth: 65,
+                        height: 24,
+                        paddingVertical: 0,
+                        paddingHorizontal: 4,
+                        textAlign: "center",
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: "#292524",
+                        backgroundColor: "#FFFFFF",
+                        borderWidth: 1,
+                        borderColor: "#D6D1CA",
+                        borderRadius: 6,
+                        marginHorizontal: 3,
+                      }}
+                    />
 
                     <TouchableOpacity
                       onPress={() => updateQty(item.id, item.qty + (item.product.is_decimal ? 0.5 : 1))}
                       style={{
-                        width: 22,
-                        height: 22,
+                        width: 24,
+                        height: 24,
                         borderRadius: 6,
                         backgroundColor: "#EFEBE4",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Plus size={10} color="#44403C" />
+                      <Plus size={11} color="#44403C" />
                     </TouchableOpacity>
                   </View>
                 </View>

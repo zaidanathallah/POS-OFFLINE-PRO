@@ -470,30 +470,24 @@ export default function SettingsScreen() {
 
   // Import DB
   const handleImport = () => {
-    executeSecureAction(() => {
-      Alert.alert(
-        "Peringatan Timpa Database",
-        "Pemulihan akan menimpa seluruh data toko dengan file backup yang Anda pilih. Lanjutkan?",
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Pilih File Backup",
-            style: "destructive",
-            onPress: async () => {
-              setIsImporting(true);
-              try {
-                const res = await importDatabaseBackup();
-                if (res.success) {
-                  await loadAllSettings();
-                  Alert.alert("Berhasil", `Data berhasil dipulihkan dari ${res.fileName}.`);
-                }
-              } finally {
-                setIsImporting(false);
-              }
-            },
-          },
-        ]
-      );
+    executeSecureAction(async () => {
+      setIsImporting(true);
+      try {
+        const res = await importDatabaseBackup();
+        if (res.success) {
+          await loadAllSettings();
+          Alert.alert(
+            "Pemulihan Berhasil!",
+            `Data berhasil dipulihkan dari "${res.fileName}".\n\nSeluruh data kategori, produk, promo, kasir, dan riwayat transaksi telah disinkronkan ke database SQLite.`
+          );
+        } else if (res.error && res.error !== "Pemilihan file dibatalkan.") {
+          Alert.alert("Gagal Pulihkan Data", res.error);
+        }
+      } catch (err: any) {
+        Alert.alert("Gagal Pulihkan", err.message || "Terjadi kesalahan saat memulihkan database.");
+      } finally {
+        setIsImporting(false);
+      }
     }, "Masukkan PIN Supervisor untuk memulihkan database");
   };
 
