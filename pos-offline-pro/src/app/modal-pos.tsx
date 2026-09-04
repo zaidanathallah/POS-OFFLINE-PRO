@@ -39,6 +39,7 @@ import { CashierShiftModal } from "@/components/pos/CashierShiftModal";
 import { getOpenBills, getTransactionDetailsWithProducts } from "@/db/transactionRepository";
 import { User, Percent, UserCheck } from "lucide-react-native";
 import { OpenBillManagerModal } from "@/components/pos/OpenBillManagerModal";
+import { QuickRestockModal } from "@/components/pos/QuickRestockModal";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import {
   Search,
@@ -121,6 +122,8 @@ export default function PosModalScreen() {
   const [completedReceipt, setCompletedReceipt] = useState<ReceiptData | null>(null);
   const [cashierName, setCashierName] = useState<string>("Kasir 1");
   const [cashierModalVisible, setCashierModalVisible] = useState(false);
+  const [restockModalVisible, setRestockModalVisible] = useState(false);
+  const [selectedProductForRestock, setSelectedProductForRestock] = useState<Product | null>(null);
 
   // Cart State
   const {
@@ -233,28 +236,101 @@ export default function PosModalScreen() {
     }
   }, [selectedCategory, allProducts]);
 
+  const handleOpenRestock = (product: Product) => {
+    setSelectedProductForRestock(product);
+    setRestockModalVisible(true);
+  };
+
+  const handleRestockSuccess = async (updatedProduct: Product, addedQty: number) => {
+    await loadData();
+    setNotificationBanner(
+      `✓ Berhasil menambah stok ${updatedProduct.name} (+${addedQty} ${updatedProduct.unit || "pcs"})! Stok saat ini: ${updatedProduct.stock} ${updatedProduct.unit || "pcs"}`
+    );
+    setTimeout(() => setNotificationBanner(""), 4500);
+  };
+
   const handleProductPress = (product: Product) => {
+    // 1. If product is completely out of stock and not a variant item, prevent adding and show alert + restock action
+    if (product.stock <= 0 && (!product.has_variants || !product.variants_json)) {
+      Alert.alert(
+        "Stok Habis!",
+        `Stok untuk produk "${product.name}" saat ini sudah habis (0 ${product.unit || "pcs"}). Tolong isi stok terlebih dahulu.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "+ Tambah Stok",
+            onPress: () => handleOpenRestock(product),
+          },
+        ]
+      );
+      return;
+    }
+
+    // 2. Decimal product
     if (product.is_decimal) {
+      if (product.stock <= 0) {
+        Alert.alert(
+          "Stok Habis!",
+          `Stok untuk produk "${product.name}" saat ini sudah habis (0 ${product.unit || "kg"}). Tolong isi stok terlebih dahulu.`,
+          [
+            { text: "Batal", style: "cancel" },
+            {
+              text: "+ Tambah Stok",
+              onPress: () => handleOpenRestock(product),
+            },
+          ]
+        );
+        return;
+      }
       setSelectedProductForModal(product);
       setDecimalModalVisible(true);
       return;
     }
+
+    // 3. Variant product
     if (product.has_variants && product.variants_json && featureVariants) {
       setSelectedProductForModal(product);
       setVariantModalVisible(true);
       return;
     }
-    addItem(product, 1);
+
+    // 4. Standard product - add to cart
+    const result = addItem(product, 1);
+    if (!result.success && result.message) {
+      Alert.alert(
+        "Stok Habis / Tidak Cukup!",
+        result.message,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "+ Tambah Stok",
+            onPress: () => handleOpenRestock(product),
+          },
+        ]
+      );
+    }
   };
 
   const handleDecimalConfirm = (product: Product, volume: number) => {
-    addItem(product, volume);
+    const result = addItem(product, volume);
+    if (!result.success && result.message) {
+      Alert.alert("Stok Tidak Cukup!", result.message, [
+        { text: "Batal", style: "cancel" },
+        { text: "+ Tambah Stok", onPress: () => handleOpenRestock(product) },
+      ]);
+    }
     setDecimalModalVisible(false);
     setSelectedProductForModal(null);
   };
 
   const handleVariantSelect = (product: Product, variant: ProductVariant) => {
-    addItem(product, 1, variant);
+    const result = addItem(product, 1, variant);
+    if (!result.success && result.message) {
+      Alert.alert("Stok Varian Habis!", result.message, [
+        { text: "Batal", style: "cancel" },
+        { text: "+ Tambah Stok", onPress: () => handleOpenRestock(product) },
+      ]);
+    }
     setVariantModalVisible(false);
     setSelectedProductForModal(null);
   };
@@ -670,86 +746,145 @@ export default function PosModalScreen() {
                 </Text>
               </View>
             ) : (
-              products.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  onPress={() => handleProductPress(p)}
-                  activeOpacity={0.75}
-                  style={{
-                    width: "48.5%",
-                    backgroundColor: "#FFFFFF",
-                    borderRadius: 18,
-                    padding: 10,
-                    marginBottom: 10,
-                    borderWidth: 1,
-                    borderColor: "#EAE6DF",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.04,
-                    shadowRadius: 2,
-                    elevation: 1,
-                    alignItems: "center",
-                  }}
-                >
-                  {/* Product Image */}
-                  <View
+              products.map((p) => {
+                const isOutOfStock = p.stock <= 0;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => handleProductPress(p)}
+                    activeOpacity={0.75}
                     style={{
-                      width: 68,
-                      height: 68,
-                      borderRadius: 14,
-                      backgroundColor: "#F5F3EF",
+                      width: "48.5%",
+                      backgroundColor: isOutOfStock ? "#FFFBFB" : "#FFFFFF",
+                      borderRadius: 18,
+                      padding: 10,
+                      marginBottom: 10,
+                      borderWidth: 1,
+                      borderColor: isOutOfStock ? "#FECACA" : "#EAE6DF",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.04,
+                      shadowRadius: 2,
+                      elevation: 1,
                       alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 8,
-                      overflow: "hidden",
+                      position: "relative",
                     }}
                   >
-                    {p.image_uri ? (
-                      <Image source={{ uri: p.image_uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-                    ) : (
-                      <Package size={26} color="#A8A29E" />
+                    {/* Out of Stock Pill Badge */}
+                    {isOutOfStock && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          zIndex: 10,
+                          backgroundColor: "#EF4444",
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Text style={{ fontSize: 8, fontWeight: "900", color: "#FFFFFF" }}>
+                          HABIS
+                        </Text>
+                      </View>
                     )}
-                  </View>
 
-                  {/* Product Name */}
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: "#292524",
-                      textAlign: "center",
-                    }}
-                  >
-                    {p.name}
-                  </Text>
+                    {/* Product Image */}
+                    <View
+                      style={{
+                        width: 68,
+                        height: 68,
+                        borderRadius: 14,
+                        backgroundColor: isOutOfStock ? "#FEE2E2" : "#F5F3EF",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginBottom: 8,
+                        overflow: "hidden",
+                        opacity: isOutOfStock ? 0.65 : 1,
+                      }}
+                    >
+                      {p.image_uri ? (
+                        <Image source={{ uri: p.image_uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      ) : (
+                        <Package size={26} color={isOutOfStock ? "#DC2626" : "#A8A29E"} />
+                      )}
+                    </View>
 
-                  {/* Price */}
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: "800",
-                      color: "#0097A7",
-                      marginTop: 2,
-                      textAlign: "center",
-                    }}
-                  >
-                    {formatRupiah(p.harga_jual)} {p.unit && p.unit !== "pcs" ? `/ ${p.unit}` : ""}
-                  </Text>
+                    {/* Product Name */}
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: isOutOfStock ? "#7F1D1D" : "#292524",
+                        textAlign: "center",
+                      }}
+                    >
+                      {p.name}
+                    </Text>
 
-                  {/* Stock */}
-                  <Text
-                    style={{
-                      fontSize: 9,
-                      color: "#8E887F",
-                      marginTop: 2,
-                      textAlign: "center",
-                    }}
-                  >
-                    Stok: {p.stock} {p.unit || "pcs"}
-                  </Text>
-                </TouchableOpacity>
-              ))
+                    {/* Price */}
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "800",
+                        color: isOutOfStock ? "#9CA3AF" : "#0097A7",
+                        marginTop: 2,
+                        textAlign: "center",
+                      }}
+                    >
+                      {formatRupiah(p.harga_jual)} {p.unit && p.unit !== "pcs" ? `/ ${p.unit}` : ""}
+                    </Text>
+
+                    {/* Stock Row & Quick Restock Button */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginTop: 3,
+                        gap: 4,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          fontWeight: isOutOfStock ? "800" : "500",
+                          color: isOutOfStock ? "#DC2626" : "#8E887F",
+                          textAlign: "center",
+                        }}
+                      >
+                        {isOutOfStock ? "Stok: 0" : `Stok: ${p.stock} ${p.unit || "pcs"}`}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleOpenRestock(p);
+                        }}
+                        style={{
+                          paddingHorizontal: 6,
+                          paddingVertical: 1.5,
+                          backgroundColor: isOutOfStock ? "#0097A7" : "#EFEBE4",
+                          borderRadius: 6,
+                          marginLeft: 2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            fontWeight: "800",
+                            color: isOutOfStock ? "#FFFFFF" : "#57534E",
+                          }}
+                        >
+                          +Stok
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
             )}
           </ScrollView>
         </View>
@@ -1031,6 +1166,11 @@ export default function PosModalScreen() {
             setSelectedProductForModal(null);
           }}
           onSelectVariant={handleVariantSelect}
+          onRestockVariant={(prod) => {
+            setVariantModalVisible(false);
+            setSelectedProductForModal(null);
+            handleOpenRestock(prod);
+          }}
         />
       )}
 
@@ -1041,6 +1181,10 @@ export default function PosModalScreen() {
         onSelectProduct={(p) => {
           setSearchModalVisible(false);
           handleProductPress(p);
+        }}
+        onRestockProduct={(p) => {
+          setSearchModalVisible(false);
+          handleOpenRestock(p);
         }}
       />
 
@@ -1082,6 +1226,16 @@ export default function PosModalScreen() {
         onSaveOpenBill={async () => {
           await handleCheckoutSuccess("CASH", grandTotal, 0, true);
         }}
+      />
+
+      <QuickRestockModal
+        visible={restockModalVisible}
+        product={selectedProductForRestock}
+        onClose={() => {
+          setRestockModalVisible(false);
+          setSelectedProductForRestock(null);
+        }}
+        onRestockSuccess={handleRestockSuccess}
       />
 
       <OpenBillManagerModal

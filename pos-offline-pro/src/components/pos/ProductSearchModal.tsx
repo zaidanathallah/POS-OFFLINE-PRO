@@ -6,16 +6,18 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Alert,
 } from "react-native";
 import { Product } from "@/db";
 import { formatRupiah } from "@/util/formatters";
-import { Search, Plus, X } from "lucide-react-native";
+import { Search, Plus, X, PackagePlus } from "lucide-react-native";
 
 interface ProductSearchModalProps {
   visible: boolean;
   products: Product[];
   onClose: () => void;
   onSelectProduct: (product: Product) => void;
+  onRestockProduct?: (product: Product) => void;
 }
 
 export function ProductSearchModal({
@@ -23,6 +25,7 @@ export function ProductSearchModal({
   products,
   onClose,
   onSelectProduct,
+  onRestockProduct,
 }: ProductSearchModalProps) {
   const [query, setQuery] = useState("");
 
@@ -31,6 +34,29 @@ export function ProductSearchModal({
       p.name.toLowerCase().includes(query.toLowerCase()) ||
       (p.barcode && p.barcode.includes(query))
   );
+
+  const handleProductClick = (p: Product) => {
+    if (p.stock <= 0) {
+      Alert.alert(
+        "Stok Habis!",
+        `Stok untuk produk "${p.name}" saat ini sudah habis (0 ${p.unit || "pcs"}). Tolong isi stok terlebih dahulu.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "+ Tambah Stok",
+            onPress: () => {
+              onClose();
+              if (onRestockProduct) {
+                onRestockProduct(p);
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+    onSelectProduct(p);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -123,8 +149,10 @@ export function ProductSearchModal({
               filtered.map((p) => {
                 const isOutOfStock = p.stock <= 0;
                 return (
-                  <View
+                  <TouchableOpacity
                     key={p.id}
+                    onPress={() => handleProductClick(p)}
+                    activeOpacity={0.7}
                     style={{
                       paddingVertical: 10,
                       borderBottomWidth: 1,
@@ -135,31 +163,56 @@ export function ProductSearchModal({
                     }}
                   >
                     <View style={{ flex: 1, paddingRight: 8 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: isOutOfStock ? "#7F1D1D" : "#18181b" }}>
                         {p.name}
                       </Text>
-                      <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
-                        {formatRupiah(p.harga_jual)} | {p.stock > 500 ? "Stok tanpa batas" : `Stok ${p.stock} ${p.unit || "pcs"}`}
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: isOutOfStock ? "700" : "400",
+                          color: isOutOfStock ? "#DC2626" : "#71717a",
+                          marginTop: 2,
+                        }}
+                      >
+                        {formatRupiah(p.harga_jual)} | {isOutOfStock ? "Stok: 0 (HABIS)" : p.stock > 500 ? "Stok tanpa batas" : `Stok ${p.stock} ${p.unit || "pcs"}`}
                       </Text>
                     </View>
 
-                    <TouchableOpacity
-                      onPress={() => {
-                        onSelectProduct(p);
-                      }}
-                      disabled={isOutOfStock}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: isOutOfStock ? "#f4f4f5" : "#0097A7",
-                      }}
-                    >
-                      <Plus size={15} color={isOutOfStock ? "#a1a1aa" : "#ffffff"} />
-                    </TouchableOpacity>
-                  </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {isOutOfStock && onRestockProduct && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            onRestockProduct(p);
+                          }}
+                          style={{
+                            paddingVertical: 4,
+                            paddingHorizontal: 8,
+                            backgroundColor: "#0097A7",
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: "800", color: "#FFFFFF" }}>
+                            + Stok
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <View
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isOutOfStock ? "#FEE2E2" : "#0097A7",
+                        }}
+                      >
+                        <Plus size={15} color={isOutOfStock ? "#DC2626" : "#ffffff"} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
                 );
               })
             )}

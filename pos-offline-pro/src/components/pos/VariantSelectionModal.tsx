@@ -6,17 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Product, ProductVariant } from "@/db";
 import { getVariantsByProductId } from "@/db/productRepository";
 import { formatRupiah } from "@/util/formatters";
-import { X } from "lucide-react-native";
+import { X, Plus } from "lucide-react-native";
 
 interface VariantSelectionModalProps {
   visible: boolean;
   product: Product | null;
   onClose: () => void;
   onSelectVariant: (product: Product, variant: ProductVariant) => void;
+  onRestockVariant?: (product: Product, variant?: ProductVariant) => void;
 }
 
 export function VariantSelectionModal({
@@ -24,6 +26,7 @@ export function VariantSelectionModal({
   product,
   onClose,
   onSelectVariant,
+  onRestockVariant,
 }: VariantSelectionModalProps) {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,6 +52,30 @@ export function VariantSelectionModal({
   }, [visible, product]);
 
   if (!product) return null;
+
+  const handleVariantClick = (v: ProductVariant) => {
+    if (v.stock <= 0) {
+      Alert.alert(
+        "Stok Varian Habis!",
+        `Stok untuk varian "${product.name} (${v.name})" saat ini sudah habis (0). Tolong isi stok terlebih dahulu.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "+ Tambah Stok",
+            onPress: () => {
+              onClose();
+              if (onRestockVariant) {
+                onRestockVariant(product, v);
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+    onSelectVariant(product, v);
+    onClose();
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -93,12 +120,8 @@ export function VariantSelectionModal({
                 return (
                   <TouchableOpacity
                     key={v.id}
-                    onPress={() => {
-                      onSelectVariant(product, v);
-                      onClose();
-                    }}
-                    disabled={isOutOfStock}
-                    activeOpacity={0.7}
+                    onPress={() => handleVariantClick(v)}
+                    activeOpacity={0.75}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
@@ -106,25 +129,45 @@ export function VariantSelectionModal({
                       paddingVertical: 12,
                       paddingHorizontal: 14,
                       borderRadius: 16,
-                      backgroundColor: "#f9fafb",
+                      backgroundColor: isOutOfStock ? "#FFF5F5" : "#f9fafb",
                       borderWidth: 1,
-                      borderColor: "#e5e7eb",
+                      borderColor: isOutOfStock ? "#FECACA" : "#e5e7eb",
                       marginBottom: 8,
-                      opacity: isOutOfStock ? 0.45 : 1,
                     }}
                   >
-                    <View>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: isOutOfStock ? "#7F1D1D" : "#18181b" }}>
                         {v.name}
                       </Text>
-                      <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
-                        {isOutOfStock ? "Habis" : `Stok: ${v.stock}`}
+                      <Text style={{ fontSize: 11, fontWeight: isOutOfStock ? "700" : "500", color: isOutOfStock ? "#DC2626" : "#71717a", marginTop: 2 }}>
+                        {isOutOfStock ? "Stok: 0 (HABIS)" : `Stok: ${v.stock}`}
                       </Text>
                     </View>
 
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#0097A7" }}>
-                      {formatRupiah(price)}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: isOutOfStock ? "#9CA3AF" : "#0097A7" }}>
+                        {formatRupiah(price)}
+                      </Text>
+                      {isOutOfStock && onRestockVariant && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            onRestockVariant(product, v);
+                          }}
+                          style={{
+                            paddingVertical: 4,
+                            paddingHorizontal: 8,
+                            backgroundColor: "#0097A7",
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: "800", color: "#FFFFFF" }}>
+                            + Stok
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}

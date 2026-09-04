@@ -186,3 +186,96 @@ export async function getDistinctCategories(): Promise<string[]> {
     return rows.map((r) => r.category);
   });
 }
+
+export interface RestockProductInput {
+  productId: string;
+  addQty: number;
+  variantId?: string | null;
+  newHpp?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * Restock product or variant directly with real-time SQLite sync and stock movement audit log
+ */
+export async function restockProduct(input: RestockProductInput): Promise<Product> {
+  return await runInDbQueue(async (db) => {
+    const product = await db.getFirstAsync<Product>(
+      "SELECT * FROM products WHERE id = ?",
+      [input.productId]
+    );
+    if (!product) {
+      throw new Error(`Produk dengan ID ${input.productId} tidak ditemukan.`);
+    }
+
+    const prevStock = Number(product.stock) || 0;
+    let newStock = prevStock + Number(input.addQty);
+    let variantsJson = product.variants_json;
+    let variantName: string | null = null;
+    let prevVariantStock = 0;
+    let newVariantStock = 0;
+
+    if (product.has_variants && product.variants_json && input.variantId) {
+      try {
+        const variants: ProductVariant[] = JSON.parse(product.variants_json);
+        const vIndex = variants.findIndex((v) => v.id === input.variantId);
+        if (vIndex > -1) {
+          variantName = variants[vIndex].name;
+          prevVariantStock = Number(variants[vIndex].stock) || 0;
+          variants[vIndex].stock = prevVariantStock + Number(input.addQty);
+          newVariantStock = variants[vIndex].stock;
+          if (input.newHpp !== undefined && input.newHpp !== null) {
+            variants[vIndex].modal_hpp = Number(input.newHpp) || variants[vIndex].modal_hpp;
+          }
+          variantsJson = JSON.stringify(variants);
+          newStock = variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
+        }
+      } catch (e) {
+        console.error("Parse variants error in restock:", e);
+      }
+    }
+
+    const updatedHpp =
+      input.newHpp !== undefined && input.newHpp !== null && !input.variantId
+        ? Number(input.newHpp)
+        : product.modal_hpp;
+
+    await db.runAsync(
+      `UPDATE products 
+       SET stock = ?, variants_json = ?, modal_hpp = ? 
+       WHERE id = ?`,
+      [newStock, variantsJson ?? null, updatedHpp, input.productId]
+    );
+
+    // Record into stock_movements table for audit & analytics
+    const movementId = `MOV-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const createdAt = new Date().toISOString();
+    await db.runAsync(
+      `INSERT INTO stock_movements (
+        id, product_id, product_name, variant_name, type, qty, 
+        previous_stock, current_stock, unit, notes, reference_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        movementId,
+        product.id,
+        product.name,
+        variantName,
+        "IN",
+        Number(input.addQty),
+        variantName ? prevVariantStock : prevStock,
+        variantName ? newVariantStock : newStock,
+        product.unit || "pcs",
+        input.notes || "Restok cepat dari kasir",
+        `RESTOCK-${Date.now()}`,
+        createdAt,
+      ]
+    );
+
+    return {
+      ...product,
+      stock: newStock,
+      variants_json: variantsJson,
+      modal_hpp: updatedHpp,
+    };
+  });
+}
