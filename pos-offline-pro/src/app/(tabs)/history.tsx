@@ -13,6 +13,7 @@ import { useFocusEffect } from "expo-router";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
+import { TransactionExportCsvModal } from "@/components/TransactionExportCsvModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { Transaction } from "@/db";
@@ -28,7 +29,7 @@ import { formatRupiah } from "@/util/formatters";
 import { StockMovement, StockMovementType } from "@/db";
 import { getStockMovements, getStockMovementSummary } from "@/db/stockMovementRepository";
 import { exportStockMovementsToCSV } from "@/util/csvExportService";
-import { Package, AlertTriangle, ArrowDownRight, ArrowUpRight, RotateCcw, Download, Filter, RefreshCw } from "lucide-react-native";
+import { Package, AlertTriangle, ArrowDownRight, ArrowUpRight, RotateCcw, Download, Filter, RefreshCw, FileSpreadsheet } from "lucide-react-native";
 import {
   Receipt,
   Printer,
@@ -74,6 +75,7 @@ export default function HistoryScreen() {
   // CRUD Modals
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [exportCsvModalVisible, setExportCsvModalVisible] = useState(false);
   const [selectedTrxForEdit, setSelectedTrxForEdit] = useState<Transaction | null>(null);
   const [selectedTrxForDetail, setSelectedTrxForDetail] = useState<Transaction | null>(null);
 
@@ -86,6 +88,14 @@ export default function HistoryScreen() {
     handlePinSuccess,
     handlePinClose,
   } = useSecureAction();
+
+  const handleOpenExportCsv = () => {
+    executeSecureAction(
+      () => setExportCsvModalVisible(true),
+      "PIN Supervisor - Export CSV",
+      "Masukkan PIN Supervisor untuk membuka menu export laporan transaksi CSV"
+    );
+  };
 
   const loadTransactions = useCallback(async () => {
     try {
@@ -275,23 +285,47 @@ export default function HistoryScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={handleOpenCreateManual}
-          activeOpacity={0.8}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: "#0097A7",
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 14,
-          }}
-        >
-          <Plus size={14} color="#ffffff" />
-          <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 4 }}>
-            Catat Manual
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {/* Export CSV Button (Protected by PIN) */}
+          <TouchableOpacity
+            onPress={handleOpenExportCsv}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#ECFEFF",
+              borderWidth: 1,
+              borderColor: "#A5F3FC",
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 14,
+            }}
+          >
+            <FileSpreadsheet size={14} color="#0097A7" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+              Export CSV
+            </Text>
+          </TouchableOpacity>
+
+          {/* Catat Manual Button (Protected by PIN) */}
+          <TouchableOpacity
+            onPress={handleOpenCreateManual}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#0097A7",
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 14,
+            }}
+          >
+            <Plus size={14} color="#ffffff" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 4 }}>
+              Catat Manual
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Transaction List */}
@@ -521,6 +555,18 @@ export default function HistoryScreen() {
         hintText={hintText}
         onClose={handlePinClose}
         onSuccess={handlePinSuccess}
+      />
+
+      {/* Export CSV Modal (PIN Protected) */}
+      <TransactionExportCsvModal
+        visible={exportCsvModalVisible}
+        storeProfile={{
+          storeName,
+          storeBusinessType,
+          storeAddress,
+          storePhone,
+        }}
+        onClose={() => setExportCsvModalVisible(false)}
       />
     </SafeAreaView>
   );

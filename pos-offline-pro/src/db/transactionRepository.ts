@@ -493,3 +493,120 @@ export async function deleteTransaction(transactionId: string, restoreStock: boo
     await db.runAsync("DELETE FROM transactions WHERE id = ?;", [transactionId]);
   });
 }
+
+export interface TransactionExportFilter {
+  periodType: "ALL" | "TODAY" | "DATE" | "MONTH_YEAR" | "CUSTOM";
+  selectedDate?: string; // YYYY-MM-DD
+  selectedYear?: number; // e.g. 2026
+  selectedMonth?: number; // 1-12
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+}
+
+export interface TransactionExportData {
+  transactions: (Transaction & { items_summary: string })[];
+  summary: {
+    totalOmset: number;
+    totalHpp: number;
+    totalLaba: number;
+    totalDiscount: number;
+    totalPpn: number;
+    totalCount: number;
+  };
+  periodLabel: string;
+}
+
+/**
+ * Fetch filtered transactions with item details for CSV Export
+ */
+export async function getTransactionsForExport(
+  filter: TransactionExportFilter
+): Promise<TransactionExportData> {
+  return await runInDbQueue(async (db) => {
+    let sql = "SELECT * FROM transactions WHERE is_open_bill = 0";
+    const params: any[] = [];
+    let periodLabel = "Semua Data Transaksi";
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+
+    if (filter.periodType === "TODAY") {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      sql += " AND substr(created_at, 1, 10) = ?";
+      params.push(todayStr);
+      periodLabel = `Hari Ini (${todayStr})`;
+    } else if (filter.periodType === "DATE" && filter.selectedDate) {
+      sql += " AND substr(created_at, 1, 10) = ?";
+      params.push(filter.selectedDate);
+      periodLabel = `Tanggal ${filter.selectedDate}`;
+    } else if (filter.periodType === "MONTH_YEAR") {
+      const yr = filter.selectedYear || new Date().getFullYear();
+      const mo = filter.selectedMonth || (new Date().getMonth() + 1);
+      const monthPrefix = `${yr}-${pad(mo)}`;
+      sql += " AND substr(created_at, 1, 7) = ?";
+      params.push(monthPrefix);
+
+      const monthNames = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ];
+      periodLabel = `Bulan ${monthNames[mo - 1]} ${yr}`;
+    } else if (filter.periodType === "CUSTOM") {
+      const start = filter.startDate || "2000-01-01";
+      const end = filter.endDate || "2099-12-31";
+      sql += " AND substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?";
+      params.push(start, end);
+      periodLabel = `Rentang ${start} s/d ${end}`;
+    }
+
+    sql += " ORDER BY created_at DESC;";
+
+    const transactions = await db.getAllAsync<Transaction>(sql, params);
+
+    let totalOmset = 0;
+    let totalHpp = 0;
+    let totalLaba = 0;
+    let totalDiscount = 0;
+    let totalPpn = 0;
+
+    const enrichedTransactions: (Transaction & { items_summary: string })[] = [];
+
+    for (const trx of transactions) {
+      totalOmset += trx.omset || 0;
+      totalHpp += trx.total_hpp || 0;
+      totalLaba += trx.laba_kotor || 0;
+      totalDiscount += trx.discount_amount || 0;
+      totalPpn += trx.ppn_amount || 0;
+
+      const details = await db.getAllAsync<TransactionDetail>(
+        "SELECT * FROM transaction_details WHERE transaction_id = ? ORDER BY id ASC;",
+        [trx.id]
+      );
+
+      const itemsStr = details
+        .map(
+          (d) =>
+            `${d.product_name}${d.variant_name ? " (" + d.variant_name + ")" : ""} (${d.qty} ${d.unit || "pcs"} @ Rp ${d.harga_jual.toLocaleString("id-ID")})`
+        )
+        .join("; ");
+
+      enrichedTransactions.push({
+        ...trx,
+        items_summary: itemsStr || "-",
+      });
+    }
+
+    return {
+      transactions: enrichedTransactions,
+      summary: {
+        totalOmset,
+        totalHpp,
+        totalLaba,
+        totalDiscount,
+        totalPpn,
+        totalCount: transactions.length,
+      },
+      periodLabel,
+    };
+  });
+}

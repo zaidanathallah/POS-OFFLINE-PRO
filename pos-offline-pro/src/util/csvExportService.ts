@@ -78,6 +78,117 @@ export async function exportReportToCSV(
   }
 }
 
+export interface StoreProfileInfo {
+  storeName?: string;
+  storeBusinessType?: string;
+  storeAddress?: string;
+  storePhone?: string;
+}
+
+/**
+ * Detailed Transaction History CSV Exporter with Customer, Items, Cashier, Taxes, and Margins
+ */
+export async function exportTransactionsDetailedCSV(
+  exportData: {
+    transactions: (Transaction & { items_summary?: string })[];
+    summary: {
+      totalOmset: number;
+      totalHpp: number;
+      totalLaba: number;
+      totalDiscount: number;
+      totalPpn: number;
+      totalCount: number;
+    };
+    periodLabel: string;
+  },
+  storeProfile: StoreProfileInfo = {}
+): Promise<{ success: boolean; fileName?: string; error?: string }> {
+  try {
+    const { transactions, summary, periodLabel } = exportData;
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const safePeriod = periodLabel.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const fileName = `Laporan_Transaksi_${safePeriod}_${dateStr}_${timeStr}.csv`;
+
+    const storeName = storeProfile.storeName || "POS Offline Pro";
+    const storeAddress = storeProfile.storeAddress || "-";
+    const storePhone = storeProfile.storePhone || "-";
+
+    let csv = `LAPORAN RIWAYAT TRANSAKSI PENJUALAN - POS OFFLINE PRO\n`;
+    csv += `Nama Toko;${storeName}\n`;
+    csv += `Alamat;${storeAddress}\n`;
+    csv += `No. Telepon / WA;${storePhone}\n`;
+    csv += `Periode Export;${periodLabel}\n`;
+    csv += `Waktu Download;${now.toLocaleDateString("id-ID")}, ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}\n\n`;
+
+    // Ringkasan Keuangan
+    const marginPercent =
+      summary.totalOmset > 0
+        ? ((summary.totalLaba / summary.totalOmset) * 100).toFixed(1)
+        : "0";
+    csv += `RINGKASAN KEUANGAN\n`;
+    csv += `Total Transaksi;${summary.totalCount}\n`;
+    csv += `Total Omset (Gross Sales);Rp ${summary.totalOmset.toLocaleString("id-ID")}\n`;
+    csv += `Total Modal HPP (COGS);Rp ${summary.totalHpp.toLocaleString("id-ID")}\n`;
+    csv += `Total Laba Kotor (Net Profit);Rp ${summary.totalLaba.toLocaleString("id-ID")}\n`;
+    csv += `Margin Keuntungan;${marginPercent}%\n`;
+    csv += `Total PPN Terkumpul;Rp ${summary.totalPpn.toLocaleString("id-ID")}\n`;
+    csv += `Total Potongan Diskon / Promo;Rp ${summary.totalDiscount.toLocaleString("id-ID")}\n\n`;
+
+    // Detail Tabel
+    csv += `DAFTAR DETAIL TRANSAKSI\n`;
+    csv += `No;No. Invoice / ID;Tanggal & Jam Transaksi;Kasir / Shift;Metode Bayar;Pelanggan;No. Meja;Subtotal Sebelum Pajak (Rp);Diskon (Rp);Nama Promo;PPN (%);Nominal PPN (Rp);Total Omset / Grand Total (Rp);Modal HPP (Rp);Laba Kotor (Rp);Uang Diterima (Rp);Kembalian (Rp);Rincian Produk & Qty\n`;
+
+    transactions.forEach((trx, idx) => {
+      const txDate = new Date(trx.created_at);
+      const timeFormatted = `${txDate.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}, ${pad(txDate.getHours())}:${pad(txDate.getMinutes())}:${pad(txDate.getSeconds())}`;
+
+      const itemsEscaped = `"${(trx.items_summary || "-").replace(/"/g, '""')}"`;
+      const custEscaped = `"${(trx.customer_name || "-").replace(/"/g, '""')}"`;
+      const promoEscaped = `"${(trx.promo_name || "-").replace(/"/g, '""')}"`;
+
+      csv += `${idx + 1};${trx.invoice_no || trx.id};${timeFormatted};${trx.cashier_name || "Kasir 1"};${trx.payment_method || "CASH"};${custEscaped};${trx.table_number || "-"};${trx.subtotal_before_tax || 0};${trx.discount_amount || 0};${promoEscaped};${trx.ppn_percent || 0};${trx.ppn_amount || 0};${trx.omset};${trx.total_hpp || 0};${trx.laba_kotor || 0};${trx.cash_tendered || trx.omset};${trx.change_amount || 0};${itemsEscaped}\n`;
+    });
+
+    if (Platform.OS === "web") {
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return { success: true, fileName };
+    } else {
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, "\ufeff" + csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: `Export Laporan Transaksi (${periodLabel})`,
+          UTI: "public.comma-separated-values-text",
+        });
+      }
+      return { success: true, fileName };
+    }
+  } catch (error: any) {
+    console.error("Export Detailed Transaction CSV Error:", error);
+    return { success: false, error: error.message || "Gagal mengunduh CSV." };
+  }
+}
+
 import { StockMovement } from "@/db";
 
 export async function exportStockMovementsToCSV(
