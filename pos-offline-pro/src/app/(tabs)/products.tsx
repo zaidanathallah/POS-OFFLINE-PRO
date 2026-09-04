@@ -16,6 +16,7 @@ import { ProductFormModal } from "@/components/ProductFormModal";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
+import { ProductImage } from "@/components/ProductImage";
 import { useSecureAction } from "@/hooks/useSecureAction";
 import { Product } from "@/db";
 import {
@@ -422,19 +423,15 @@ export default function ProductsScreen() {
 
                 {/* Product Main Info with Image Thumbnail */}
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 4 }}>
-                  {product.image_uri ? (
-                    <Image
-                      source={{ uri: product.image_uri }}
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 12,
-                        marginRight: 12,
-                        backgroundColor: "#f4f4f5",
-                      }}
-                      resizeMode="cover"
+                  <View style={{ marginRight: 12 }}>
+                    <ProductImage
+                      uri={product.image_uri}
+                      name={product.name}
+                      category={product.category}
+                      size={48}
+                      borderRadius={12}
                     />
-                  ) : null}
+                  </View>
 
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: "700", color: "#18181b" }}>

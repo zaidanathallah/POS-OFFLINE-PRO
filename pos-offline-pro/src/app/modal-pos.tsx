@@ -41,6 +41,7 @@ import { User, Percent, UserCheck } from "lucide-react-native";
 import { OpenBillManagerModal } from "@/components/pos/OpenBillManagerModal";
 import { QuickRestockModal } from "@/components/pos/QuickRestockModal";
 import { ReceiptModal } from "@/components/ReceiptModal";
+import { ProductImage } from "@/components/ProductImage";
 import {
   Search,
   Barcode,
@@ -791,24 +792,15 @@ export default function PosModalScreen() {
                     )}
 
                     {/* Product Image */}
-                    <View
-                      style={{
-                        width: 68,
-                        height: 68,
-                        borderRadius: 14,
-                        backgroundColor: isOutOfStock ? "#FEE2E2" : "#F5F3EF",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: 8,
-                        overflow: "hidden",
-                        opacity: isOutOfStock ? 0.65 : 1,
-                      }}
-                    >
-                      {p.image_uri ? (
-                        <Image source={{ uri: p.image_uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-                      ) : (
-                        <Package size={26} color={isOutOfStock ? "#DC2626" : "#A8A29E"} />
-                      )}
+                    <View style={{ marginBottom: 8 }}>
+                      <ProductImage
+                        uri={p.image_uri}
+                        name={p.name}
+                        category={p.category}
+                        size={68}
+                        borderRadius={14}
+                        isOutOfStock={isOutOfStock}
+                      />
                     </View>
 
                     {/* Product Name */}

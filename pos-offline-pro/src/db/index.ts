@@ -11,6 +11,29 @@ let dbInstance: SQLite.SQLiteDatabase | null = null;
 let dbInitPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let queuePromise: Promise<any> = Promise.resolve();
 
+/**
+ * Returns ISO string in Device Local Time (e.g. "2026-09-05T05:50:08")
+ * Prevents UTC timezone discrepancies on early morning transactions in WIB/WITA/WIT.
+ */
+export function getLocalISODateTime(date: Date = new Date()): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Returns "YYYY-MM-DD" in Device Local Time
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export interface ProductVariant {
   id: string;
   name: string;
@@ -405,6 +428,24 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
         [key, value]
       );
     }
+  }
+
+  // Normalize created_at for transactions if stored in UTC format to local time string
+  try {
+    const rawTrx = await db.getAllAsync<{ id: string; invoice_no: string | null; created_at: string }>(
+      "SELECT id, invoice_no, created_at FROM transactions WHERE created_at LIKE '%Z' OR created_at LIKE '%+00:00';"
+    );
+    for (const t of rawTrx) {
+      if (t.created_at) {
+        const d = new Date(t.created_at);
+        if (!isNaN(d.getTime())) {
+          const localStr = getLocalISODateTime(d);
+          await db.runAsync("UPDATE transactions SET created_at = ? WHERE id = ?;", [localStr, t.id]);
+        }
+      }
+    }
+  } catch (err) {
+    console.log("Timezone normalization notice:", err);
   }
 
   // Seed sample promos if table is empty

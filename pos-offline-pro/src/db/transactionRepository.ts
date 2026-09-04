@@ -1,7 +1,7 @@
 /**
  * Transaction Repository - Atomic Checkout, History Queries & CRUD (SQLite)
  */
-import { runInDbQueue, Transaction, TransactionDetail } from "./index";
+import { runInDbQueue, Transaction, TransactionDetail, getLocalISODateTime, getLocalDateString } from "./index";
 import { CartItem } from "@/stores/useCartStore";
 import { recordCustomerTransaction } from "./customerRepository";
 import { recordStockMovement } from "./stockMovementRepository";
@@ -51,7 +51,7 @@ export async function processCheckout(input: CheckoutInput): Promise<CheckoutRes
     const randomSuffix = String(Math.floor(100 + Math.random() * 900));
     const invoiceNo = `INV-${yy}${mm}${dd}-${randomSuffix}`;
     const transactionId = `TRX-${Date.now()}-${randomSuffix}`;
-    const createdAt = now.toISOString();
+    const createdAt = getLocalISODateTime(now);
 
     const newTransaction: Transaction = {
       id: transactionId,
@@ -345,8 +345,8 @@ export async function createManualTransaction(data: {
     const dd = String(now.getDate()).padStart(2, "0");
     const randomSuffix = String(Math.floor(100 + Math.random() * 900));
     const invoiceNo = `INV-${yy}${mm}${dd}-${randomSuffix}`;
-    const transactionId = `TRX-MNL-${Date.now()}-${randomSuffix}`;
-    const createdAt = now.toISOString();
+    const transactionId = `TRX-MANUAL-${Date.now()}-${randomSuffix}`;
+    const createdAt = data.customDate ? `${data.customDate}T12:00:00` : getLocalISODateTime(now);
 
     const rawSubtotal = data.qty * data.hargaJual;
     const discount = data.discountAmount || 0;
@@ -531,20 +531,24 @@ export async function getTransactionsForExport(
 
     if (filter.periodType === "TODAY") {
       const now = new Date();
-      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      sql += " AND substr(created_at, 1, 10) = ?";
-      params.push(todayStr);
+      const todayStr = getLocalDateString(now);
+      const invPrefix = `INV-${todayStr.replace(/-/g, "").slice(2)}%`;
+      sql += " AND (substr(created_at, 1, 10) = ? OR invoice_no LIKE ?)";
+      params.push(todayStr, invPrefix);
       periodLabel = `Hari Ini (${todayStr})`;
     } else if (filter.periodType === "DATE" && filter.selectedDate) {
-      sql += " AND substr(created_at, 1, 10) = ?";
-      params.push(filter.selectedDate);
-      periodLabel = `Tanggal ${filter.selectedDate}`;
+      const dStr = filter.selectedDate.trim();
+      const invPrefix = `INV-${dStr.replace(/-/g, "").slice(2)}%`;
+      sql += " AND (substr(created_at, 1, 10) = ? OR invoice_no LIKE ?)";
+      params.push(dStr, invPrefix);
+      periodLabel = `Tanggal ${dStr}`;
     } else if (filter.periodType === "MONTH_YEAR") {
       const yr = filter.selectedYear || new Date().getFullYear();
       const mo = filter.selectedMonth || (new Date().getMonth() + 1);
       const monthPrefix = `${yr}-${pad(mo)}`;
-      sql += " AND substr(created_at, 1, 7) = ?";
-      params.push(monthPrefix);
+      const invPrefix = `INV-${String(yr).slice(2)}${pad(mo)}%`;
+      sql += " AND (substr(created_at, 1, 7) = ? OR invoice_no LIKE ?)";
+      params.push(monthPrefix, invPrefix);
 
       const monthNames = [
         "Januari", "Februari", "Maret", "April", "Mei", "Juni",

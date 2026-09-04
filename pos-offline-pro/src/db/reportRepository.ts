@@ -1,4 +1,4 @@
-import { runInDbQueue, Transaction } from "./index";
+import { runInDbQueue, Transaction, getLocalDateString, getLocalISODateTime } from "./index";
 
 export type ReportPeriod = "today" | "7days" | "30days" | "custom";
 
@@ -50,33 +50,36 @@ function getPeriodCondition(
   const now = new Date();
 
   if (period === "today") {
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = getLocalDateString(now);
+    const invPrefix = `INV-${todayStr.replace(/-/g, "").slice(2)}%`;
     return {
-      whereClause: "is_open_bill = 0 AND created_at LIKE ?",
-      params: [`${todayStr}%`],
+      whereClause: "is_open_bill = 0 AND (substr(created_at, 1, 10) = ? OR invoice_no LIKE ?)",
+      params: [todayStr, invPrefix],
     };
   }
 
   if (period === "7days") {
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const start7Str = getLocalDateString(sevenDaysAgo);
     return {
-      whereClause: "is_open_bill = 0 AND created_at >= ?",
-      params: [sevenDaysAgo.toISOString()],
+      whereClause: "is_open_bill = 0 AND substr(created_at, 1, 10) >= ?",
+      params: [start7Str],
     };
   }
 
   if (period === "30days") {
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    const start30Str = getLocalDateString(thirtyDaysAgo);
     return {
-      whereClause: "is_open_bill = 0 AND created_at >= ?",
-      params: [thirtyDaysAgo.toISOString()],
+      whereClause: "is_open_bill = 0 AND substr(created_at, 1, 10) >= ?",
+      params: [start30Str],
     };
   }
 
   if (period === "custom" && customStartDate && customEndDate) {
     return {
-      whereClause: "is_open_bill = 0 AND created_at >= ? AND created_at <= ?",
-      params: [`${customStartDate}T00:00:00.000Z`, `${customEndDate}T23:59:59.999Z`],
+      whereClause: "is_open_bill = 0 AND substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?",
+      params: [customStartDate, customEndDate],
     };
   }
 
@@ -147,8 +150,10 @@ export async function getFinancialSummary(
  */
 export async function getYesterdaySummary(): Promise<{ omset: number; labaKotor: number }> {
   return await runInDbQueue(async (db) => {
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const yStr = yesterday.toISOString().split("T")[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = getLocalDateString(yesterday);
+    const yInvPrefix = `INV-${yStr.replace(/-/g, "").slice(2)}%`;
 
     const row = await db.getFirstAsync<{
       total_omset: number | null;
@@ -156,8 +161,8 @@ export async function getYesterdaySummary(): Promise<{ omset: number; labaKotor:
     }>(
       `SELECT SUM(omset) as total_omset, SUM(laba_kotor) as total_laba 
        FROM transactions 
-       WHERE is_open_bill = 0 AND created_at LIKE ?;`,
-      [`${yStr}%`]
+       WHERE is_open_bill = 0 AND (substr(created_at, 1, 10) = ? OR invoice_no LIKE ?);`,
+      [yStr, yInvPrefix]
     );
 
     return {
@@ -173,9 +178,11 @@ export async function getYesterdaySummary(): Promise<{ omset: number; labaKotor:
 export async function getCurrentMonthSummary(): Promise<FinancialSummary> {
   return await runInDbQueue(async (db) => {
     const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const month = pad(now.getMonth() + 1);
     const monthPrefix = `${year}-${month}`;
+    const invPrefix = `INV-${String(year).slice(2)}${month}%`;
 
     const row = await db.getFirstAsync<{
       total_omset: number | null;
@@ -189,8 +196,8 @@ export async function getCurrentMonthSummary(): Promise<FinancialSummary> {
          SUM(laba_kotor) as total_laba,
          COUNT(*) as total_transactions
        FROM transactions 
-       WHERE is_open_bill = 0 AND created_at LIKE ?;`,
-      [`${monthPrefix}%`]
+       WHERE is_open_bill = 0 AND (substr(created_at, 1, 7) = ? OR invoice_no LIKE ?);`,
+      [monthPrefix, invPrefix]
     );
 
     const omset = row?.total_omset || 0;
@@ -224,8 +231,9 @@ export async function getDailyTrend7Days(): Promise<DailyTrendItem[]> {
     const now = new Date();
 
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dateStr = d.toISOString().split("T")[0];
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = getLocalDateString(d);
+      const invPrefix = `INV-${dateStr.replace(/-/g, "").slice(2)}%`;
       const dayOfWeek = d.getDay();
       const isToday = i === 0;
 
@@ -239,8 +247,8 @@ export async function getDailyTrend7Days(): Promise<DailyTrendItem[]> {
            SUM(laba_kotor) as daily_laba,
            COUNT(*) as daily_count
          FROM transactions 
-         WHERE is_open_bill = 0 AND created_at LIKE ?;`,
-        [`${dateStr}%`]
+         WHERE is_open_bill = 0 AND (substr(created_at, 1, 10) = ? OR invoice_no LIKE ?);`,
+        [dateStr, invPrefix]
       );
 
       results.push({

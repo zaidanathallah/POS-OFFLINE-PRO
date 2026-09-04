@@ -23,6 +23,30 @@ export interface ImportResult {
 }
 
 /**
+ * Helper to ensure local file images are converted to standalone base64 Data URLs
+ */
+async function convertUriToBase64(uri?: string | null): Promise<string | null> {
+  if (!uri) return null;
+  if (uri.startsWith("data:image/")) return uri; // Already base64
+  if (Platform.OS === "web") return uri;
+
+  try {
+    if (uri.startsWith("file://") || uri.startsWith("/")) {
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (fileInfo.exists) {
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:image/jpeg;base64,${base64}`;
+      }
+    }
+  } catch (err) {
+    console.log("convertUriToBase64 error:", err);
+  }
+  return uri;
+}
+
+/**
  * Exports all tables with compressed base64 images to JSON or native SQLite file
  */
 export async function exportDatabaseBackup(): Promise<ExportResult> {
@@ -86,17 +110,33 @@ export async function exportDatabaseBackup(): Promise<ExportResult> {
     }
   }
 
-  // Native Mobile export (Generates JSON or DB copy with sharing)
+  // Native Mobile export (Generates JSON with standalone base64 images)
   try {
     const backupData = await runInDbQueue(async (db) => {
       const categories = await db.getAllAsync("SELECT * FROM categories;");
-      const products = await db.getAllAsync("SELECT * FROM products;");
+      const rawProducts = await db.getAllAsync<any>("SELECT * FROM products;");
+      const products = await Promise.all(
+        rawProducts.map(async (p) => ({
+          ...p,
+          image_uri: await convertUriToBase64(p.image_uri),
+        }))
+      );
+
       const promos = await db.getAllAsync("SELECT * FROM promos;");
       const transactions = await db.getAllAsync("SELECT * FROM transactions;");
       const transactionDetails = await db.getAllAsync("SELECT * FROM transaction_details;");
       const customers = await db.getAllAsync("SELECT * FROM customers;");
       const stockMovements = await db.getAllAsync("SELECT * FROM stock_movements;");
-      const settings = await db.getAllAsync("SELECT * FROM settings;");
+      const rawSettings = await db.getAllAsync<any>("SELECT * FROM settings;");
+      const settings = await Promise.all(
+        rawSettings.map(async (s) => ({
+          ...s,
+          value:
+            s.key === "store_logo" || s.key === "store_qris"
+              ? (await convertUriToBase64(s.value)) || s.value
+              : s.value,
+        }))
+      );
 
       return {
         version: "1.0",
