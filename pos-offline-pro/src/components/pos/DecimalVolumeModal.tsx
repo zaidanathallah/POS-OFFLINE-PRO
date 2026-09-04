@@ -5,8 +5,7 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
-  TouchableWithoutFeedback,
-  Keyboard,
+  StyleSheet,
 } from "react-native";
 import { Product } from "@/db";
 import { formatRupiah } from "@/util/formatters";
@@ -60,206 +59,228 @@ export function DecimalVolumeModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 20 }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.65)", padding: 20 }}>
+        {/* Backdrop click to close */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 380,
+            backgroundColor: "#ffffff",
+            borderRadius: 24,
+            padding: 24,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 5,
+            zIndex: 10,
+          }}
+        >
+          {/* Title & Subtitle */}
+          <Text style={{ textAlign: "center", fontSize: 18, fontWeight: "700", color: "#18181b" }}>
+            {product.name}
+          </Text>
+          <Text style={{ textAlign: "center", fontSize: 12, color: "#71717a", marginTop: 2 }}>
+            Stok tersedia: {product.stock} {unit}
+          </Text>
+
+          {/* Mode Switcher: Volume vs Nominal */}
           <View
             style={{
-              width: "100%",
-              maxWidth: 360,
-              backgroundColor: "#ffffff",
-              borderRadius: 24,
-              padding: 24,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 10,
-              elevation: 5,
+              flexDirection: "row",
+              marginTop: 16,
+              padding: 4,
+              backgroundColor: "#f4f4f5",
+              borderRadius: 14,
             }}
           >
-            {/* Title & Subtitle */}
-            <Text style={{ textAlign: "center", fontSize: 18, fontWeight: "700", color: "#18181b" }}>
-              {product.name}
-            </Text>
-            <Text style={{ textAlign: "center", fontSize: 12, color: "#71717a", marginTop: 2 }}>
-              Stok tersedia: {product.stock} {unit}
-            </Text>
-
-            {/* Mode Switcher: Volume vs Nominal */}
-            <View
+            <TouchableOpacity
+              onPress={() => setTab("volume")}
+              activeOpacity={0.8}
               style={{
-                flexDirection: "row",
-                marginTop: 16,
-                padding: 4,
-                backgroundColor: "#f4f4f5",
-                borderRadius: 14,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => setTab("volume")}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: tab === "volume" ? "#0097A7" : "transparent",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: tab === "volume" ? "#ffffff" : "#52525b",
-                  }}
-                >
-                  Volume
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setTab("nominal")}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: tab === "nominal" ? "#0097A7" : "transparent",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: tab === "nominal" ? "#ffffff" : "#52525b",
-                  }}
-                >
-                  Nominal
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Input Box */}
-            <View style={{ marginTop: 16 }}>
-              {tab === "volume" ? (
-                <View
-                  style={{
-                    backgroundColor: "#f9fafb",
-                    borderWidth: 1,
-                    borderColor: "#e5e7eb",
-                    borderRadius: 16,
-                    padding: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <TextInput
-                    value={volumeInput}
-                    onChangeText={setVolumeInput}
-                    keyboardType="numeric"
-                    placeholder="cth: 0.5"
-                    placeholderTextColor="#a1a1aa"
-                    style={{ fontSize: 24, fontWeight: "800", color: "#18181b", textAlign: "center", width: "100%" }}
-                    autoFocus
-                  />
-                </View>
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: "#f9fafb",
-                    borderWidth: 1,
-                    borderColor: "#e5e7eb",
-                    borderRadius: 16,
-                    padding: 12,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <TextInput
-                    value={nominalInput}
-                    onChangeText={setNominalInput}
-                    keyboardType="number-pad"
-                    placeholder="cth: 20000"
-                    placeholderTextColor="#a1a1aa"
-                    style={{ fontSize: 24, fontWeight: "800", color: "#18181b", textAlign: "center", width: "100%" }}
-                    autoFocus
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Calculated Calculation Result Note */}
-            <View
-              style={{
-                marginTop: 12,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                backgroundColor: "#ecfeff",
+                flex: 1,
+                paddingVertical: 8,
+                borderRadius: 10,
                 alignItems: "center",
                 justifyContent: "center",
+                backgroundColor: tab === "volume" ? "#0097A7" : "transparent",
               }}
             >
-              {tab === "volume" ? (
-                <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
-                  {volumeInput || "0"} {unit} x {formatRupiah(price)} ={" "}
-                  <Text style={{ fontWeight: "800", color: "#0097A7" }}>
-                    {formatRupiah(calculatedNominalFromVol)}
-                  </Text>
-                </Text>
-              ) : (
-                <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
-                  {calculatedVolumeFromNom} {unit} x {formatRupiah(price)} ={" "}
-                  <Text style={{ fontWeight: "800", color: "#0097A7" }}>
-                    {formatRupiah(numericNominal)}
-                  </Text>
-                </Text>
-              )}
-            </View>
-
-            {/* Buttons */}
-            <View style={{ flexDirection: "row", marginTop: 20 }}>
-              <TouchableOpacity
-                onPress={onClose}
-                activeOpacity={0.7}
+              <Text
                 style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor: "#f4f4f5",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 8,
-                  borderWidth: 1,
-                  borderColor: "#e4e4e7",
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: tab === "volume" ? "#ffffff" : "#52525b",
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#52525b" }}>
-                  Batal
-                </Text>
-              </TouchableOpacity>
+                Volume
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleSave}
-                activeOpacity={0.8}
+            <TouchableOpacity
+              onPress={() => setTab("nominal")}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                paddingVertical: 8,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: tab === "nominal" ? "#0097A7" : "transparent",
+              }}
+            >
+              <Text
                 style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor: "#0097A7",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginLeft: 8,
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: tab === "nominal" ? "#ffffff" : "#52525b",
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Simpan</Text>
-              </TouchableOpacity>
-            </View>
+                Nominal
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Input Box */}
+          <View style={{ marginTop: 16 }}>
+            {tab === "volume" ? (
+              <View
+                style={{
+                  backgroundColor: "#f9fafb",
+                  borderWidth: 1.5,
+                  borderColor: "#0097A7",
+                  borderRadius: 16,
+                  padding: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <TextInput
+                  value={volumeInput}
+                  onChangeText={setVolumeInput}
+                  keyboardType="numeric"
+                  placeholder="cth: 0.5"
+                  placeholderTextColor="#a1a1aa"
+                  selectTextOnFocus
+                  editable={true}
+                  style={{
+                    fontSize: 24,
+                    fontWeight: "800",
+                    color: "#18181b",
+                    textAlign: "center",
+                    width: "100%",
+                  }}
+                  autoFocus
+                />
+              </View>
+            ) : (
+              <View
+                style={{
+                  backgroundColor: "#f9fafb",
+                  borderWidth: 1.5,
+                  borderColor: "#0097A7",
+                  borderRadius: 16,
+                  padding: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <TextInput
+                  value={nominalInput}
+                  onChangeText={setNominalInput}
+                  keyboardType="number-pad"
+                  placeholder="cth: 20000"
+                  placeholderTextColor="#a1a1aa"
+                  selectTextOnFocus
+                  editable={true}
+                  style={{
+                    fontSize: 24,
+                    fontWeight: "800",
+                    color: "#18181b",
+                    textAlign: "center",
+                    width: "100%",
+                  }}
+                  autoFocus
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Calculated Calculation Result Note */}
+          <View
+            style={{
+              marginTop: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 12,
+              backgroundColor: "#ecfeff",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {tab === "volume" ? (
+              <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
+                {volumeInput || "0"} {unit} x {formatRupiah(price)} ={" "}
+                <Text style={{ fontWeight: "800", color: "#0097A7" }}>
+                  {formatRupiah(calculatedNominalFromVol)}
+                </Text>
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 12, color: "#3f3f46", fontWeight: "600" }}>
+                {calculatedVolumeFromNom} {unit} x {formatRupiah(price)} ={" "}
+                <Text style={{ fontWeight: "800", color: "#0097A7" }}>
+                  {formatRupiah(numericNominal)}
+                </Text>
+              </Text>
+            )}
+          </View>
+
+          {/* Buttons */}
+          <View style={{ flexDirection: "row", marginTop: 20 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                borderRadius: 14,
+                backgroundColor: "#f4f4f5",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 8,
+                borderWidth: 1,
+                borderColor: "#e4e4e7",
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#52525b" }}>
+                Batal
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSave}
+              activeOpacity={0.8}
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                borderRadius: 14,
+                backgroundColor: "#0097A7",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: 8,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Simpan</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
