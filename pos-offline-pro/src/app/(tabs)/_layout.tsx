@@ -1,6 +1,7 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { useColorScheme, View, Platform, Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   LayoutDashboard,
   Package,
@@ -12,18 +13,23 @@ import { useThemeStore } from "@/stores/useThemeStore";
 export default function TabLayout() {
   const { isDark } = useThemeStore();
   const systemTheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const activeDark = isDark ?? (systemTheme === "dark");
 
   const activeColor = "#0097A7";
   const inactiveColor = activeDark ? "#94a3b8" : "#64748b";
 
-  // Glassmorphic translucent colors ala iPhone
+  // Glassmorphic translucent colors
   const glassBgColor = activeDark
-    ? "rgba(18, 18, 20, 0.88)"
-    : "rgba(255, 255, 255, 0.88)";
+    ? "rgba(18, 18, 20, 0.96)"
+    : "rgba(255, 255, 255, 0.96)";
   const glassBorderColor = activeDark
-    ? "rgba(255, 255, 255, 0.1)"
+    ? "rgba(255, 255, 255, 0.12)"
     : "rgba(0, 0, 0, 0.08)";
+
+  // Ensure ample bottom clearance so tab bar is NEVER squished with Android 3-button / gesture bar
+  const bottomInset = Math.max(insets.bottom, Platform.OS === "android" ? 18 : 0);
+  const tabHeight = (Platform.OS === "ios" ? 60 : 58) + bottomInset;
 
   return (
     <Tabs
@@ -40,13 +46,13 @@ export default function TabLayout() {
           backgroundColor: glassBgColor,
           borderTopColor: glassBorderColor,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 82 : 66,
-          paddingBottom: Platform.OS === "ios" ? 22 : 8,
+          height: tabHeight,
+          paddingBottom: bottomInset > 0 ? bottomInset + 4 : 8,
           paddingTop: 6,
-          elevation: 12,
+          elevation: 16,
           shadowColor: "#000000",
           shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
+          shadowOpacity: 0.1,
           shadowRadius: 10,
           // Web blur support
           ...(Platform.OS === "web"

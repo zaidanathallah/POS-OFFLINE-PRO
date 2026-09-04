@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,11 @@ import {
   Alert,
   Image,
   useWindowDimensions,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { ReceiptData, printBluetoothReceipt58mm } from "@/util/printerService";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import {
@@ -36,6 +40,9 @@ export function ReceiptModal({
   const isShortScreen = height < 500;
   const isSmallScreen = height < 750 || width < 400;
 
+  const receiptCaptureRef = useRef<View>(null);
+  const [isSharing, setIsSharing] = useState(false);
+
   if (!receiptData) return null;
 
   const handlePrint = async () => {
@@ -50,7 +57,28 @@ export function ReceiptModal({
   };
 
   const handleShare = async () => {
+    if (isSharing) return;
     try {
+      setIsSharing(true);
+      if (receiptCaptureRef.current) {
+        const uri = await captureRef(receiptCaptureRef, {
+          format: "png",
+          quality: 1.0,
+          result: "tmpfile",
+        });
+
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(uri, {
+            mimeType: "image/png",
+            dialogTitle: `Struk Transaksi ${receiptData.invoiceNumber}`,
+            UTI: "public.png",
+          });
+          return;
+        }
+      }
+
+      // Fallback jika capture/expo-sharing tidak tersedia pada platform
       let content = `--------------------------------\n`;
       content += `        ${(receiptData.storeName || "POS OFFLINE PRO").toUpperCase()}\n`;
       if (receiptData.businessType) {
@@ -111,7 +139,9 @@ export function ReceiptModal({
         title: `Struk Transaksi ${receiptData.invoiceNumber}`,
       });
     } catch (error: any) {
-      Alert.alert("Gagal Berbagi", error.message);
+      Alert.alert("Gagal Berbagi Struk", error.message || "Terjadi kendala saat membagikan gambar struk.");
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -166,7 +196,7 @@ export function ReceiptModal({
                 Transaksi Berhasil!
               </Text>
               <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
-                Struk 58mm siap dicetak via Bluetooth
+                Struk 58mm siap dicetak via Bluetooth / Dibagikan sebagai Gambar
               </Text>
             </View>
 
@@ -175,7 +205,7 @@ export function ReceiptModal({
               style={{
                 backgroundColor: "#ffffff",
                 borderRadius: 12,
-                padding: 14,
+                padding: 10,
                 borderWidth: 1,
                 borderColor: "#e4e4e7",
                 maxHeight: isShortScreen ? 160 : (isSmallScreen ? 280 : 360),
@@ -187,172 +217,183 @@ export function ReceiptModal({
               }}
             >
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* 1. Header with Logo (Gambar 2 & Gambar 3) */}
-                {receiptData.storeLogoUri ? (
-                  <View style={{ alignItems: "center", marginBottom: 6 }}>
-                    <Image
-                      source={{ uri: receiptData.storeLogoUri }}
-                      style={{ width: 46, height: 46, borderRadius: 8 }}
-                      resizeMode="contain"
-                    />
+                {/* Captured View Container for High Quality Struk Image */}
+                <View
+                  ref={receiptCaptureRef}
+                  collapsable={false}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    paddingHorizontal: 8,
+                    paddingVertical: 10,
+                  }}
+                >
+                  {/* 1. Header with Logo */}
+                  {receiptData.storeLogoUri ? (
+                    <View style={{ alignItems: "center", marginBottom: 6 }}>
+                      <Image
+                        source={{ uri: receiptData.storeLogoUri }}
+                        style={{ width: 50, height: 50, borderRadius: 8 }}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  ) : null}
+
+                  <Text style={{ textAlign: "center", fontSize: 13, fontWeight: "900", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#18181b" }}>
+                    {(receiptData.storeName || "POS OFFLINE PRO").toUpperCase()}
+                  </Text>
+
+                  {receiptData.businessType ? (
+                    <Text style={{ textAlign: "center", fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b", marginTop: 1 }}>
+                      {receiptData.businessType.toUpperCase()}
+                    </Text>
+                  ) : null}
+
+                  {receiptData.storeAddress ? (
+                    <Text style={{ textAlign: "center", fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b", marginTop: 1 }}>
+                      {receiptData.storeAddress.toUpperCase()}
+                    </Text>
+                  ) : null}
+
+                  {receiptData.storePhone ? (
+                    <Text style={{ textAlign: "center", fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b", marginTop: 1 }}>
+                      TELP : {receiptData.storePhone}
+                    </Text>
+                  ) : null}
+
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
+
+                  {/* 2. Metadata (Bon & Kasir) */}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>
+                      Bon {receiptData.invoiceNumber}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>
+                      Kasir : {(receiptData.cashierName || "KASIR 1").toUpperCase()}
+                    </Text>
                   </View>
-                ) : null}
 
-                <Text style={{ textAlign: "center", fontSize: 13, fontWeight: "900", fontFamily: "monospace", color: "#18181b" }}>
-                  {(receiptData.storeName || "POS OFFLINE PRO").toUpperCase()}
-                </Text>
-
-                {receiptData.businessType ? (
-                  <Text style={{ textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "#52525b", marginTop: 1 }}>
-                    {receiptData.businessType.toUpperCase()}
-                  </Text>
-                ) : null}
-
-                {receiptData.storeAddress ? (
-                  <Text style={{ textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "#52525b", marginTop: 1 }}>
-                    {receiptData.storeAddress.toUpperCase()}
-                  </Text>
-                ) : null}
-
-                {receiptData.storePhone ? (
-                  <Text style={{ textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "#52525b", marginTop: 1 }}>
-                    TELP : {receiptData.storePhone}
-                  </Text>
-                ) : null}
-
-                <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
-
-                {/* 2. Metadata (Bon & Kasir) */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>
-                    Bon {receiptData.invoiceNumber}
-                  </Text>
-                  <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>
-                    Kasir : {(receiptData.cashierName || "KASIR 1").toUpperCase()}
-                  </Text>
-                </View>
-
-                {receiptData.tableNumber || receiptData.customerName ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>
-                      {receiptData.tableNumber ? `Meja : ${receiptData.tableNumber}` : ""}
-                    </Text>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>
-                      {receiptData.customerName ? `Plg : ${receiptData.customerName}` : ""}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
-
-                {/* 3. Itemized List (Alfamart Standard) */}
-                {receiptData.items.map((item, idx) => (
-                  <View key={idx} style={{ marginBottom: 5 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: "800", fontFamily: "monospace", color: "#18181b", textTransform: "uppercase" }}>
-                      {item.name}
-                    </Text>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", paddingLeft: 8 }}>
-                      <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a", width: 30 }}>
-                        {item.qty}
+                  {receiptData.tableNumber || receiptData.customerName ? (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>
+                        {receiptData.tableNumber ? `Meja : ${receiptData.tableNumber}` : ""}
                       </Text>
-                      <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a", flex: 1, textAlign: "right", paddingRight: 12 }}>
-                        {formatNumber(item.price)}
-                      </Text>
-                      <Text style={{ fontSize: 10, fontFamily: "monospace", fontWeight: "700", color: "#18181b", width: 75, textAlign: "right" }}>
-                        {formatNumber(item.subtotal)}
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>
+                        {receiptData.customerName ? `Plg : ${receiptData.customerName}` : ""}
                       </Text>
                     </View>
-                  </View>
-                ))}
+                  ) : null}
 
-                <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
 
-                {/* 4. Totals Breakdown (Alfamart Standard) */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
-                  <View style={{ flexDirection: "row", gap: 16 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>Total Item</Text>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>{totalQtyCount}</Text>
-                  </View>
-                  <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#18181b" }}>
-                    {formatNumber(rawSubtotal)}
-                  </Text>
-                </View>
+                  {/* 3. Itemized List (Alfamart Standard) */}
+                  {receiptData.items.map((item, idx) => (
+                    <View key={idx} style={{ marginBottom: 5 }}>
+                      <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: "800", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#18181b", textTransform: "uppercase" }}>
+                        {item.name}
+                      </Text>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingLeft: 8 }}>
+                        <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a", width: 30 }}>
+                          {item.qty}
+                        </Text>
+                        <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a", flex: 1, textAlign: "right", paddingRight: 12 }}>
+                          {formatNumber(item.price)}
+                        </Text>
+                        <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "700", color: "#18181b", width: 75, textAlign: "right" }}>
+                          {formatNumber(item.subtotal)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
 
-                {receiptData.discountAmount && receiptData.discountAmount > 0 ? (
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
+
+                  {/* 4. Totals Breakdown (Alfamart Standard) */}
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#16a34a", fontWeight: "700" }}>
-                      Total Disc.
-                    </Text>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#16a34a", fontWeight: "700" }}>
-                      -{formatNumber(receiptData.discountAmount)}
+                    <View style={{ flexDirection: "row", gap: 16 }}>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>Total Item</Text>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>{totalQtyCount}</Text>
+                    </View>
+                    <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#18181b" }}>
+                      {formatNumber(rawSubtotal)}
                     </Text>
                   </View>
-                ) : null}
 
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "monospace", fontWeight: "800", color: "#18181b" }}>Total Belanja</Text>
-                  <Text style={{ fontSize: 11, fontFamily: "monospace", fontWeight: "900", color: "#18181b" }}>
-                    {formatNumber(receiptData.totalAmount)}
-                  </Text>
-                </View>
+                  {receiptData.discountAmount && receiptData.discountAmount > 0 ? (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#16a34a", fontWeight: "700" }}>
+                        Total Disc.
+                      </Text>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#16a34a", fontWeight: "700" }}>
+                        -{formatNumber(receiptData.discountAmount)}
+                      </Text>
+                    </View>
+                  ) : null}
 
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
-                  <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>
-                    {receiptData.paymentMethod === "CASH" ? "TUNAI" : "CPM QRIS"}
-                  </Text>
-                  <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#18181b" }}>
-                    {formatNumber(receiptData.cashTendered || receiptData.totalAmount)}
-                  </Text>
-                </View>
-
-                {receiptData.paymentMethod === "CASH" && (
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#27272a" }}>Kembalian</Text>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", fontWeight: "700", color: "#18181b" }}>
-                      {formatNumber(receiptData.changeAmount || 0)}
+                    <Text style={{ fontSize: 11, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "800", color: "#18181b" }}>Total Belanja</Text>
+                    <Text style={{ fontSize: 11, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "900", color: "#18181b" }}>
+                      {formatNumber(receiptData.totalAmount)}
                     </Text>
                   </View>
-                )}
 
-                {receiptData.ppnAmount && receiptData.ppnAmount > 0 ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#52525b" }}>PPN</Text>
-                    <Text style={{ fontSize: 10, fontFamily: "monospace", color: "#52525b" }}>
-                      DPP: {formatNumber(dppAmount)}   PPN: {formatNumber(receiptData.ppnAmount)}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                    <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>
+                      {receiptData.paymentMethod === "CASH" ? "TUNAI" : "CPM QRIS"}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#18181b" }}>
+                      {formatNumber(receiptData.cashTendered || receiptData.totalAmount)}
                     </Text>
                   </View>
-                ) : null}
 
-                <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
+                  {receiptData.paymentMethod === "CASH" && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#27272a" }}>Kembalian</Text>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "700", color: "#18181b" }}>
+                        {formatNumber(receiptData.changeAmount || 0)}
+                      </Text>
+                    </View>
+                  )}
 
-                {/* 5. Footer (Alfamart Standard) */}
-                <Text style={{ textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "#52525b" }}>
-                  Tgl. {receiptData.date} V.2026.1
-                </Text>
+                  {receiptData.ppnAmount && receiptData.ppnAmount > 0 ? (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b" }}>PPN</Text>
+                      <Text style={{ fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b" }}>
+                        DPP: {formatNumber(dppAmount)}   PPN: {formatNumber(receiptData.ppnAmount)}
+                      </Text>
+                    </View>
+                  ) : null}
 
-                {receiptData.customerName ? (
-                  <>
-                    <Text style={{ textAlign: "center", fontSize: 10, fontFamily: "monospace", fontWeight: "700", color: "#18181b", marginTop: 2 }}>
-                      MEMBER : {receiptData.customerName.toUpperCase()} *****
-                    </Text>
-                    <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 4 }} />
-                  </>
-                ) : null}
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 6 }} />
 
-                <Text style={{ textAlign: "center", fontSize: 9, fontFamily: "monospace", color: "#52525b", marginTop: 4 }}>
-                  {receiptData.footerNote || "Terima Kasih Atas Kunjungan Anda!"}
-                </Text>
+                  {/* 5. Footer (Alfamart Standard) */}
+                  <Text style={{ textAlign: "center", fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b" }}>
+                    Tgl. {receiptData.date} V.2026.1
+                  </Text>
 
-                {receiptData.storePhone ? (
-                  <View style={{ marginTop: 4 }}>
-                    <Text style={{ textAlign: "center", fontSize: 9, fontFamily: "monospace", color: "#71717a" }}>
-                      KRITIK&SARAN: {receiptData.storePhone}
-                    </Text>
-                    <Text style={{ textAlign: "center", fontSize: 9, fontFamily: "monospace", color: "#71717a" }}>
-                      SMS/WA: {receiptData.storePhone}
-                    </Text>
-                  </View>
-                ) : null}
+                  {receiptData.customerName ? (
+                    <>
+                      <Text style={{ textAlign: "center", fontSize: 10, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "700", color: "#18181b", marginTop: 2 }}>
+                        MEMBER : {receiptData.customerName.toUpperCase()} *****
+                      </Text>
+                      <View style={{ borderBottomWidth: 1, borderBottomColor: "#a1a1aa", borderStyle: "dashed", marginVertical: 4 }} />
+                    </>
+                  ) : null}
+
+                  <Text style={{ textAlign: "center", fontSize: 9, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#52525b", marginTop: 4 }}>
+                    {receiptData.footerNote || "Terima Kasih Atas Kunjungan Anda!"}
+                  </Text>
+
+                  {receiptData.storePhone ? (
+                    <View style={{ marginTop: 4 }}>
+                      <Text style={{ textAlign: "center", fontSize: 9, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#71717a" }}>
+                        KRITIK&SARAN: {receiptData.storePhone}
+                      </Text>
+                      <Text style={{ textAlign: "center", fontSize: 9, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", color: "#71717a" }}>
+                        SMS/WA: {receiptData.storePhone}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </ScrollView>
             </View>
 
@@ -384,9 +425,10 @@ export function ReceiptModal({
 
               <TouchableOpacity
                 onPress={handleShare}
+                disabled={isSharing}
                 activeOpacity={0.8}
                 style={{
-                  paddingHorizontal: 14,
+                  paddingHorizontal: 16,
                   paddingVertical: isSmallScreen ? 10 : 12,
                   borderRadius: 14,
                   backgroundColor: "#f4f4f5",
@@ -394,9 +436,14 @@ export function ReceiptModal({
                   justifyContent: "center",
                   borderWidth: 1,
                   borderColor: "#e4e4e7",
+                  opacity: isSharing ? 0.6 : 1,
                 }}
               >
-                <Share2 size={16} color="#52525b" />
+                {isSharing ? (
+                  <ActivityIndicator size="small" color="#0097A7" />
+                ) : (
+                  <Share2 size={16} color="#52525b" />
+                )}
               </TouchableOpacity>
             </View>
 

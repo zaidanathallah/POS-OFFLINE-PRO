@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Switch,
   Alert,
   Modal,
@@ -13,6 +12,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { getSetting, setSetting } from "@/db/settingsRepository";
@@ -609,7 +609,7 @@ export default function SettingsScreen() {
   const peakHourRecord = peakHours.find((p) => p.isPeak);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       {/* Top Header */}
       <View
         style={{
@@ -657,7 +657,7 @@ export default function SettingsScreen() {
       {activeSubpage === null && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -934,7 +934,7 @@ export default function SettingsScreen() {
       {activeSubpage === "laporan" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Period Filter Tabs */}
@@ -1380,7 +1380,7 @@ export default function SettingsScreen() {
       {activeSubpage === "printer" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -1596,7 +1596,7 @@ export default function SettingsScreen() {
       {activeSubpage === "manajemen_data" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -1680,7 +1680,7 @@ export default function SettingsScreen() {
       {activeSubpage === "pin" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Important Owner Note Banner */}
@@ -1799,7 +1799,7 @@ export default function SettingsScreen() {
       {activeSubpage === "promos" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Header Action Button: Tambah Promo Baru */}
@@ -2013,7 +2013,7 @@ export default function SettingsScreen() {
       {activeSubpage === "toko" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           <View
@@ -2344,7 +2344,7 @@ export default function SettingsScreen() {
       {activeSubpage === "aplikasi" && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 150 }}
           showsVerticalScrollIndicator={false}
         >
           <View

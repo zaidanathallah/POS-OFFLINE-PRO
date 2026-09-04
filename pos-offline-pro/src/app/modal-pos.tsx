@@ -5,13 +5,13 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Image,
   Alert,
   ActivityIndicator,
   useWindowDimensions,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useCartStore, CartItem } from "@/stores/useCartStore";
