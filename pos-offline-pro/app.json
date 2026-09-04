@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "pos-offline-pro",
+    "name": "POS Offline PRO",
     "slug": "pos-offline-pro",
     "version": "1.0.0",
     "orientation": "default",
@@ -11,6 +11,8 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.paditechsolutions.posofflinepro",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
