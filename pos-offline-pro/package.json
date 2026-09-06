@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.16",
     "clsx": "^2.1.1",
     "expo": "~57.0.20",
+    "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.16",
     "expo-device": "~57.0.1",
     "expo-document-picker": "~57.0.1",

@@ -7,8 +7,9 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
@@ -26,39 +27,28 @@ import {
 import { getSetting } from "@/db/settingsRepository";
 import { ReceiptData } from "@/util/printerService";
 import { formatRupiah } from "@/util/formatters";
-import { StockMovement, StockMovementType } from "@/db";
-import { getStockMovements, getStockMovementSummary } from "@/db/stockMovementRepository";
-import { exportStockMovementsToCSV } from "@/util/csvExportService";
-import { Package, AlertTriangle, ArrowDownRight, ArrowUpRight, RotateCcw, Download, Filter, RefreshCw, FileSpreadsheet } from "lucide-react-native";
 import {
-  Receipt,
-  Printer,
-  Inbox,
+  FileSpreadsheet,
   Plus,
   Edit2,
   Trash2,
   Eye,
+  Printer,
+  Inbox,
+  Receipt,
+  Clock,
+  User,
+  Percent,
 } from "lucide-react-native";
 
 export default function HistoryScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === "android" ? 28 : 12);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({ totalOmset: 0, totalLaba: 0 });
-  // Sub-Tab Switcher: 'TRANSACTIONS' or 'STOCK_MOVEMENTS'
-  const [activeTab, setActiveTab] = useState<"TRANSACTIONS" | "STOCK_MOVEMENTS">("TRANSACTIONS");
-
-  // Stock Movement State
-  const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [movementFilter, setMovementFilter] = useState<StockMovementType | "ALL">("ALL");
-  const [stockSummary, setStockSummary] = useState({
-    totalSoldQty: 0,
-    totalDamageQty: 0,
-    totalExpiredQty: 0,
-    totalLostQty: 0,
-    totalRestockedQty: 0,
-  });
-  const [isExportingStock, setIsExportingStock] = useState(false);
 
   // Store profile
   const [storeName, setStoreName] = useState("POS Offline Pro");
@@ -121,14 +111,6 @@ export default function HistoryScreen() {
       setStorePhone(sPhone);
       setStoreLogo(sLogo);
       setStoreFooter(sFooter);
-
-      const movList = await getStockMovements({
-        type: movementFilter === "ALL" ? undefined : movementFilter,
-      });
-      setMovements(movList);
-
-      const movSum = await getStockMovementSummary(30);
-      setStockSummary(movSum);
     } catch (err) {
       console.error("Gagal load riwayat:", err);
     } finally {
@@ -144,22 +126,6 @@ export default function HistoryScreen() {
     }, [loadTransactions])
   );
 
-  const handleExportStockCSV = async () => {
-    setIsExportingStock(true);
-    try {
-      const res = await exportStockMovementsToCSV(movements, movementFilter);
-      if (res.success) {
-        Alert.alert("Export Berhasil", `File CSV ${res.fileName} berhasil dibuat.`);
-      } else {
-        Alert.alert("Gagal Export", res.error || "Terjadi kesalahan.");
-      }
-    } catch (e: any) {
-      Alert.alert("Gagal Export", e.message);
-    } finally {
-      setIsExportingStock(false);
-    }
-  };
-
   const onRefresh = () => {
     setRefreshing(true);
     loadTransactions();
@@ -167,44 +133,56 @@ export default function HistoryScreen() {
 
   // 1. Create Manual Transaction (PIN Protected)
   const handleOpenCreateManual = () => {
-    executeSecureAction(() => {
-      setSelectedTrxForEdit(null);
-      setFormModalVisible(true);
-    }, "Masukkan PIN Supervisor untuk menambah transaksi manual");
+    executeSecureAction(
+      () => {
+        setSelectedTrxForEdit(null);
+        setFormModalVisible(true);
+      },
+      "Catat Transaksi Manual",
+      "Masukkan PIN Supervisor untuk menambah transaksi manual"
+    );
   };
 
   // 2. Edit Transaction (PIN Protected)
   const handleOpenEditTrx = (trx: Transaction) => {
-    executeSecureAction(() => {
-      setSelectedTrxForEdit(trx);
-      setFormModalVisible(true);
-    }, "Masukkan PIN Supervisor untuk mengubah data transaksi");
+    executeSecureAction(
+      () => {
+        setSelectedTrxForEdit(trx);
+        setFormModalVisible(true);
+      },
+      "Ubah Data Transaksi",
+      "Masukkan PIN Supervisor untuk mengubah data transaksi"
+    );
   };
 
   // 3. Delete Transaction (PIN Protected)
   const handleDeleteTrx = (trx: Transaction) => {
-    executeSecureAction(() => {
-      Alert.alert(
-        "Hapus / Batalkan Transaksi",
-        `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Hapus",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await deleteTransaction(trx.id, true);
-                await loadTransactions();
-                Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
-              } catch (e: any) {
-                Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
-              }
+    executeSecureAction(
+      () => {
+        Alert.alert(
+          "Hapus / Batalkan Transaksi",
+          `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`,
+          [
+            { text: "Batal", style: "cancel" },
+            {
+              text: "Hapus",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await deleteTransaction(trx.id, true);
+                  await loadTransactions();
+                  Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
+                } catch (e: any) {
+                  Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+                }
+              },
             },
-          },
-        ]
-      );
-    }, "Masukkan PIN Supervisor untuk menghapus transaksi");
+          ]
+        );
+      },
+      "Hapus Transaksi",
+      "Masukkan PIN Supervisor untuk menghapus transaksi"
+    );
   };
 
   // 4. Detail Modal
@@ -262,31 +240,37 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
-      {/* Header with Add Button */}
+    <View style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+      {/* Top Header with Safe Area Clearance */}
       <View
         style={{
+          paddingTop: topPadding,
           paddingHorizontal: 16,
-          paddingVertical: 14,
+          paddingBottom: 14,
           backgroundColor: "#ffffff",
           borderBottomWidth: 1,
           borderBottomColor: "#e5e7eb",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
         }}
       >
-        <View>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: "#18181b" }}>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: "800", color: "#18181b", letterSpacing: -0.3 }}>
             Riwayat Transaksi
           </Text>
-          <Text style={{ fontSize: 12, color: "#71717a", marginTop: 1 }}>
+          <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>
             Daftar Struk Penjualan & Kelola Transaksi (CRUD)
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {/* Export CSV Button (Protected by PIN) */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {/* Export CSV Button */}
           <TouchableOpacity
             onPress={handleOpenExportCsv}
             activeOpacity={0.8}
@@ -296,9 +280,9 @@ export default function HistoryScreen() {
               backgroundColor: "#ECFEFF",
               borderWidth: 1,
               borderColor: "#A5F3FC",
-              paddingHorizontal: 12,
+              paddingHorizontal: 10,
               paddingVertical: 7,
-              borderRadius: 14,
+              borderRadius: 12,
             }}
           >
             <FileSpreadsheet size={14} color="#0097A7" />
@@ -307,7 +291,7 @@ export default function HistoryScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Catat Manual Button (Protected by PIN) */}
+          {/* Catat Manual Button */}
           <TouchableOpacity
             onPress={handleOpenCreateManual}
             activeOpacity={0.8}
@@ -315,9 +299,14 @@ export default function HistoryScreen() {
               flexDirection: "row",
               alignItems: "center",
               backgroundColor: "#0097A7",
-              paddingHorizontal: 12,
+              paddingHorizontal: 10,
               paddingVertical: 7,
-              borderRadius: 14,
+              borderRadius: 12,
+              shadowColor: "#0097A7",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 3,
+              elevation: 2,
             }}
           >
             <Plus size={14} color="#ffffff" />
@@ -331,17 +320,64 @@ export default function HistoryScreen() {
       {/* Transaction List */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 150 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <Text style={{ fontSize: 12, fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
-            Daftar Struk ({transactions.length})
-          </Text>
-          <Text style={{ fontSize: 12, color: "#71717a" }}>
-            Total Omset: {formatRupiah(summary.totalOmset)}
-          </Text>
+        {/* KPI Summary Cards Bar */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 14,
+            gap: 8,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 16,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "700", color: "#71717A", textTransform: "uppercase" }}>
+              Daftar Struk
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: "#18181B", marginTop: 2 }}>
+              {transactions.length} Transaksi
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flex: 1.5,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 16,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "700", color: "#71717A", textTransform: "uppercase" }}>
+              Total Omset
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: "#0097A7", marginTop: 2 }}>
+              {formatRupiah(summary.totalOmset)}
+            </Text>
+          </View>
         </View>
 
         {loading ? (
@@ -350,11 +386,11 @@ export default function HistoryScreen() {
           </View>
         ) : transactions.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 }}>
-            <Inbox size={40} color="#9ca3af" />
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#18181b", marginTop: 10, marginBottom: 4 }}>
+            <Inbox size={44} color="#9ca3af" />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#18181b", marginTop: 10, marginBottom: 4 }}>
               Belum Ada Transaksi
             </Text>
-            <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>
+            <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center", maxWidth: 300 }}>
               Transaksi kasir yang telah selesai akan otomatis tercatat di sini dan tersimpan di database SQLite lokal.
             </Text>
           </View>
@@ -364,19 +400,19 @@ export default function HistoryScreen() {
               key={trx.id}
               style={{
                 marginBottom: 12,
-                padding: 16,
-                borderRadius: 22,
+                padding: 14,
+                borderRadius: 20,
                 backgroundColor: "#ffffff",
                 borderWidth: 1,
                 borderColor: "#e5e7eb",
                 shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
+                shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.05,
-                shadowRadius: 2,
-                elevation: 1,
+                shadowRadius: 4,
+                elevation: 2,
               }}
             >
-              {/* Header Struk: Invoice, Method, & Action Icons */}
+              {/* Header Struk: Invoice, Method Badge, Edit, Delete */}
               <View
                 style={{
                   flexDirection: "row",
@@ -387,21 +423,45 @@ export default function HistoryScreen() {
                   borderBottomColor: "#f4f4f5",
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 6 }}>
                   <Receipt size={16} color="#0097A7" />
-                  <Text style={{ fontSize: 13, fontWeight: "700", fontFamily: "monospace", color: "#18181b", marginLeft: 6 }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "800",
+                      fontFamily: "monospace",
+                      color: "#18181b",
+                      marginLeft: 6,
+                    }}
+                    numberOfLines={1}
+                  >
                     {trx.invoice_no || trx.id}
                   </Text>
                 </View>
 
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: "#ecfeff" }}>
-                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#0097A7" }}>
+                  {/* Payment Method Badge */}
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2.5,
+                      borderRadius: 8,
+                      backgroundColor:
+                        trx.payment_method === "QRIS" ? "#EEF2FF" : "#ECFEFF",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: "800",
+                        color: trx.payment_method === "QRIS" ? "#4F46E5" : "#0097A7",
+                      }}
+                    >
                       {trx.payment_method || "CASH"}
                     </Text>
                   </View>
 
-                  {/* Edit Button (PIN Protected) */}
+                  {/* Edit Button */}
                   <TouchableOpacity
                     onPress={() => handleOpenEditTrx(trx)}
                     style={{
@@ -416,7 +476,7 @@ export default function HistoryScreen() {
                     <Edit2 size={12} color="#0097A7" />
                   </TouchableOpacity>
 
-                  {/* Delete Button (PIN Protected) */}
+                  {/* Delete Button */}
                   <TouchableOpacity
                     onPress={() => handleDeleteTrx(trx)}
                     style={{
@@ -433,50 +493,94 @@ export default function HistoryScreen() {
                 </View>
               </View>
 
-              {/* Body Struk */}
-              <View style={{ paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={{ fontSize: 11, color: "#71717a" }}>
-                    {(() => {
-                      const t = new Date(trx.created_at);
-                      const pad = (n: number) => n.toString().padStart(2, "0");
-                      return `${t.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}, ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
-                    })()}
-                  </Text>
-                  <View style={{ backgroundColor: "#f0fdfa", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, borderWidth: 1, borderColor: "#ccfbf1" }}>
+              {/* Info Row: Date, Cashier, PPN & Discount */}
+              <View
+                style={{
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 6,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Clock size={11} color="#71717A" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 11, color: "#71717a", fontWeight: "500" }}>
+                      {(() => {
+                        const t = new Date(trx.created_at);
+                        const pad = (n: number) => n.toString().padStart(2, "0");
+                        return `${t.toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}, ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+                      })()}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "#f0fdfa",
+                      paddingHorizontal: 6,
+                      paddingVertical: 1.5,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: "#ccfbf1",
+                    }}
+                  >
+                    <User size={10} color="#0d9488" style={{ marginRight: 3 }} />
                     <Text style={{ fontSize: 9, fontWeight: "700", color: "#0d9488" }}>
                       Kasir: {trx.cashier_name || "Kasir 1"}
                     </Text>
                   </View>
                 </View>
+
                 {trx.ppn_amount && trx.ppn_amount > 0 ? (
-                  <Text style={{ fontSize: 10, color: "#71717a", fontFamily: "monospace" }}>
-                    PPN {trx.ppn_percent}%: {formatRupiah(trx.ppn_amount)}
-                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "#F4F4F5",
+                      paddingHorizontal: 6,
+                      paddingVertical: 1.5,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Percent size={9} color="#71717A" style={{ marginRight: 2 }} />
+                    <Text style={{ fontSize: 9, fontWeight: "600", color: "#52525B" }}>
+                      PPN {trx.ppn_percent}%: {formatRupiah(trx.ppn_amount)}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
 
-              {/* Financial Breakdown & Action Buttons */}
+              {/* Bottom Row: Omset, Laba, and Action Buttons */}
               <View
                 style={{
-                  paddingTop: 10,
+                  paddingTop: 8,
                   borderTopWidth: 1,
                   borderTopColor: "#f4f4f5",
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 8,
                 }}
               >
                 <View>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#18181b" }}>
+                  <Text style={{ fontSize: 16, fontWeight: "800", color: "#18181b" }}>
                     {formatRupiah(trx.omset)}
                   </Text>
-                  <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "600", marginTop: 1 }}>
+                  <Text style={{ fontSize: 11, color: "#16a34a", fontWeight: "700", marginTop: 1 }}>
                     Laba: +{formatRupiah(trx.laba_kotor)}
                   </Text>
                 </View>
 
-                <View style={{ flexDirection: "row", gap: 6 }}>
+                <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                   {/* Detail Button */}
                   <TouchableOpacity
                     onPress={() => handleOpenDetail(trx)}
@@ -486,14 +590,14 @@ export default function HistoryScreen() {
                       alignItems: "center",
                       paddingHorizontal: 10,
                       paddingVertical: 7,
-                      borderRadius: 12,
+                      borderRadius: 10,
                       borderWidth: 1,
                       borderColor: "#e4e4e7",
                       backgroundColor: "#f9fafb",
                     }}
                   >
                     <Eye size={13} color="#52525b" />
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#52525b", marginLeft: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#52525b", marginLeft: 4 }}>
                       Detail
                     </Text>
                   </TouchableOpacity>
@@ -507,7 +611,7 @@ export default function HistoryScreen() {
                       alignItems: "center",
                       paddingHorizontal: 12,
                       paddingVertical: 7,
-                      borderRadius: 12,
+                      borderRadius: 10,
                       borderWidth: 1,
                       borderColor: "#a5f3fc",
                       backgroundColor: "#ecfeff",
@@ -568,6 +672,6 @@ export default function HistoryScreen() {
         }}
         onClose={() => setExportCsvModalVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }

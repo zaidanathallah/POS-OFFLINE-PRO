@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { getSetting, setSetting } from "@/db/settingsRepository";
@@ -608,19 +608,28 @@ export default function SettingsScreen() {
 
   const peakHourRecord = peakHours.find((p) => p.isPeak);
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === "android" ? 28 : 12);
+
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+    <View style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       {/* Top Header */}
       <View
         style={{
+          paddingTop: topPadding,
           paddingHorizontal: 16,
-          paddingVertical: 14,
+          paddingBottom: 14,
           backgroundColor: "#ffffff",
           borderBottomWidth: 1,
           borderBottomColor: "#e5e7eb",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -2732,6 +2741,6 @@ export default function SettingsScreen() {
         onClose={handlePinClose}
         onSuccess={handlePinSuccess}
       />
-    </SafeAreaView>
+    </View>
   );
 }

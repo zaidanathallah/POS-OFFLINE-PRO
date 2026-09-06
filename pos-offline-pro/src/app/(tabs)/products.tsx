@@ -9,8 +9,9 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
+  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { ProductFormModal } from "@/components/ProductFormModal";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
@@ -141,19 +142,28 @@ export default function ProductsScreen() {
     }, `Masukkan PIN Supervisor untuk menghapus produk "${product.name}"`);
   };
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === "android" ? 28 : 12);
+
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+    <View style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       {/* Top Bar Header */}
       <View
         style={{
+          paddingTop: topPadding,
           paddingHorizontal: 16,
-          paddingVertical: 14,
+          paddingBottom: 14,
           backgroundColor: "#ffffff",
           borderBottomWidth: 1,
           borderBottomColor: "#e5e7eb",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
         }}
       >
         <View>
@@ -528,6 +538,6 @@ export default function ProductsScreen() {
         onSuccess={handlePinSuccess}
         onClose={handlePinClose}
       />
-    </SafeAreaView>
+    </View>
   );
 }

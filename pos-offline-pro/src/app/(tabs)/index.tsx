@@ -6,8 +6,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
+  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import {
   getFinancialSummary,
@@ -147,11 +148,14 @@ export default function DashboardScreen() {
     isPositiveGrowth = true;
   }
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === "android" ? 28 : 12);
+
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
+    <View style={{ flex: 1, backgroundColor: "#F9F7F4" }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 150 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: topPadding, paddingBottom: 150 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -566,6 +570,6 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -368,10 +368,37 @@ export default function PosModalScreen() {
         return;
       }
 
+      // If outside database & supermarket list, auto-create a smart versatile product and add to cart
+      const fallbackName = `Produk Scan ${scannedCode.slice(-4) || scannedCode}`;
       Alert.alert(
-        "Barcode Tidak Terdaftar",
-        `Barcode "${scannedCode}" belum ada di database toko.`,
-        [{ text: "Tutup", style: "cancel" }]
+        "Barcode Terdeteksi",
+        `Barcode "${scannedCode}" belum ada di katalog toko.\n\nApakah Anda ingin mendaftarkan produk ini secara instan ke database SQLite dan langsung memasukkannya ke transaksi kasir?`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "+ Daftarkan & Masukkan Kasir",
+            onPress: async () => {
+              try {
+                const newProd = await createProduct({
+                  name: fallbackName,
+                  category: "Retail",
+                  harga_jual: 10000,
+                  modal_hpp: 8000,
+                  stock: 100,
+                  unit: "pcs",
+                  barcode: scannedCode,
+                  is_decimal: 0,
+                });
+                await loadData();
+                handleProductPress(newProd);
+                setNotificationBanner(`✓ ${newProd.name} otomatis didaftarkan & masuk keranjang!`);
+                setTimeout(() => setNotificationBanner(""), 4000);
+              } catch (e: any) {
+                Alert.alert("Gagal", e.message || "Gagal membuat produk baru.");
+              }
+            },
+          },
+        ]
       );
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Gagal memproses barcode.");

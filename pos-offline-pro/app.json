@@ -37,7 +37,13 @@
       ],
       "expo-sqlite",
       "expo-sharing",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Izinkan POS Offline PRO mengakses kamera untuk scan barcode dan QR produk."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
