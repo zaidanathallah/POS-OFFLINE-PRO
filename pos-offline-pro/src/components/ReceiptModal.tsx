@@ -43,17 +43,22 @@ export function ReceiptModal({
 
   const receiptCaptureRef = useRef<View>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   if (!receiptData) return null;
 
   const handlePrint = async () => {
+    if (isPrinting) return;
+    setIsPrinting(true);
     try {
       const success = await printBluetoothReceipt58mm(receiptData);
       if (success) {
-        Alert.alert("Sukses", "Struk berhasil dikirim ke printer 58mm.");
+        Alert.alert("Sukses", "Struk berhasil dikirim ke printer thermal.");
       }
     } catch (err: any) {
-      Alert.alert("Gagal Cetak", err.message || "Pastikan Bluetooth aktif.");
+      Alert.alert("Gagal Cetak", err.message || "Pastikan printer thermal aktif.");
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -405,6 +410,7 @@ export function ReceiptModal({
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
                 <TouchableOpacity
                   onPress={handlePrint}
+                  disabled={isPrinting}
                   activeOpacity={0.8}
                   style={{
                     flex: 1,
@@ -414,12 +420,19 @@ export function ReceiptModal({
                     paddingVertical: 12,
                     borderRadius: 14,
                     backgroundColor: "#0097A7",
+                    opacity: isPrinting ? 0.7 : 1,
                   }}
                 >
-                  <Printer size={16} color="#ffffff" />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
-                    Cetak Struk
-                  </Text>
+                  {isPrinting ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <Printer size={16} color="#ffffff" />
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+                        Cetak Struk
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -530,6 +543,7 @@ export function ReceiptModal({
             <View style={{ flexDirection: "row", marginTop: 12, gap: 8 }}>
               <TouchableOpacity
                 onPress={handlePrint}
+                disabled={isPrinting}
                 activeOpacity={0.8}
                 style={{
                   flex: 1,
@@ -544,12 +558,19 @@ export function ReceiptModal({
                   shadowOpacity: 0.25,
                   shadowRadius: 4,
                   elevation: 2,
+                  opacity: isPrinting ? 0.7 : 1,
                 }}
               >
-                <Printer size={16} color="#ffffff" />
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
-                  Cetak Struk
-                </Text>
+                {isPrinting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Printer size={16} color="#ffffff" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+                      Cetak Struk
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity

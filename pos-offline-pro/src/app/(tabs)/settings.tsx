@@ -44,6 +44,7 @@ import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
 import { PromoFormModal } from "@/components/PromoFormModal";
 import { CustomerManagerModal } from "@/components/CustomerManagerModal";
+import { BluetoothSignalIndicator } from "@/components/BluetoothSignalIndicator";
 import { Transaction, Promo } from "@/db";
 import { formatRupiah, formatNumber } from "@/util/formatters";
 import { compressAndConvertToBase64, compressAndConvertToMonochromeBase64 } from "@/util/imageCompressor";
@@ -1562,19 +1563,35 @@ export default function SettingsScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "800", color: "#18181b" }}>
                         {p.name}
                       </Text>
-                      <Text style={{ fontSize: 10, color: "#71717a" }}>
+                      <Text style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>
                         {p.address || p.id}
                       </Text>
+
+                      {/* Dynamic Bluetooth Signal Strength Indicator */}
+                      <BluetoothSignalIndicator
+                        rssi={p.rssi || -60}
+                        level={p.signalLevel || 3}
+                        distanceEstimate={p.distanceEstimate}
+                      />
                     </View>
 
                     {isThisConnected ? (
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <CheckCircle2 size={16} color="#16a34a" />
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#16a34a", marginLeft: 4 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: "#DCFCE7",
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 10,
+                        }}
+                      >
+                        <CheckCircle2 size={14} color="#16a34a" />
+                        <Text style={{ fontSize: 11, fontWeight: "800", color: "#15803d", marginLeft: 4 }}>
                           Aktif
                         </Text>
                       </View>
@@ -1583,12 +1600,17 @@ export default function SettingsScreen() {
                         onPress={() => handleConnectPrinter(p)}
                         style={{
                           backgroundColor: "#0097A7",
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 10,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          shadowColor: "#0097A7",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.2,
+                          shadowRadius: 2,
+                          elevation: 2,
                         }}
                       >
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff" }}>
+                        <Text style={{ fontSize: 11, fontWeight: "800", color: "#ffffff" }}>
                           Sambungkan
                         </Text>
                       </TouchableOpacity>
