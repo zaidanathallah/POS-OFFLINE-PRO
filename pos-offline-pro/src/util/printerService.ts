@@ -4,7 +4,7 @@
  * signal strength indicator (RSSI & Signal Bars), and direct thermal printing via
  * Expo Print, Web Bluetooth GATT, and ESC/POS binary packet transmission.
  */
-import { Platform, Linking } from "react-native";
+import { Platform, Linking, Alert } from "react-native";
 import * as Print from "expo-print";
 import { getSetting, setSetting } from "@/db/settingsRepository";
 
@@ -248,7 +248,26 @@ export class PrinterService {
   }
 
   /**
-   * Generates Pixel-Perfect 58mm Thermal Receipt HTML for Native Print & Bluetooth thermal printer
+   * Opens RawBT Printer Driver in Play Store or launches it on device
+   */
+  static async openRawBtDriver(): Promise<void> {
+    try {
+      const canOpen = await Linking.canOpenURL("rawbt:");
+      if (canOpen) {
+        await Linking.openURL("rawbt:");
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      await Linking.openURL("market://details?id=ru.a402d.rawbtprinter");
+    } catch (e) {
+      await Linking.openURL("https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter");
+    }
+  }
+
+  /**
+   * Generates Pixel-Perfect 58mm Thermal Receipt HTML for Native Print & Spooler
    */
   static generateReceiptHtml(data: ReceiptData): string {
     const totalQty = data.items.reduce((acc, item) => acc + item.qty, 0);
@@ -455,6 +474,9 @@ export class PrinterService {
     `;
   }
 
+  /**
+   * Main Printing Function: Direct Hardware Thermal ESC/POS Transmission & Smart Fallback
+   */
   static async printReceipt(data: ReceiptData): Promise<{ success: boolean; message?: string }> {
     try {
       // 1. Enrich store details if not provided
@@ -477,17 +499,87 @@ export class PrinterService {
         data.footerNote = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
       }
 
+      // 2. Generate Binary ESC/POS Packet
+      const escPosBytes = generateEscPosBuffer(data);
+
+      // 3. Channel A: Direct Web Bluetooth GATT Characteristic Write (if connected)
+      if (Platform.OS === "web" && activeWritableChar) {
+        try {
+          const CHUNK_SIZE = 100;
+          for (let i = 0; i < escPosBytes.length; i += CHUNK_SIZE) {
+            const chunk = escPosBytes.slice(i, i + CHUNK_SIZE);
+            if (activeWritableChar.writeValueWithoutResponse) {
+              await activeWritableChar.writeValueWithoutResponse(chunk);
+            } else {
+              await activeWritableChar.writeValue(chunk);
+            }
+          }
+          return {
+            success: true,
+            message: "Struk 58mm berhasil dicetak ke printer Bluetooth!",
+          };
+        } catch (gattErr) {
+          console.log("GATT write warning:", gattErr);
+        }
+      }
+
+      // 4. Channel B: Direct RawBT Bluetooth Thermal Intent on Android (No PDF screen!)
+      if (Platform.OS === "android") {
+        const base64Data = uint8ArrayToBase64(escPosBytes);
+        const rawbtUri = `rawbt:base64,${base64Data}`;
+
+        try {
+          // Attempt direct dispatch via RawBT protocol
+          await Linking.openURL(rawbtUri);
+          return {
+            success: true,
+            message: "Struk 58mm berhasil dikirim langsung ke printer thermal Bluetooth!",
+          };
+        } catch (intentErr) {
+          console.log("Direct RawBT notice:", intentErr);
+          // RawBT not installed -> Provide prompt with option to install or use print spooler
+          return new Promise((resolve) => {
+            Alert.alert(
+              "Cetak Langsung Printer Thermal",
+              "Aplikasi mendukung cetak langsung ke printer Bluetooth tanpa popup PDF menggunakan driver RawBT.\n\nPilih opsi cetak:",
+              [
+                {
+                  text: "Batal",
+                  style: "cancel",
+                  onPress: () => resolve({ success: false, message: "Pencetakan dibatalkan." }),
+                },
+                {
+                  text: "Print Spooler",
+                  onPress: async () => {
+                    try {
+                      const html = this.generateReceiptHtml(data);
+                      await Print.printAsync({ html });
+                      resolve({ success: true, message: "Struk dikirim ke Print Spooler." });
+                    } catch (e: any) {
+                      resolve({ success: false, message: e.message });
+                    }
+                  },
+                },
+                {
+                  text: "🚀 Pasang Driver RawBT",
+                  style: "default",
+                  onPress: async () => {
+                    await this.openRawBtDriver();
+                    resolve({ success: true, message: "Membuka Play Store untuk driver printer thermal." });
+                  },
+                },
+              ]
+            );
+          });
+        }
+      }
+
+      // 5. Fallback for iOS or Web: Print Spooler with 58mm dimensions
       const html = this.generateReceiptHtml(data);
-
-      // 2. Direct Hardware Native Printing via Expo Print
-      // This routes directly to paired Bluetooth Thermal Printers, Default Print Spooler, USB & Network Thermal Printers!
-      await Print.printAsync({
-        html: html,
-      });
-
+      await Print.printAsync({ html });
       return {
         success: true,
-        message: "Struk 58mm berhasil dicetak ke printer thermal!",
+        message: "Struk 58mm berhasil dicetak!",
       };
     } catch (error: any) {
       console.error("[PrinterService] Print error:", error);
@@ -509,7 +601,7 @@ export class PrinterService {
     const sampleData: ReceiptData = {
       invoiceNumber: "TEST-58MM-OK",
       date: new Date().toLocaleString("id-ID"),
-      cashierName: "Admin",
+      cashierName: "Kasir 1",
       tableNumber: "01",
       customerName: "Pelanggan Demo",
       items: [
@@ -529,6 +621,174 @@ export class PrinterService {
     const res = await this.printReceipt(sampleData);
     return res.success;
   }
+}
+
+/**
+ * Generates ESC/POS 58mm byte buffer (32 columns per line)
+ */
+export function generateEscPosBuffer(data: ReceiptData): Uint8Array {
+  const bytes: number[] = [];
+
+  const addBytes = (...b: number[]) => bytes.push(...b);
+  const addText = (text: string) => {
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      bytes.push(code > 127 ? 63 : code);
+    }
+  };
+  const addLine = (text: string) => {
+    addText(text);
+    bytes.push(0x0A);
+  };
+
+  const padRow = (left: string, right: string, totalWidth: number = 32): string => {
+    const l = left || "";
+    const r = right || "";
+    const spaces = Math.max(1, totalWidth - l.length - r.length);
+    return l + " ".repeat(spaces) + r;
+  };
+
+  const formatIdr = (n: number) => Number(n || 0).toLocaleString("id-ID");
+
+  // ESC @: Initialize Printer
+  addBytes(0x1B, 0x40);
+
+  // ESC a 1: Center Alignment
+  addBytes(0x1B, 0x61, 0x01);
+
+  // GS ! 0x11: Double Size & Bold for Store Title
+  addBytes(0x1D, 0x21, 0x11);
+  addBytes(0x1B, 0x45, 0x01);
+  addLine(data.storeName || "POS OFFLINE PRO");
+  addBytes(0x1D, 0x21, 0x00);
+  addBytes(0x1B, 0x45, 0x00);
+
+  if (data.businessType) {
+    addLine(data.businessType.toUpperCase());
+  }
+  if (data.storeAddress) {
+    addLine(data.storeAddress);
+  }
+  if (data.storePhone) {
+    addLine(`TELP : ${data.storePhone}`);
+  }
+
+  // Divider
+  addLine("--------------------------------");
+
+  // ESC a 0: Left Alignment
+  addBytes(0x1B, 0x61, 0x00);
+
+  // Invoice & Cashier
+  addLine(padRow(`Bon ${data.invoiceNumber}`, `Kasir: ${(data.cashierName || "KASIR 1").toUpperCase()}`));
+  if (data.tableNumber || data.customerName) {
+    addLine(padRow(data.tableNumber ? `Meja: ${data.tableNumber}` : "", data.customerName ? `Plg: ${data.customerName}` : ""));
+  }
+
+  // Divider
+  addLine("--------------------------------");
+
+  // Item List
+  let totalQty = 0;
+  for (const item of data.items) {
+    totalQty += item.qty;
+    // Line 1: Item Name
+    addLine(item.name.toUpperCase());
+    // Line 2: Qty x Price & Subtotal
+    const unitText = item.unit || "pcs";
+    const leftText = `  ${item.qty} ${unitText} x ${formatIdr(item.price)}`;
+    const rightText = formatIdr(item.subtotal);
+    addLine(padRow(leftText, rightText));
+  }
+
+  // Divider
+  addLine("--------------------------------");
+
+  // Totals Breakdown
+  const rawSubtotal = data.subtotalBeforeTax || data.totalAmount;
+  addLine(padRow(`Total Item (${totalQty})`, formatIdr(rawSubtotal)));
+
+  if (data.discountAmount && data.discountAmount > 0) {
+    addLine(padRow("Total Diskon", `-${formatIdr(data.discountAmount)}`));
+  }
+
+  if (data.ppnAmount && data.ppnAmount > 0) {
+    addLine(padRow(`PPN ${data.ppnPercent || 11}%`, formatIdr(data.ppnAmount)));
+  }
+
+  // Total Belanja (Bold)
+  addBytes(0x1B, 0x45, 0x01);
+  addLine(padRow("TOTAL BELANJA", `Rp ${formatIdr(data.totalAmount)}`));
+  addBytes(0x1B, 0x45, 0x00);
+
+  const payMethod = data.paymentMethod === "CASH" ? "TUNAI" : "CPM QRIS";
+  addLine(padRow(payMethod, `Rp ${formatIdr(data.cashTendered || data.totalAmount)}`));
+
+  if (data.paymentMethod === "CASH") {
+    addLine(padRow("KEMBALIAN", `Rp ${formatIdr(data.changeAmount || 0)}`));
+  }
+
+  // Divider
+  addLine("--------------------------------");
+
+  // Footer (Center Aligned)
+  addBytes(0x1B, 0x61, 0x01);
+  addLine(`Tgl. ${data.date}`);
+  if (data.customerName) {
+    addLine(`MEMBER: ${data.customerName.toUpperCase()}`);
+  }
+  addBytes(0x1B, 0x45, 0x01);
+  addLine(data.footerNote || "Terima Kasih Atas Kunjungan Anda!");
+  addBytes(0x1B, 0x45, 0x00);
+
+  if (data.storePhone) {
+    addLine(`KRITIK & SARAN: ${data.storePhone}`);
+  }
+
+  // Feed 4 lines
+  addBytes(0x1B, 0x64, 0x04);
+
+  // Cut paper command
+  addBytes(0x1D, 0x56, 0x41, 0x00);
+
+  return new Uint8Array(bytes);
+}
+
+/**
+ * Converts Uint8Array bytes to Base64 string
+ */
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  if (typeof btoa !== "undefined") {
+    try {
+      return btoa(binary);
+    } catch (e) {}
+  }
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  let output = "";
+  for (let i = 0; i < binary.length; i += 3) {
+    const b1 = binary.charCodeAt(i);
+    const b2 = binary.charCodeAt(i + 1);
+    const b3 = binary.charCodeAt(i + 2);
+
+    const e1 = b1 >> 2;
+    const e2 = ((b1 & 3) << 4) | (b2 >> 4);
+    let e3 = ((b2 & 15) << 2) | (b3 >> 6);
+    let e4 = b3 & 63;
+
+    if (isNaN(b2)) {
+      e3 = e4 = 64;
+    } else if (isNaN(b3)) {
+      e4 = 64;
+    }
+
+    output += chars.charAt(e1) + chars.charAt(e2) + chars.charAt(e3) + chars.charAt(e4);
+  }
+  return output;
 }
 
 export const printBluetoothReceipt58mm = async (data: ReceiptData): Promise<boolean> => {

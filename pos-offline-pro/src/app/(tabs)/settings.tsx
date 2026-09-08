@@ -427,6 +427,10 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleOpenDriver = async () => {
+    await PrinterService.openRawBtDriver();
+  };
+
   // Export CSV
   const handleExportCSV = async () => {
     setIsExportingCSV(true);
@@ -1492,6 +1496,26 @@ export default function SettingsScreen() {
               </Text>
             )}
 
+            {/* RawBT Direct Print Driver Integration Button */}
+            <TouchableOpacity
+              onPress={handleOpenDriver}
+              activeOpacity={0.8}
+              style={{
+                paddingVertical: 12,
+                borderRadius: 16,
+                backgroundColor: "#ecfeff",
+                borderWidth: 1,
+                borderColor: "#a5f3fc",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0097A7" }}>
+                🚀 Pasang / Buka Driver RawBT (Cetak Langsung)
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={handleTestPrint}
               activeOpacity={0.8}
@@ -1505,7 +1529,7 @@ export default function SettingsScreen() {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>
-                Test Cetak Struk 58mm
+                Test Cetak Struk 58mm (Direct ESC/POS)
               </Text>
             </TouchableOpacity>
 
