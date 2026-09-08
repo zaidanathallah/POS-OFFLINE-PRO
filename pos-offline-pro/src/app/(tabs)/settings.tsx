@@ -1581,9 +1581,15 @@ export default function SettingsScreen() {
             </View>
 
             {discoveredPrinters.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>
-                  Klik "Pindai Ulang" untuk mendeteksi printer Bluetooth yang aktif di sekitar Anda.
+              <View style={{ paddingVertical: 18, paddingHorizontal: 12, alignItems: "center", backgroundColor: "#f8fafc", borderRadius: 16, borderWidth: 1, borderColor: "#e2e8f0" }}>
+                <Bluetooth size={28} color="#94a3b8" style={{ marginBottom: 8 }} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#334155", textAlign: "center", marginBottom: 4 }}>
+                  Belum Ada Perangkat Bluetooth Terdeteksi
+                </Text>
+                <Text style={{ fontSize: 11, color: "#64748b", textAlign: "center", lineHeight: 17 }}>
+                  {Platform.OS === "android"
+                    ? "1. Pastikan Bluetooth HP aktif.\n2. Buka Pengaturan Bluetooth HP & pasangkan (Pair) printer thermal Anda.\n3. Tekan 'Pindai Ulang' di atas."
+                    : "Klik tombol 'Pindai Ulang' untuk memilih dan menghubungkan printer thermal Bluetooth."}
                 </Text>
               </View>
             ) : (

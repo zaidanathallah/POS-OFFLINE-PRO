@@ -82,15 +82,19 @@ class ExpoBluetoothEscposModule : Module() {
         try {
           socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
           socket.connect()
-        } catch (e: Exception) {
-          // Fallback via reflection method for older/specialized thermal printers
+        } catch (e1: Exception) {
           try {
-            val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-            socket = m.invoke(device, 1) as BluetoothSocket
+            socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
             socket.connect()
-          } catch (e2: Exception) {
-            socket?.close()
-            return@AsyncFunction false
+          } catch (eInsecure: Exception) {
+            try {
+              val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+              socket = m.invoke(device, 1) as BluetoothSocket
+              socket.connect()
+            } catch (e2: Exception) {
+              socket?.close()
+              return@AsyncFunction false
+            }
           }
         }
 
@@ -136,10 +140,20 @@ class ExpoBluetoothEscposModule : Module() {
           try {
             socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
             socket.connect()
-          } catch (e: Exception) {
-            val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-            socket = m.invoke(device, 1) as BluetoothSocket
-            socket.connect()
+          } catch (e1: Exception) {
+            try {
+              socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+              socket.connect()
+            } catch (eInsecure: Exception) {
+              try {
+                val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                socket = m.invoke(device, 1) as BluetoothSocket
+                socket.connect()
+              } catch (e2: Exception) {
+                socket?.close()
+                return@AsyncFunction false
+              }
+            }
           }
           activeSocket = socket
           activeDeviceAddress = targetAddress

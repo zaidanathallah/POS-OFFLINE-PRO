@@ -1,5 +1,4 @@
 import { Platform, Alert } from "react-native";
-import * as Print from "expo-print";
 import { getSetting, setSetting } from "@/db/settingsRepository";
 import { ExpoBluetoothEscpos } from "../../modules/expo-bluetooth-escpos";
 
@@ -157,6 +156,7 @@ export class PrinterService {
       } catch (err) {
         console.log("Native bluetooth scanner notice:", err);
       }
+      return [];
     }
 
     // 2. Web Bluetooth GATT Discovery
@@ -177,7 +177,7 @@ export class PrinterService {
 
           const item: BluetoothDeviceItem = {
             id: device.id || `BT-${Date.now()}`,
-            name: device.name || "RPP02N 58mm Thermal",
+            name: device.name || "Printer Thermal Bluetooth",
             address: device.id,
             connected: true,
             rssi: -42,
@@ -192,49 +192,10 @@ export class PrinterService {
       } catch (err: any) {
         console.log("Web bluetooth note:", err);
       }
+      return [];
     }
 
-    // 3. Fallback discovery list with distance & RSSI indicators
-    const devices: BluetoothDeviceItem[] = [
-      {
-        id: "BT-RPP02N-01",
-        name: "RPP02N 58mm Thermal",
-        address: "66:22:A1:04:98:B1",
-        connected: false,
-        rssi: -42,
-        signalLevel: 4,
-        distanceEstimate: "Sangat Dekat (~0.8m)",
-      },
-      {
-        id: "BT-POS58-02",
-        name: "POS-5802 Bluetooth",
-        address: "DC:0D:30:12:44:8C",
-        connected: false,
-        rssi: -58,
-        signalLevel: 3,
-        distanceEstimate: "Dekat (1.5m)",
-      },
-      {
-        id: "BT-MPT2-03",
-        name: "MPT-II Mini Mobile Printer",
-        address: "88:25:83:F1:C9:30",
-        connected: false,
-        rssi: -72,
-        signalLevel: 2,
-        distanceEstimate: "Sedang (3.2m)",
-      },
-      {
-        id: "BT-EP5802-04",
-        name: "EP-5802AI Receipt",
-        address: "00:11:22:33:44:55",
-        connected: false,
-        rssi: -86,
-        signalLevel: 1,
-        distanceEstimate: "Jauh (>5m)",
-      },
-    ];
-
-    return devices.sort((a, b) => (b.rssi || -100) - (a.rssi || -100));
+    return [];
   }
 
   static async connectBluetoothPrinter(device: BluetoothDeviceItem): Promise<boolean> {
@@ -523,42 +484,66 @@ export class PrinterService {
         const base64Data = uint8ArrayToBase64(escPosBytes);
         const savedAddress = (await getSetting("printer_bluetooth_address", "")) || this.connectedDevice?.address || this.connectedDevice?.id;
 
-        const printed = await ExpoBluetoothEscpos.printRawBase64(base64Data, savedAddress || undefined);
+        if (!savedAddress) {
+          return {
+            success: false,
+            message: "Printer thermal belum dipilih. Silakan hubungkan printer di menu Pengaturan > Printer.",
+          };
+        }
+
+        const printed = await ExpoBluetoothEscpos.printRawBase64(base64Data, savedAddress);
         if (printed) {
           return {
             success: true,
             message: "Struk 58mm berhasil dicetak ke printer thermal!",
           };
-        }
-      }
-
-      // 4. Channel B: Direct Web Bluetooth GATT (Web)
-      if (Platform.OS === "web" && activeWritableChar) {
-        try {
-          const CHUNK_SIZE = 100;
-          for (let i = 0; i < escPosBytes.length; i += CHUNK_SIZE) {
-            const chunk = escPosBytes.slice(i, i + CHUNK_SIZE);
-            if (activeWritableChar.writeValueWithoutResponse) {
-              await activeWritableChar.writeValueWithoutResponse(chunk);
-            } else {
-              await activeWritableChar.writeValue(chunk);
-            }
-          }
+        } else {
           return {
-            success: true,
-            message: "Struk 58mm berhasil dicetak ke printer Bluetooth!",
+            success: false,
+            message: "Gagal terhubung ke printer Bluetooth. Pastikan printer thermal menyala, sudah di-pair di Pengaturan HP, dan dalam jangkauan.",
           };
-        } catch (gattErr) {
-          console.log("GATT write warning:", gattErr);
         }
       }
 
-      // 5. Fallback for iOS or if native module not yet loaded: Expo Print
-      const html = this.generateReceiptHtml(data);
-      await Print.printAsync({ html });
+      // 4. Channel B: Direct Web Bluetooth GATT (Web / Laptop)
+      if (Platform.OS === "web") {
+        if (!activeWritableChar && activeWebDevice) {
+          await connectToGattCharacteristic(activeWebDevice);
+        }
+
+        if (activeWritableChar) {
+          try {
+            const CHUNK_SIZE = 100;
+            for (let i = 0; i < escPosBytes.length; i += CHUNK_SIZE) {
+              const chunk = escPosBytes.slice(i, i + CHUNK_SIZE);
+              if (activeWritableChar.writeValueWithoutResponse) {
+                await activeWritableChar.writeValueWithoutResponse(chunk);
+              } else {
+                await activeWritableChar.writeValue(chunk);
+              }
+            }
+            return {
+              success: true,
+              message: "Struk 58mm berhasil dicetak ke printer Bluetooth!",
+            };
+          } catch (gattErr) {
+            console.log("GATT write warning:", gattErr);
+            return {
+              success: false,
+              message: "Koneksi Bluetooth web terputus. Silakan sambungkan ulang di menu Pengaturan.",
+            };
+          }
+        } else {
+          return {
+            success: false,
+            message: "Printer Bluetooth web belum terhubung. Buka Pengaturan > Printer dan pilih 'Pindai Perangkat Bluetooth'.",
+          };
+        }
+      }
+
       return {
-        success: true,
-        message: "Struk 58mm berhasil dicetak!",
+        success: false,
+        message: "Perangkat ini tidak mendukung Bluetooth ESC/POS langsung.",
       };
     } catch (error: any) {
       console.error("[PrinterService] Print error:", error);
