@@ -19,13 +19,61 @@ class ExpoBluetoothEscposModule : Module() {
   private val context: Context
     get() = appContext.reactContext ?: throw Exception("React Application Context is null")
 
+  private fun getBluetoothAdapter(): BluetoothAdapter? {
+    return try {
+      val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+      manager?.adapter ?: BluetoothAdapter.getDefaultAdapter()
+    } catch (e: Exception) {
+      BluetoothAdapter.getDefaultAdapter()
+    }
+  }
+
+  private fun createConnectedSocket(device: BluetoothDevice): BluetoothSocket? {
+    val adapter = getBluetoothAdapter()
+    try {
+      adapter?.cancelDiscovery()
+    } catch (e: Exception) {}
+
+    // Step 1: Standard RFCOMM SPP
+    try {
+      val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+      socket.connect()
+      return socket
+    } catch (e1: Exception) {}
+
+    // Step 2: Insecure RFCOMM SPP (Common on modern Samsung One UI / Android 12+)
+    try {
+      val socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+      socket.connect()
+      return socket
+    } catch (e2: Exception) {}
+
+    // Step 3: Reflection createRfcommSocket on Channel 1
+    try {
+      val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+      val socket = m.invoke(device, 1) as BluetoothSocket
+      socket.connect()
+      return socket
+    } catch (e3: Exception) {}
+
+    // Step 4: Reflection createInsecureRfcommSocket on Channel 1
+    try {
+      val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+      val socket = m.invoke(device, 1) as BluetoothSocket
+      socket.connect()
+      return socket
+    } catch (e4: Exception) {}
+
+    return null
+  }
+
   @SuppressLint("MissingPermission")
   override fun definition() = ModuleDefinition {
     Name("ExpoBluetoothEscpos")
 
     AsyncFunction("isBluetoothAvailable") {
       try {
-        val adapter = BluetoothAdapter.getDefaultAdapter()
+        val adapter = getBluetoothAdapter()
         return@AsyncFunction adapter != null && adapter.isEnabled
       } catch (e: Exception) {
         return@AsyncFunction false
@@ -34,14 +82,16 @@ class ExpoBluetoothEscposModule : Module() {
 
     AsyncFunction("getPairedDevices") {
       try {
-        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return@AsyncFunction emptyList<Map<String, Any?>>()
+        val adapter = getBluetoothAdapter() ?: return@AsyncFunction emptyList<Map<String, Any?>>()
         if (!adapter.isEnabled) return@AsyncFunction emptyList<Map<String, Any?>>()
 
         val list = mutableListOf<Map<String, Any?>>()
         val bondedDevices = adapter.bondedDevices ?: emptySet()
         for (device in bondedDevices) {
-          val name = device.name ?: "Printer Bluetooth"
-          val address = device.address ?: ""
+          val name = try { device.name ?: "Printer Bluetooth" } catch (e: Exception) { "Printer Bluetooth" }
+          val address = try { device.address ?: "" } catch (e: Exception) { "" }
+          if (address.isEmpty()) continue
+
           val isConnected = (activeSocket != null && activeSocket?.isConnected == true && activeDeviceAddress == address)
 
           list.add(mapOf(
@@ -62,7 +112,7 @@ class ExpoBluetoothEscposModule : Module() {
 
     AsyncFunction("connect") { address: String ->
       try {
-        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return@AsyncFunction false
+        val adapter = getBluetoothAdapter() ?: return@AsyncFunction false
         if (!adapter.isEnabled) return@AsyncFunction false
 
         // Close any existing socket
@@ -73,34 +123,15 @@ class ExpoBluetoothEscposModule : Module() {
         activeDeviceAddress = null
 
         val device: BluetoothDevice = adapter.getRemoteDevice(address)
+        val socket = createConnectedSocket(device)
 
-        try {
-          adapter.cancelDiscovery()
-        } catch (e: Exception) {}
-
-        var socket: BluetoothSocket? = null
-        try {
-          socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-          socket.connect()
-        } catch (e1: Exception) {
-          try {
-            socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
-            socket.connect()
-          } catch (eInsecure: Exception) {
-            try {
-              val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-              socket = m.invoke(device, 1) as BluetoothSocket
-              socket.connect()
-            } catch (e2: Exception) {
-              socket?.close()
-              return@AsyncFunction false
-            }
-          }
+        if (socket != null) {
+          activeSocket = socket
+          activeDeviceAddress = address
+          return@AsyncFunction true
+        } else {
+          return@AsyncFunction false
         }
-
-        activeSocket = socket
-        activeDeviceAddress = address
-        return@AsyncFunction true
       } catch (e: Exception) {
         return@AsyncFunction false
       }
@@ -122,44 +153,25 @@ class ExpoBluetoothEscposModule : Module() {
     AsyncFunction("printRawBase64") { base64Data: String, address: String? ->
       try {
         val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return@AsyncFunction false
+        val adapter = getBluetoothAdapter() ?: return@AsyncFunction false
         if (!adapter.isEnabled) return@AsyncFunction false
 
         var socket = activeSocket
         val targetAddress = address ?: activeDeviceAddress
 
-        // If not currently connected, connect to target address
+        // If not currently connected, connect to target address using multi-step fallback
         if (socket == null || !socket.isConnected || (targetAddress != null && targetAddress != activeDeviceAddress)) {
           if (targetAddress.isNullOrEmpty()) return@AsyncFunction false
 
           val device: BluetoothDevice = adapter.getRemoteDevice(targetAddress)
-          try {
-            adapter.cancelDiscovery()
-          } catch (e: Exception) {}
+          socket = createConnectedSocket(device)
+          if (socket == null) return@AsyncFunction false
 
-          try {
-            socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-            socket.connect()
-          } catch (e1: Exception) {
-            try {
-              socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
-              socket.connect()
-            } catch (eInsecure: Exception) {
-              try {
-                val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                socket = m.invoke(device, 1) as BluetoothSocket
-                socket.connect()
-              } catch (e2: Exception) {
-                socket?.close()
-                return@AsyncFunction false
-              }
-            }
-          }
           activeSocket = socket
           activeDeviceAddress = targetAddress
         }
 
-        val out: OutputStream = socket!!.outputStream
+        val out: OutputStream = socket.outputStream
         out.write(bytes)
         out.flush()
         return@AsyncFunction true

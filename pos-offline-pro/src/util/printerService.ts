@@ -1,6 +1,34 @@
-import { Platform, Alert } from "react-native";
+import { Platform, Alert, PermissionsAndroid } from "react-native";
 import { getSetting, setSetting } from "@/db/settingsRepository";
 import { ExpoBluetoothEscpos } from "../../modules/expo-bluetooth-escpos";
+
+export async function requestBluetoothPermissions(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+
+  try {
+    const apiLevel = typeof Platform.Version === "number" ? Platform.Version : parseInt(String(Platform.Version), 10);
+    if (apiLevel >= 31) {
+      const statuses = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      ]);
+
+      const connectGranted =
+        statuses[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] ===
+        PermissionsAndroid.RESULTS.GRANTED;
+      return connectGranted;
+    } else {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    }
+  } catch (err) {
+    console.log("Permission request error:", err);
+    return false;
+  }
+}
 
 export interface ReceiptItem {
   name: string;
@@ -139,6 +167,7 @@ export class PrinterService {
     // 1. Native Android Direct In-App Bluetooth Discovery
     if (Platform.OS === "android") {
       try {
+        await requestBluetoothPermissions();
         const paired = await ExpoBluetoothEscpos.getPairedDevices();
         if (paired && paired.length > 0) {
           const savedAddr = await getSetting("printer_bluetooth_address", "");
@@ -206,7 +235,11 @@ export class PrinterService {
     // Connect via native Expo Bluetooth ESC/POS module on Android
     if (Platform.OS === "android" && (device.address || device.id)) {
       try {
-        await ExpoBluetoothEscpos.connect(device.address || device.id);
+        await requestBluetoothPermissions();
+        const connected = await ExpoBluetoothEscpos.connect(device.address || device.id);
+        if (!connected) {
+          console.log("ExpoBluetoothEscpos.connect notice: connect returned false");
+        }
       } catch (e) {
         console.log("Native connect notice:", e);
       }
@@ -484,6 +517,7 @@ export class PrinterService {
 
       // 4. Channel A: Direct In-App Bluetooth ESC/POS Native Socket (Android)
       if (Platform.OS === "android") {
+        await requestBluetoothPermissions();
         const base64Data = uint8ArrayToBase64(escPosBytes);
         const savedAddress = (await getSetting("printer_bluetooth_address", "")) || this.connectedDevice?.address || this.connectedDevice?.id;
 
