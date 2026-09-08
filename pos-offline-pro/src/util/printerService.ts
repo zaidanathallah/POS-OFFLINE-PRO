@@ -619,7 +619,7 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
       }
     }
 
-    // 2. Web Browser Canvas Conversion
+    // 2. Web Browser Canvas Conversion with Auto-Crop & High-Resolution Scaling
     if (typeof document !== "undefined") {
       const img = new (window as any).Image();
       img.crossOrigin = "Anonymous";
@@ -629,19 +629,65 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
         img.src = logoUri;
       });
 
-      const maxLogoWidth = 240;
-      const maxLogoHeight = 120;
-      let targetW = img.naturalWidth || img.width || 240;
-      let targetH = img.naturalHeight || img.height || 120;
+      const origW = img.naturalWidth || img.width || 240;
+      const origH = img.naturalHeight || img.height || 120;
 
-      if (targetW > maxLogoWidth) {
-        targetH = Math.round((targetH * maxLogoWidth) / targetW);
-        targetW = maxLogoWidth;
+      // Draw original image on temporary canvas to compute bounding box
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = origW;
+      tempCanvas.height = origH;
+      const tempCtx = tempCanvas.getContext("2d");
+      if (!tempCtx) return null;
+
+      tempCtx.fillStyle = "#ffffff";
+      tempCtx.fillRect(0, 0, origW, origH);
+      tempCtx.drawImage(img, 0, 0, origW, origH);
+
+      const rawData = tempCtx.getImageData(0, 0, origW, origH);
+      const rawPixels = rawData.data;
+
+      let minX = origW, minY = origH, maxX = 0, maxY = 0;
+      let hasContent = false;
+
+      for (let y = 0; y < origH; y++) {
+        for (let x = 0; x < origW; x++) {
+          const idx = (y * origW + x) * 4;
+          const r = rawPixels[idx];
+          const g = rawPixels[idx + 1];
+          const b = rawPixels[idx + 2];
+          const a = rawPixels[idx + 3];
+
+          const lum = a < 128 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum < 235) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            hasContent = true;
+          }
+        }
       }
-      if (targetH > maxLogoHeight) {
-        targetW = Math.round((targetW * maxLogoHeight) / targetH);
-        targetH = maxLogoHeight;
+
+      if (!hasContent) {
+        minX = 0;
+        minY = 0;
+        maxX = origW - 1;
+        maxY = origH - 1;
       }
+
+      const pad = 2;
+      const cropLeft = Math.max(0, minX - pad);
+      const cropTop = Math.max(0, minY - pad);
+      const cropW = Math.min(origW - cropLeft, (maxX - minX + 1) + pad * 2);
+      const cropH = Math.min(origH - cropTop, (maxY - minY + 1) + pad * 2);
+
+      // Prominent banner size for 58mm printer (384 dots paper width)
+      const MAX_PRINT_WIDTH = 260;
+      const MAX_PRINT_HEIGHT = 220;
+
+      const scale = Math.min(MAX_PRINT_WIDTH / cropW, MAX_PRINT_HEIGHT / cropH);
+      const targetW = Math.min(MAX_PRINT_WIDTH, Math.max(80, Math.round(cropW * scale)));
+      const targetH = Math.min(MAX_PRINT_HEIGHT, Math.max(40, Math.round(cropH * scale)));
 
       const canvas = document.createElement("canvas");
       canvas.width = targetW;
@@ -651,7 +697,8 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
 
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, targetW, targetH);
-      ctx.drawImage(img, 0, 0, targetW, targetH);
+      // Draw cropped region scaled to target size
+      ctx.drawImage(img, cropLeft, cropTop, cropW, cropH, 0, 0, targetW, targetH);
 
       const imgData = ctx.getImageData(0, 0, targetW, targetH);
       const pixels = imgData.data;
@@ -679,7 +726,7 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
           const a = pixels[idx + 3];
 
           const lum = a < 128 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
-          if (lum < 170) {
+          if (lum < 185) {
             const dot = leftMarginDots + x;
             if (dot < PAPER_WIDTH_DOTS) {
               const byteIdx = Math.floor(dot / 8);
