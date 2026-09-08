@@ -35,7 +35,7 @@ import {
   togglePromoStatus,
   PromoInput,
 } from "@/db/promoRepository";
-import { exportDatabaseBackup, importDatabaseBackup } from "@/util/databaseSync";
+import { exportDatabaseBackup, importDatabaseBackup, resetDatabaseToClean } from "@/util/databaseSync";
 import { exportReportToCSV } from "@/util/csvExportService";
 import { PrinterService, BluetoothDeviceItem } from "@/util/printerService";
 import { useSecureAction } from "@/hooks/useSecureAction";
@@ -490,6 +490,45 @@ export default function SettingsScreen() {
         setIsImporting(false);
       }
     }, "Masukkan PIN Supervisor untuk memulihkan database");
+  };
+
+  // Reset / Clear Database (Wipes mock/dirty data and starts fresh)
+  const [isResetting, setIsResetting] = useState(false);
+  const handleResetDatabase = () => {
+    executeSecureAction(() => {
+      Alert.alert(
+        "⚠️ Kosongkan / Reset Semua Data",
+        "Apakah Anda yakin ingin menghapus SELURUH data produk, promo, transaksi, riwayat kasir, dan pelanggan di perangkat ini?\n\nDatabase akan bersih total seperti aplikasi baru. Tindakan ini tidak dapat dibatalkan.",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus Semua (Reset)",
+            style: "destructive",
+            onPress: async () => {
+              setIsResetting(true);
+              try {
+                const ok = await resetDatabaseToClean();
+                if (ok) {
+                  await loadAllSettings();
+                  await loadPromosData();
+                  await loadReportData();
+                  Alert.alert(
+                    "Database Bersih Total!",
+                    "Seluruh data telah berhasil dikosongkan. Perangkat Anda sekarang bersih total dan siap digunakan atau diimpor data cadangan."
+                  );
+                } else {
+                  Alert.alert("Gagal Reset", "Terjadi kesalahan saat mengosongkan database.");
+                }
+              } catch (e: any) {
+                Alert.alert("Gagal Reset", e.message || "Terjadi kesalahan.");
+              } finally {
+                setIsResetting(false);
+              }
+            },
+          },
+        ]
+      );
+    }, "Masukkan PIN Supervisor untuk mengosongkan database");
   };
 
   // Save PIN
@@ -1699,6 +1738,73 @@ export default function SettingsScreen() {
                   <Upload size={16} color="#0097A7" />
                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginLeft: 8 }}>
                     Pulihkan Data (Import Database)
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Reset / Clear Database Card */}
+          <View
+            style={{
+              padding: 20,
+              borderRadius: 24,
+              backgroundColor: "#ffffff",
+              borderWidth: 1,
+              borderColor: "#fee2e2",
+              marginTop: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  backgroundColor: "#fef2f2",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 10,
+                }}
+              >
+                <Trash2 size={16} color="#ef4444" />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#991b1b" }}>
+                Kosongkan / Reset Database
+              </Text>
+            </View>
+
+            <Text style={{ fontSize: 12, color: "#71717a", lineHeight: 18, marginBottom: 16 }}>
+              Hapus seluruh data produk, kategori, promo, dan riwayat transaksi untuk memulai dari awal yang bersih atau sebelum mengimpor file backup baru.
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleResetDatabase}
+              disabled={isResetting}
+              activeOpacity={0.8}
+              style={{
+                paddingVertical: 14,
+                borderRadius: 16,
+                backgroundColor: "#fef2f2",
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "#fca5a5",
+                flexDirection: "row",
+              }}
+            >
+              {isResetting ? (
+                <ActivityIndicator size="small" color="#ef4444" />
+              ) : (
+                <>
+                  <Trash2 size={16} color="#ef4444" />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444", marginLeft: 8 }}>
+                    Kosongkan / Reset Semua Data
                   </Text>
                 </>
               )}

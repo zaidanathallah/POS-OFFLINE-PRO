@@ -333,10 +333,21 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
 }
 
 /**
- * Helper to safely insert or replace all tables from JSON backup
+ * Helper to safely clear and restore all tables from JSON backup
  */
 async function restoreJsonTables(tables: any): Promise<void> {
   await runInDbQueue(async (db) => {
+    // Clear old tables first so no leftover/dummy data remains
+    await db.execAsync(`
+      DELETE FROM transaction_details;
+      DELETE FROM transactions;
+      DELETE FROM stock_movements;
+      DELETE FROM customers;
+      DELETE FROM promos;
+      DELETE FROM products;
+      DELETE FROM categories;
+    `);
+
     const {
       categories,
       products,
@@ -518,4 +529,38 @@ async function restoreJsonTables(tables: any): Promise<void> {
       }
     }
   });
+}
+
+/**
+ * Resets all database tables to a clean, empty state with default categories
+ */
+export async function resetDatabaseToClean(): Promise<boolean> {
+  try {
+    await runInDbQueue(async (db) => {
+      await db.execAsync(`
+        DELETE FROM transaction_details;
+        DELETE FROM transactions;
+        DELETE FROM stock_movements;
+        DELETE FROM customers;
+        DELETE FROM promos;
+        DELETE FROM products;
+        DELETE FROM categories;
+      `);
+
+      // Seed default clean categories
+      const defaultCategories = ["Buah", "Makanan", "Minuman", "Retail", "Jasa", "Lainnya"];
+      for (const catName of defaultCategories) {
+        await db.runAsync(
+          "INSERT OR IGNORE INTO categories (id, name) VALUES (?, ?);",
+          [`CAT-${catName.toUpperCase()}`, catName]
+        );
+      }
+    });
+
+    await reloadDatabase();
+    return true;
+  } catch (err) {
+    console.error("resetDatabaseToClean error:", err);
+    return false;
+  }
 }
