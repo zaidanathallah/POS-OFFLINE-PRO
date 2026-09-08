@@ -9,9 +9,13 @@ dist/
 web-build/
 .eas/
 
-# Native
-android/
-ios/
+# Native generated folders
+/android/
+/ios/
+/pos-offline-pro/android/
+/pos-offline-pro/ios/
+!pos-offline-pro/modules/
+!**/modules/**
 
 # Environment & Config
 .env

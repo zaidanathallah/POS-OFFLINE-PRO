@@ -1,0 +1,8 @@
+{
+  "name": "expo-bluetooth-escpos",
+  "platforms": ["android", "ios", "web"],
+  "android": {
+    "package": "expo.modules.bluetoothescpos",
+    "modules": ["expo.modules.bluetoothescpos.ExpoBluetoothEscposModule"]
+  }
+}
