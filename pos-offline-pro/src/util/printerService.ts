@@ -788,12 +788,10 @@ export function generateEscPosBuffer(data: ReceiptData, logoRasterBytes?: number
   // ESC a 1: Center Alignment
   addBytes(0x1B, 0x61, 0x01);
 
-  // GS ! 0x11: Double Size & Bold for Store Title
-  addBytes(0x1D, 0x21, 0x11);
-  addBytes(0x1B, 0x45, 0x01);
-  addLine(data.storeName || "POS OFFLINE PRO");
-  addBytes(0x1D, 0x21, 0x00);
-  addBytes(0x1B, 0x45, 0x00);
+  // Store Title (Bold, Normal Size, Uppercase)
+  addBytes(0x1B, 0x45, 0x01); // ESC E 1: Bold on
+  addLine((data.storeName || "POS OFFLINE PRO").toUpperCase());
+  addBytes(0x1B, 0x45, 0x00); // ESC E 0: Bold off
 
   if (data.businessType) {
     addLine(data.businessType.toUpperCase());
