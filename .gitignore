@@ -16,6 +16,9 @@ web-build/
 /pos-offline-pro/ios/
 !pos-offline-pro/modules/
 !**/modules/**
+**/.gradle/
+**/build/
+.kotlin/
 
 # Environment & Config
 .env
