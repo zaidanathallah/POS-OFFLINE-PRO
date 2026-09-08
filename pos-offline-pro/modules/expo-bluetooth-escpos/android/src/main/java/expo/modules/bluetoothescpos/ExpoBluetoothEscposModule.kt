@@ -172,5 +172,68 @@ class ExpoBluetoothEscposModule : Module() {
         return@AsyncFunction false
       }
     }
+
+    AsyncFunction("convertImageToRasterBase64") { imageBase64OrUri: String ->
+      try {
+        var base64Clean = imageBase64OrUri
+        if (base64Clean.contains(",")) {
+          base64Clean = base64Clean.substringAfter(",")
+        }
+        val imgBytes = Base64.decode(base64Clean, Base64.DEFAULT)
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.size) ?: return@AsyncFunction ""
+
+        val maxLogoWidth = 240
+        val maxLogoHeight = 120
+        var w = bitmap.width
+        var h = bitmap.height
+
+        if (w > maxLogoWidth) {
+          h = (h * maxLogoWidth) / w
+          w = maxLogoWidth
+        }
+        if (h > maxLogoHeight) {
+          w = (w * maxLogoHeight) / h
+          h = maxLogoHeight
+        }
+
+        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
+        val paperWidthDots = 384
+        val rowBytes = 48
+        val leftMargin = Math.max(0, (paperWidthDots - w) / 2)
+
+        val out = java.io.ByteArrayOutputStream()
+        out.write(byteArrayOf(0x1B, 0x61, 0x01)) // Center
+        out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00)) // GS v 0 0
+        out.write(byteArrayOf((rowBytes and 0xFF).toByte(), ((rowBytes shr 8) and 0xFF).toByte()))
+        out.write(byteArrayOf((h and 0xFF).toByte(), ((h shr 8) and 0xFF).toByte()))
+
+        for (y in 0 until h) {
+          val row = ByteArray(rowBytes)
+          for (x in 0 until w) {
+            val pixel = scaled.getPixel(x, y)
+            val alpha = (pixel shr 24) and 0xFF
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+
+            val lum = if (alpha < 128) 255 else (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+            if (lum < 170) {
+              val dot = leftMargin + x
+              if (dot < paperWidthDots) {
+                val byteIdx = dot / 8
+                val bitIdx = 7 - (dot % 8)
+                row[byteIdx] = (row[byteIdx].toInt() or (1 shl bitIdx)).toByte()
+              }
+            }
+          }
+          out.write(row)
+        }
+        out.write(byteArrayOf(0x0A))
+        val resultBytes = out.toByteArray()
+        return@AsyncFunction Base64.encodeToString(resultBytes, Base64.NO_WRAP)
+      } catch (e: Exception) {
+        return@AsyncFunction ""
+      }
+    }
   }
 }

@@ -476,10 +476,13 @@ export class PrinterService {
         data.footerNote = await getSetting("store_receipt_footer", "Terima Kasih Atas Kunjungan Anda!");
       }
 
-      // 2. Generate Binary ESC/POS Buffer
-      const escPosBytes = generateEscPosBuffer(data);
+      // 2. Generate Logo Raster Bytes (if store logo exists)
+      const logoRasterBytes = data.storeLogoUri ? await convertLogoToEscPosRaster(data.storeLogoUri) : null;
 
-      // 3. Channel A: Direct In-App Bluetooth ESC/POS Native Socket (Android)
+      // 3. Generate Binary ESC/POS Buffer
+      const escPosBytes = generateEscPosBuffer(data, logoRasterBytes);
+
+      // 4. Channel A: Direct In-App Bluetooth ESC/POS Native Socket (Android)
       if (Platform.OS === "android") {
         const base64Data = uint8ArrayToBase64(escPosBytes);
         const savedAddress = (await getSetting("printer_bluetooth_address", "")) || this.connectedDevice?.address || this.connectedDevice?.id;
@@ -505,7 +508,7 @@ export class PrinterService {
         }
       }
 
-      // 4. Channel B: Direct Web Bluetooth GATT (Web / Laptop)
+      // 5. Channel B: Direct Web Bluetooth GATT (Web / Laptop)
       if (Platform.OS === "web") {
         if (!activeWritableChar && activeWebDevice) {
           await connectToGattCharacteristic(activeWebDevice);
@@ -588,9 +591,122 @@ export class PrinterService {
 }
 
 /**
+ * Converts a store logo image (URI or Base64) to ESC/POS Raster Bit Image (GS v 0) bytes
+ * Printable width for 58mm printer is 384 dots (48 bytes per line), horizontally centered.
+ */
+export async function convertLogoToEscPosRaster(logoUri: string): Promise<number[] | null> {
+  if (!logoUri || typeof logoUri !== "string" || logoUri.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    // 1. Android Native Acceleration
+    if (Platform.OS === "android") {
+      try {
+        const rasterB64 = await ExpoBluetoothEscpos.convertImageToRasterBase64(logoUri);
+        if (rasterB64 && rasterB64.length > 0) {
+          let clean = rasterB64;
+          if (clean.includes(",")) clean = clean.split(",")[1];
+          const binary = typeof atob !== "undefined" ? atob(clean) : "";
+          const bytes: number[] = [];
+          for (let i = 0; i < binary.length; i++) {
+            bytes.push(binary.charCodeAt(i));
+          }
+          if (bytes.length > 0) return bytes;
+        }
+      } catch (err) {
+        console.log("Native logo raster notice:", err);
+      }
+    }
+
+    // 2. Web Browser Canvas Conversion
+    if (typeof document !== "undefined") {
+      const img = new (window as any).Image();
+      img.crossOrigin = "Anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Gagal memuat logo gambar"));
+        img.src = logoUri;
+      });
+
+      const maxLogoWidth = 240;
+      const maxLogoHeight = 120;
+      let targetW = img.naturalWidth || img.width || 240;
+      let targetH = img.naturalHeight || img.height || 120;
+
+      if (targetW > maxLogoWidth) {
+        targetH = Math.round((targetH * maxLogoWidth) / targetW);
+        targetW = maxLogoWidth;
+      }
+      if (targetH > maxLogoHeight) {
+        targetW = Math.round((targetW * maxLogoHeight) / targetH);
+        targetH = maxLogoHeight;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, targetW, targetH);
+      ctx.drawImage(img, 0, 0, targetW, targetH);
+
+      const imgData = ctx.getImageData(0, 0, targetW, targetH);
+      const pixels = imgData.data;
+
+      const PAPER_WIDTH_DOTS = 384;
+      const ROW_BYTES = 48;
+      const leftMarginDots = Math.max(0, Math.floor((PAPER_WIDTH_DOTS - targetW) / 2));
+
+      const rasterBytes: number[] = [];
+
+      // Center Align ESC a 1
+      rasterBytes.push(0x1B, 0x61, 0x01);
+      // GS v 0 0 xL xH yL yH
+      rasterBytes.push(0x1D, 0x76, 0x30, 0x00);
+      rasterBytes.push(ROW_BYTES & 0xFF, (ROW_BYTES >> 8) & 0xFF);
+      rasterBytes.push(targetH & 0xFF, (targetH >> 8) & 0xFF);
+
+      for (let y = 0; y < targetH; y++) {
+        const row = new Uint8Array(ROW_BYTES);
+        for (let x = 0; x < targetW; x++) {
+          const idx = (y * targetW + x) * 4;
+          const r = pixels[idx];
+          const g = pixels[idx + 1];
+          const b = pixels[idx + 2];
+          const a = pixels[idx + 3];
+
+          const lum = a < 128 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum < 170) {
+            const dot = leftMarginDots + x;
+            if (dot < PAPER_WIDTH_DOTS) {
+              const byteIdx = Math.floor(dot / 8);
+              const bitIdx = 7 - (dot % 8);
+              row[byteIdx] |= (1 << bitIdx);
+            }
+          }
+        }
+        for (let b = 0; b < ROW_BYTES; b++) {
+          rasterBytes.push(row[b]);
+        }
+      }
+
+      rasterBytes.push(0x0A);
+      return rasterBytes;
+    }
+  } catch (err) {
+    console.log("[PrinterService] convertLogoToEscPosRaster notice:", err);
+  }
+
+  return null;
+}
+
+/**
  * Generates ESC/POS 58mm byte buffer (32 columns per line)
  */
-export function generateEscPosBuffer(data: ReceiptData): Uint8Array {
+export function generateEscPosBuffer(data: ReceiptData, logoRasterBytes?: number[] | null): Uint8Array {
   const bytes: number[] = [];
 
   const addBytes = (...b: number[]) => bytes.push(...b);
@@ -616,6 +732,11 @@ export function generateEscPosBuffer(data: ReceiptData): Uint8Array {
 
   // ESC @: Initialize Printer
   addBytes(0x1B, 0x40);
+
+  // Print Logo Raster Bit Image if available
+  if (logoRasterBytes && logoRasterBytes.length > 0) {
+    addBytes(...logoRasterBytes);
+  }
 
   // ESC a 1: Center Alignment
   addBytes(0x1B, 0x61, 0x01);

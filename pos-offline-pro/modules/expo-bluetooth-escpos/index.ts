@@ -77,4 +77,13 @@ export const ExpoBluetoothEscpos = {
       return false;
     }
   },
+
+  convertImageToRasterBase64: async (imageBase64OrUri: string): Promise<string> => {
+    if (!nativeModule || !nativeModule.convertImageToRasterBase64) return "";
+    try {
+      return await nativeModule.convertImageToRasterBase64(imageBase64OrUri);
+    } catch {
+      return "";
+    }
+  },
 };
