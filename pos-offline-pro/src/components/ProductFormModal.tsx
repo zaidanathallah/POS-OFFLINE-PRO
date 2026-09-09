@@ -32,10 +32,7 @@ import {
   Scan,
 } from "lucide-react-native";
 import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
-import {
-  lookupSupermarketBarcode,
-  fetchOnlineProductBarcode,
-} from "@/util/supermarketBarcodeDb";
+import { lookupSupermarketBarcode } from "@/util/supermarketBarcodeDb";
 
 interface ProductFormModalProps {
   visible: boolean;
@@ -161,7 +158,7 @@ export function ProductFormModal({
 
     // If name is empty or unset, auto-suggest from database
     if (!name.trim()) {
-      const detected = lookupSupermarketBarcode(code) || (await fetchOnlineProductBarcode(code));
+      const detected = lookupSupermarketBarcode(code);
       if (detected) {
         if (detected.name) setName(detected.name);
         if (detected.category) setCategory(detected.category);

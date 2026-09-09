@@ -15,10 +15,9 @@ import {
   X,
   Check,
   Barcode as BarcodeIcon,
-  Package,
-  TrendingUp,
   Sparkles,
   ShoppingBag,
+  TrendingUp,
 } from "lucide-react-native";
 import { ProductInput } from "@/db/productRepository";
 import { SupermarketProduct } from "@/util/supermarketBarcodeDb";
@@ -83,7 +82,7 @@ export function QuickProductRegisterModal({
 
   const handleConfirmSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Perhatian", "Silakan isi nama produk terlebih dahulu.");
+      Alert.alert("Perhatian", "Silakan ketik nama produk terlebih dahulu.");
       return;
     }
 
@@ -171,7 +170,9 @@ export function QuickProductRegisterModal({
                   {isAutoDetected ? "Produk Terdeteksi!" : "Daftarkan Produk Baru"}
                 </Text>
                 <Text style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
-                  Sesuaikan nama & harga toko sebelum masuk kasir
+                  {isAutoDetected
+                    ? "Ditemukan di katalog retail. Sesuaikan harga jika perlu:"
+                    : "Barcode baru terdeteksi. Masukkan nama & harga toko:"}
                 </Text>
               </View>
             </View>
@@ -236,7 +237,8 @@ export function QuickProductRegisterModal({
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="Contoh: Konicare Minyak Kayu Putih Plus 125ml"
+                autoFocus={!isAutoDetected}
+                placeholder="Ketik nama produk (misal: Zwitsal Baby Bath 200ml)..."
                 placeholderTextColor="#71717a"
                 style={{
                   backgroundColor: "#27272a",
@@ -261,7 +263,7 @@ export function QuickProductRegisterModal({
                   value={hargaJual}
                   onChangeText={(val) => setHargaJual(val.replace(/\D/g, ""))}
                   keyboardType="numeric"
-                  placeholder="Contoh: 45000"
+                  placeholder="Contoh: 28000"
                   placeholderTextColor="#71717a"
                   style={{
                     backgroundColor: "#27272a",
@@ -285,7 +287,7 @@ export function QuickProductRegisterModal({
                   value={modalHpp}
                   onChangeText={(val) => setModalHpp(val.replace(/\D/g, ""))}
                   keyboardType="numeric"
-                  placeholder="Contoh: 37500"
+                  placeholder="Contoh: 23000"
                   placeholderTextColor="#71717a"
                   style={{
                     backgroundColor: "#27272a",

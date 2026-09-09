@@ -26,8 +26,6 @@ import { formatRupiah } from "@/util/formatters";
 import { evaluateCartPromos, AppliedPromoResult } from "@/util/promoEngine";
 import {
   lookupSupermarketBarcode,
-  generateSmartSupermarketProduct,
-  fetchOnlineProductBarcode,
   parseBarcodeIdentifier,
   SupermarketProduct,
 } from "@/util/supermarketBarcodeDb";
@@ -367,7 +365,7 @@ export default function PosModalScreen() {
         return;
       }
 
-      // 2. Check offline supermarket & pharma database
+      // 2. Check offline supermarket, FMCG & pharma database
       const supermarketItem = lookupSupermarketBarcode(scannedCode);
       if (supermarketItem) {
         setScannedBarcodeForRegister(scannedCode);
@@ -376,19 +374,9 @@ export default function PosModalScreen() {
         return;
       }
 
-      // 3. Check fast online product database (timeout 2.5s)
-      const onlineItem = await fetchOnlineProductBarcode(scannedCode);
-      if (onlineItem) {
-        setScannedBarcodeForRegister(scannedCode);
-        setPrefillProductData(onlineItem);
-        setQuickRegisterModalVisible(true);
-        return;
-      }
-
-      // 4. Smart fallback for unknown barcode
-      const smartProduct = generateSmartSupermarketProduct(scannedCode);
+      // 3. For new / custom store products: open clean registration modal
       setScannedBarcodeForRegister(scannedCode);
-      setPrefillProductData(smartProduct);
+      setPrefillProductData(null);
       setQuickRegisterModalVisible(true);
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Gagal memproses barcode.");

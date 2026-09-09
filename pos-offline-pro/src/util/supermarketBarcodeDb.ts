@@ -18,6 +18,243 @@ export interface SupermarketProduct {
 
 export const SUPERMARKET_BARCODE_DATABASE: SupermarketProduct[] = [
   // =========================================================================
+  // --- PRODUK BAYI & ANAK (ZWITSAL, CUSSONS, MY BABY, MITU, JOHNSON'S) ---
+  // =========================================================================
+  {
+    barcode: "8999999058047",
+    alternate_barcodes: ["8999999058047", "8999999558047", "8999999088047", "8999999718047", "8999999078047", "8999999098047"],
+    name: "Zwitsal Baby Bath Natural Hair & Body Aloe Vera 200ml",
+    category: "Retail",
+    harga_jual: 28000,
+    modal_hpp: 23000,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999058054",
+    name: "Zwitsal Baby Bath Natural Hair & Body Refill 450ml",
+    category: "Retail",
+    harga_jual: 38500,
+    modal_hpp: 32000,
+    unit: "pouch",
+  },
+  {
+    barcode: "8999999058061",
+    name: "Zwitsal Baby Bath Natural Hair & Body Pump 300ml",
+    category: "Retail",
+    harga_jual: 42000,
+    modal_hpp: 35000,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999558054",
+    name: "Zwitsal Baby Shampoo Aloe Vera Kemiri Seledri 200ml",
+    category: "Retail",
+    harga_jual: 28000,
+    modal_hpp: 23000,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999558061",
+    name: "Zwitsal Baby Shampoo Aloe Vera Refill 450ml",
+    category: "Retail",
+    harga_jual: 39000,
+    modal_hpp: 32500,
+    unit: "pouch",
+  },
+  {
+    barcode: "8999999088054",
+    name: "Zwitsal Baby Oil Natural with Aloe Vera 100ml",
+    category: "Retail",
+    harga_jual: 24000,
+    modal_hpp: 19500,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999718054",
+    name: "Zwitsal Minyak Telon Natural 60ml",
+    category: "Retail",
+    harga_jual: 24000,
+    modal_hpp: 19500,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999718061",
+    name: "Zwitsal Minyak Telon Natural 100ml",
+    category: "Retail",
+    harga_jual: 38000,
+    modal_hpp: 31000,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999078054",
+    name: "Zwitsal Baby Powder Fresh Floral 300g",
+    category: "Retail",
+    harga_jual: 17500,
+    modal_hpp: 14000,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999078061",
+    name: "Zwitsal Baby Powder Fresh Floral 100g",
+    category: "Retail",
+    harga_jual: 9000,
+    modal_hpp: 7200,
+    unit: "botol",
+  },
+  {
+    barcode: "8999999098054",
+    name: "Zwitsal Baby Lotion Classic 100ml",
+    category: "Retail",
+    harga_jual: 22000,
+    modal_hpp: 18000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710011",
+    name: "Cussons Baby Milk Bath Soft & Smooth 200ml",
+    category: "Retail",
+    harga_jual: 24000,
+    modal_hpp: 19500,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710028",
+    name: "Cussons Baby Milk Bath Soft & Smooth Refill 400ml",
+    category: "Retail",
+    harga_jual: 32000,
+    modal_hpp: 26000,
+    unit: "pouch",
+  },
+  {
+    barcode: "8992745710035",
+    name: "Cussons Baby Shampoo Candle Nut & Celery 100ml",
+    category: "Retail",
+    harga_jual: 16000,
+    modal_hpp: 13000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710042",
+    name: "Cussons Baby Shampoo Candle Nut & Celery 200ml",
+    category: "Retail",
+    harga_jual: 26000,
+    modal_hpp: 21000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710059",
+    name: "Cussons Baby Oil Soft & Smooth 100ml",
+    category: "Retail",
+    harga_jual: 22000,
+    modal_hpp: 18000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710066",
+    name: "Cussons Baby Powder Soft & Smooth 200g",
+    category: "Retail",
+    harga_jual: 12000,
+    modal_hpp: 9500,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745710073",
+    name: "Cussons Baby Wipes Soft & Smooth 50s",
+    category: "Retail",
+    harga_jual: 16000,
+    modal_hpp: 12500,
+    unit: "pack",
+  },
+  {
+    barcode: "8997003410013",
+    name: "My Baby Minyak Telon Plus Eucalyptus 60ml",
+    category: "Retail",
+    harga_jual: 22000,
+    modal_hpp: 18000,
+    unit: "botol",
+  },
+  {
+    barcode: "8997003410020",
+    name: "My Baby Minyak Telon Plus Eucalyptus 90ml",
+    category: "Retail",
+    harga_jual: 31000,
+    modal_hpp: 25500,
+    unit: "botol",
+  },
+  {
+    barcode: "8997003410037",
+    name: "My Baby Minyak Telon Plus Eucalyptus 150ml",
+    category: "Retail",
+    harga_jual: 46000,
+    modal_hpp: 38000,
+    unit: "botol",
+  },
+  {
+    barcode: "8997003410044",
+    name: "My Baby Powder Sweet Floral 150g",
+    category: "Retail",
+    harga_jual: 11000,
+    modal_hpp: 8800,
+    unit: "botol",
+  },
+  {
+    barcode: "8997003410051",
+    name: "My Baby Bath 2 in 1 Hair & Body 200ml",
+    category: "Retail",
+    harga_jual: 23000,
+    modal_hpp: 18500,
+    unit: "botol",
+  },
+  {
+    barcode: "8997003410068",
+    name: "My Baby Bath 2 in 1 Hair & Body Refill 400ml",
+    category: "Retail",
+    harga_jual: 32000,
+    modal_hpp: 26000,
+    unit: "pouch",
+  },
+  {
+    barcode: "8992745720010",
+    name: "Mitu Baby Wipes Antiseptic 50s",
+    category: "Retail",
+    harga_jual: 15000,
+    modal_hpp: 12000,
+    unit: "pack",
+  },
+  {
+    barcode: "8992745730019",
+    name: "Johnson's Baby Bath Milk & Rice 200ml",
+    category: "Retail",
+    harga_jual: 26000,
+    modal_hpp: 21000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745730026",
+    name: "Johnson's Baby Bath Milk & Rice Refill 400ml",
+    category: "Retail",
+    harga_jual: 36000,
+    modal_hpp: 29000,
+    unit: "pouch",
+  },
+  {
+    barcode: "8992745730033",
+    name: "Johnson's Baby Oil 125ml",
+    category: "Retail",
+    harga_jual: 26000,
+    modal_hpp: 21000,
+    unit: "botol",
+  },
+  {
+    barcode: "8992745730040",
+    name: "Johnson's Baby Powder 100g",
+    category: "Retail",
+    harga_jual: 11000,
+    modal_hpp: 8800,
+    unit: "botol",
+  },
+
+  // =========================================================================
   // --- MINYAK KAYU PUTIH, TELON, AROMATHERAPY & FARMASI OTC (INDONESIA) ---
   // =========================================================================
   {
@@ -1171,10 +1408,6 @@ export const SUPERMARKET_BARCODE_DATABASE: SupermarketProduct[] = [
 
 /**
  * Normalizes and extracts key identifiers from 1D and 2D GS1 / BPOM barcodes.
- * Examples:
- * - "(90)TR142681391(91)240828" -> { raw: "...", bpomNumber: "TR142681391", gtin: "" }
- * - "(01)08998667401068(21)12345" -> { raw: "...", gtin: "8998667401068" }
- * - "8998667401068" -> { raw: "8998667401068", gtin: "8998667401068" }
  */
 export function parseBarcodeIdentifier(rawInput: string): {
   raw: string;
@@ -1182,17 +1415,20 @@ export function parseBarcodeIdentifier(rawInput: string): {
   bpomNumber?: string;
   gtin?: string;
 } {
-  const raw = rawInput.trim();
+  const raw = (rawInput || "").trim();
   const cleanNumbers = raw.replace(/\D/g, "");
 
   let bpomNumber: string | undefined = undefined;
   let gtin: string | undefined = undefined;
 
   // 1. Check for BPOM (90) application identifier
-  const bpomMatch = raw.match(/\(90\)\s*([A-Za-z0-9]+)/i) || raw.match(/TR\d{9}/i) || raw.match(/SD\d{9}/i) || raw.match(/NA\d{11}/i);
+  const bpomMatch =
+    raw.match(/\(90\)\s*([A-Za-z0-9]+)/i) ||
+    raw.match(/TR\d{9}/i) ||
+    raw.match(/SD\d{9}/i) ||
+    raw.match(/NA\d{11}/i);
   if (bpomMatch) {
-    bpomNumber = bpomMatch[1] || bpomMatch[0];
-    bpomNumber = bpomNumber.toUpperCase();
+    bpomNumber = (bpomMatch[1] || bpomMatch[0]).toUpperCase();
   }
 
   // 2. Check for GTIN (01) application identifier
@@ -1216,7 +1452,11 @@ export function lookupSupermarketBarcode(barcode: string): SupermarketProduct | 
 
   // 1. Direct match on barcode or alternate barcodes
   for (const item of SUPERMARKET_BARCODE_DATABASE) {
-    if (item.barcode === raw || item.barcode === cleanNumbers || (gtin && item.barcode === gtin)) {
+    if (
+      item.barcode === raw ||
+      item.barcode === cleanNumbers ||
+      (gtin && item.barcode === gtin)
+    ) {
       return item;
     }
 
@@ -1238,7 +1478,7 @@ export function lookupSupermarketBarcode(barcode: string): SupermarketProduct | 
     }
   }
 
-  // 2. Suffix / Substring match for short scanned codes (at least 6 chars to prevent false positives)
+  // 2. Suffix / Substring match for short scanned codes (at least 6 chars)
   if (cleanNumbers.length >= 6) {
     const partial = SUPERMARKET_BARCODE_DATABASE.find(
       (p) => p.barcode.endsWith(cleanNumbers) || cleanNumbers.endsWith(p.barcode)
@@ -1247,124 +1487,4 @@ export function lookupSupermarketBarcode(barcode: string): SupermarketProduct | 
   }
 
   return null;
-}
-
-/**
- * Fast online barcode lookup using Open Food Facts & Open Products Facts.
- * Uses a strict 2.5-second AbortController timeout so offline usage never hangs.
- */
-export async function fetchOnlineProductBarcode(
-  barcode: string
-): Promise<Partial<SupermarketProduct> | null> {
-  try {
-    const { cleanNumbers, gtin } = parseBarcodeIdentifier(barcode);
-    const codeToSearch = gtin || cleanNumbers;
-    if (!codeToSearch || codeToSearch.length < 8) return null;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-    const url = `https://world.openfoodfacts.org/api/v2/product/${codeToSearch}.json?fields=product_name,product_name_id,product_name_en,brands,categories,image_url,quantity`;
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    if (data && data.status === 1 && data.product) {
-      const p = data.product;
-      const rawName = p.product_name_id || p.product_name || p.product_name_en || "";
-      const brand = p.brands ? `${p.brands} ` : "";
-      const qty = p.quantity ? ` ${p.quantity}` : "";
-
-      let finalName = rawName ? `${brand}${rawName}${qty}`.trim() : "";
-      // Clean duplicate brands if brand already at start of rawName
-      if (brand && rawName.toLowerCase().startsWith(p.brands.toLowerCase())) {
-        finalName = `${rawName}${qty}`.trim();
-      }
-
-      if (!finalName) return null;
-
-      let category: SupermarketProduct["category"] = "Retail";
-      const catLower = (p.categories || "").toLowerCase();
-      if (catLower.includes("beverage") || catLower.includes("drink") || catLower.includes("minuman") || catLower.includes("water") || catLower.includes("juice")) {
-        category = "Minuman";
-      } else if (catLower.includes("food") || catLower.includes("snack") || catLower.includes("makanan") || catLower.includes("biscuit") || catLower.includes("noodle")) {
-        category = "Makanan";
-      }
-
-      return {
-        barcode: codeToSearch,
-        name: finalName,
-        category,
-        harga_jual: 15000,
-        modal_hpp: 12000,
-        unit: "pcs",
-        image_uri: p.image_url || undefined,
-      };
-    }
-  } catch (e) {
-    // Network offline or timeout - fallback silently
-  }
-
-  return null;
-}
-
-/**
- * Generates an intelligent auto-detected supermarket product for any unknown barcode (EAN-13, EAN-8, UPC, BPOM).
- */
-export function generateSmartSupermarketProduct(barcode: string): SupermarketProduct {
-  const { raw, cleanNumbers, bpomNumber } = parseBarcodeIdentifier(barcode);
-  const displayCode = cleanNumbers || raw;
-  const lastFour = displayCode.slice(-4) || "001";
-
-  if (bpomNumber) {
-    return {
-      barcode: raw,
-      name: `Produk Herbal / Farmasi BPOM [${bpomNumber}]`,
-      category: "Retail",
-      harga_jual: 25000,
-      modal_hpp: 20000,
-      unit: "botol",
-    };
-  }
-
-  // Predict category based on barcode prefix or length
-  let guessedCategory: SupermarketProduct["category"] = "Retail";
-  let guessedName = `Produk Retail #${lastFour}`;
-  let guessedPrice = 15000;
-  let guessedHpp = 12000;
-  let guessedUnit = "pcs";
-
-  if (displayCode.startsWith("8992") || displayCode.startsWith("8991")) {
-    guessedCategory = "Makanan";
-    guessedName = `Snack / Makanan #${lastFour}`;
-    guessedPrice = 8500;
-    guessedHpp = 6500;
-  } else if (displayCode.startsWith("8999") || displayCode.startsWith("8996") || displayCode.startsWith("8997")) {
-    guessedCategory = "Minuman";
-    guessedName = `Minuman Segar #${lastFour}`;
-    guessedPrice = 6000;
-    guessedHpp = 4500;
-    guessedUnit = "botol";
-  } else if (displayCode.startsWith("8998") || displayCode.startsWith("8995") || displayCode.startsWith("8993")) {
-    guessedCategory = "Retail";
-    guessedName = `Produk Retail #${lastFour}`;
-    guessedPrice = 25000;
-    guessedHpp = 20000;
-  } else {
-    guessedCategory = "Retail";
-    guessedName = `Produk Toko #${lastFour}`;
-    guessedPrice = 10000;
-    guessedHpp = 8000;
-  }
-
-  return {
-    barcode: raw,
-    name: guessedName,
-    category: guessedCategory,
-    harga_jual: guessedPrice,
-    modal_hpp: guessedHpp,
-    unit: guessedUnit,
-  };
 }

@@ -16,12 +16,9 @@ import {
   Keyboard as KeyboardIcon,
   X,
   Camera as CameraIcon,
-  Sparkles,
-  RefreshCw,
   Check,
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { SUPERMARKET_BARCODE_DATABASE } from "@/util/supermarketBarcodeDb";
 
 interface BarcodeScannerModalProps {
   visible: boolean;
@@ -74,10 +71,6 @@ export function BarcodeScannerModal({
     setManualCode("");
     setIsManualInput(false);
     onScan(code);
-  };
-
-  const handlePresetScan = (barcode: string) => {
-    onScan(barcode);
   };
 
   return (
@@ -186,36 +179,7 @@ export function BarcodeScannerModal({
             )}
           </View>
 
-          {/* Quick Supermarket Barcode Presets */}
-          <View style={{ marginTop: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-              <Sparkles size={12} color="#0097A7" />
-              <Text style={{ fontSize: 11, fontWeight: "700", color: "#a1a1aa", marginLeft: 4 }}>
-                Preset Barcode Cepat:
-              </Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 36 }}>
-              {SUPERMARKET_BARCODE_DATABASE.slice(0, 8).map((item) => (
-                <TouchableOpacity
-                  key={item.barcode}
-                  onPress={() => handlePresetScan(item.barcode)}
-                  style={{
-                    backgroundColor: "#27272a",
-                    borderRadius: 10,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    marginRight: 6,
-                    borderWidth: 1,
-                    borderColor: "#3f3f46",
-                  }}
-                >
-                  <Text style={{ fontSize: 10, fontWeight: "600", color: "#e4e4e7" }}>
-                    {item.name.split(" ")[0]} {item.name.split(" ")[1] || ""}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+
 
           {/* Bottom Action Buttons */}
           <View style={styles.bottomBar}>
