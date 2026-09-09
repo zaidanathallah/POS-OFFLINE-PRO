@@ -232,8 +232,8 @@ class ExpoBluetoothEscposModule : Module() {
         }
 
         // Target size for 58mm printer (384 dots total line width)
-        val maxLogoWidth = 260
-        val maxLogoHeight = 220
+        val maxLogoWidth = 336
+        val maxLogoHeight = 240
         var w = cropBitmap.width
         var h = cropBitmap.height
 
@@ -246,6 +246,51 @@ class ExpoBluetoothEscposModule : Module() {
         val rowBytes = 48
         val leftMargin = Math.max(0, (paperWidthDots - w) / 2)
 
+        // 1. Extract grayscale luminance array with contrast enhancement
+        val gray = Array(h) { FloatArray(w) }
+        for (y in 0 until h) {
+          for (x in 0 until w) {
+            val pixel = scaled.getPixel(x, y)
+            val alpha = (pixel shr 24) and 0xFF
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+
+            if (alpha < 128) {
+              gray[y][x] = 255f
+            } else {
+              val rawLum = (0.299f * r + 0.587f * g + 0.114f * b)
+              // Contrast stretch & gamma correction to keep text razor-sharp
+              val contrastLum = Math.max(0f, Math.min(255f, (rawLum - 128f) * 1.15f + 128f))
+              gray[y][x] = contrastLum
+            }
+          }
+        }
+
+        // 2. Floyd-Steinberg Error Diffusion Dithering for crystal-clear logo & text
+        val isBlack = Array(h) { BooleanArray(w) }
+        for (y in 0 until h) {
+          for (x in 0 until w) {
+            val oldVal = gray[y][x]
+            val newVal = if (oldVal < 140f) 0f else 255f
+            isBlack[y][x] = (newVal == 0f)
+            val err = oldVal - newVal
+
+            if (x + 1 < w) {
+              gray[y][x + 1] += err * (7f / 16f)
+            }
+            if (y + 1 < h) {
+              if (x - 1 >= 0) {
+                gray[y + 1][x - 1] += err * (3f / 16f)
+              }
+              gray[y + 1][x] += err * (5f / 16f)
+              if (x + 1 < w) {
+                gray[y + 1][x + 1] += err * (1f / 16f)
+              }
+            }
+          }
+        }
+
         val out = java.io.ByteArrayOutputStream()
         out.write(byteArrayOf(0x1B, 0x61, 0x01)) // Center Align
         out.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00)) // GS v 0 0
@@ -255,14 +300,7 @@ class ExpoBluetoothEscposModule : Module() {
         for (y in 0 until h) {
           val row = ByteArray(rowBytes)
           for (x in 0 until w) {
-            val pixel = scaled.getPixel(x, y)
-            val alpha = (pixel shr 24) and 0xFF
-            val r = (pixel shr 16) and 0xFF
-            val g = (pixel shr 8) and 0xFF
-            val b = pixel and 0xFF
-
-            val lum = if (alpha < 128) 255 else (0.299 * r + 0.587 * g + 0.114 * b).toInt()
-            if (lum < 185) {
+            if (isBlack[y][x]) {
               val dot = leftMargin + x
               if (dot < paperWidthDots) {
                 val byteIdx = dot / 8

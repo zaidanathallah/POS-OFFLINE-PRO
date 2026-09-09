@@ -85,10 +85,11 @@ export async function compressAndConvertToBase64(
 
 /**
  * Auto-converts logo to pure crisp black & white (monochrome) for 58mm thermal printers
+ * Uses Floyd-Steinberg error diffusion dithering to keep tiny text and fine lines crystal clear
  */
 export async function compressAndConvertToMonochromeBase64(
   uri: string,
-  maxWidth: number = 260
+  maxWidth: number = 336
 ): Promise<string> {
   if (!uri) return "";
 
@@ -121,20 +122,53 @@ export async function compressAndConvertToMonochromeBase64(
               const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
               const pixels = imgData.data;
 
-              // Convert to sharp high-contrast pure monochrome (black on white)
-              for (let i = 0; i < pixels.length; i += 4) {
-                const r = pixels[i];
-                const g = pixels[i + 1];
-                const b = pixels[i + 2];
-                const a = pixels[i + 3];
+              // 1. Grayscale luminance array with contrast curve
+              const gray = new Float32Array(targetWidth * targetHeight);
+              for (let y = 0; y < targetHeight; y++) {
+                for (let x = 0; x < targetWidth; x++) {
+                  const idx = (y * targetWidth + x) * 4;
+                  const r = pixels[idx];
+                  const g = pixels[idx + 1];
+                  const b = pixels[idx + 2];
+                  const a = pixels[idx + 3];
 
-                const lum = a < 128 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
-                const val = lum < 165 ? 0 : 255;
+                  if (a < 128) {
+                    gray[y * targetWidth + x] = 255;
+                  } else {
+                    const rawLum = 0.299 * r + 0.587 * g + 0.114 * b;
+                    const contrastLum = Math.max(0, Math.min(255, (rawLum - 128) * 1.15 + 128));
+                    gray[y * targetWidth + x] = contrastLum;
+                  }
+                }
+              }
 
-                pixels[i] = val; // R
-                pixels[i + 1] = val; // G
-                pixels[i + 2] = val; // B
-                pixels[i + 3] = 255; // Alpha
+              // 2. Floyd-Steinberg error diffusion dithering
+              for (let y = 0; y < targetHeight; y++) {
+                for (let x = 0; x < targetWidth; x++) {
+                  const idx = y * targetWidth + x;
+                  const oldVal = gray[idx];
+                  const newVal = oldVal < 140 ? 0 : 255;
+                  const err = oldVal - newVal;
+
+                  const pixelIdx = idx * 4;
+                  pixels[pixelIdx] = newVal;
+                  pixels[pixelIdx + 1] = newVal;
+                  pixels[pixelIdx + 2] = newVal;
+                  pixels[pixelIdx + 3] = 255;
+
+                  if (x + 1 < targetWidth) {
+                    gray[idx + 1] += err * (7 / 16);
+                  }
+                  if (y + 1 < targetHeight) {
+                    if (x - 1 >= 0) {
+                      gray[(y + 1) * targetWidth + (x - 1)] += err * (3 / 16);
+                    }
+                    gray[(y + 1) * targetWidth + x] += err * (5 / 16);
+                    if (x + 1 < targetWidth) {
+                      gray[(y + 1) * targetWidth + (x + 1)] += err * (1 / 16);
+                    }
+                  }
+                }
               }
 
               ctx.putImageData(imgData, 0, 0);

@@ -716,8 +716,8 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
       const cropH = Math.min(origH - cropTop, (maxY - minY + 1) + pad * 2);
 
       // Prominent banner size for 58mm printer (384 dots paper width)
-      const MAX_PRINT_WIDTH = 260;
-      const MAX_PRINT_HEIGHT = 220;
+      const MAX_PRINT_WIDTH = 336;
+      const MAX_PRINT_HEIGHT = 240;
 
       const scale = Math.min(MAX_PRINT_WIDTH / cropW, MAX_PRINT_HEIGHT / cropH);
       const targetW = Math.min(MAX_PRINT_WIDTH, Math.max(80, Math.round(cropW * scale)));
@@ -741,6 +741,51 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
       const ROW_BYTES = 48;
       const leftMarginDots = Math.max(0, Math.floor((PAPER_WIDTH_DOTS - targetW) / 2));
 
+      // 1. Convert to float luminance array with contrast enhancement
+      const gray = new Float32Array(targetW * targetH);
+      for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+          const idx = (y * targetW + x) * 4;
+          const r = pixels[idx];
+          const g = pixels[idx + 1];
+          const b = pixels[idx + 2];
+          const a = pixels[idx + 3];
+
+          if (a < 128) {
+            gray[y * targetW + x] = 255;
+          } else {
+            const rawLum = 0.299 * r + 0.587 * g + 0.114 * b;
+            const contrastLum = Math.max(0, Math.min(255, (rawLum - 128) * 1.15 + 128));
+            gray[y * targetW + x] = contrastLum;
+          }
+        }
+      }
+
+      // 2. Floyd-Steinberg Error Diffusion Dithering for ultra-crisp logo & fine text
+      const isBlack = new Uint8Array(targetW * targetH);
+      for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+          const idx = y * targetW + x;
+          const oldVal = gray[idx];
+          const newVal = oldVal < 140 ? 0 : 255;
+          isBlack[idx] = newVal === 0 ? 1 : 0;
+          const err = oldVal - newVal;
+
+          if (x + 1 < targetW) {
+            gray[idx + 1] += err * (7 / 16);
+          }
+          if (y + 1 < targetH) {
+            if (x - 1 >= 0) {
+              gray[(y + 1) * targetW + (x - 1)] += err * (3 / 16);
+            }
+            gray[(y + 1) * targetW + x] += err * (5 / 16);
+            if (x + 1 < targetW) {
+              gray[(y + 1) * targetW + (x + 1)] += err * (1 / 16);
+            }
+          }
+        }
+      }
+
       const rasterBytes: number[] = [];
 
       // Center Align ESC a 1
@@ -753,14 +798,7 @@ export async function convertLogoToEscPosRaster(logoUri: string): Promise<number
       for (let y = 0; y < targetH; y++) {
         const row = new Uint8Array(ROW_BYTES);
         for (let x = 0; x < targetW; x++) {
-          const idx = (y * targetW + x) * 4;
-          const r = pixels[idx];
-          const g = pixels[idx + 1];
-          const b = pixels[idx + 2];
-          const a = pixels[idx + 3];
-
-          const lum = a < 128 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
-          if (lum < 185) {
+          if (isBlack[y * targetW + x] === 1) {
             const dot = leftMarginDots + x;
             if (dot < PAPER_WIDTH_DOTS) {
               const byteIdx = Math.floor(dot / 8);
@@ -909,11 +947,8 @@ export function generateEscPosBuffer(data: ReceiptData, logoRasterBytes?: number
     addLine(`KRITIK & SARAN: ${data.storePhone}`);
   }
 
-  // Feed 4 lines
-  addBytes(0x1B, 0x64, 0x04);
-
-  // Cut paper command
-  addBytes(0x1D, 0x56, 0x41, 0x00);
+  // Feed exactly 3 lines to clear the manual tear bar cleanly without endless paper ejection
+  addBytes(0x1B, 0x64, 0x03);
 
   return new Uint8Array(bytes);
 }
