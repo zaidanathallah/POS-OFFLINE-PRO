@@ -27,11 +27,16 @@ import { evaluateCartPromos, AppliedPromoResult } from "@/util/promoEngine";
 import {
   lookupSupermarketBarcode,
   generateSmartSupermarketProduct,
+  fetchOnlineProductBarcode,
+  parseBarcodeIdentifier,
+  SupermarketProduct,
 } from "@/util/supermarketBarcodeDb";
 import { DecimalVolumeModal } from "@/components/pos/DecimalVolumeModal";
 import { VariantSelectionModal } from "@/components/pos/VariantSelectionModal";
 import { ProductSearchModal } from "@/components/pos/ProductSearchModal";
 import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
+import { QuickProductRegisterModal } from "@/components/pos/QuickProductRegisterModal";
+import { ProductInput } from "@/db/productRepository";
 import { CheckoutLandscapeModal } from "@/components/pos/CheckoutLandscapeModal";
 import { ItemDiscountModal } from "@/components/pos/ItemDiscountModal";
 import { CustomerSelectModal } from "@/components/pos/CustomerSelectModal";
@@ -111,6 +116,9 @@ export default function PosModalScreen() {
   const [variantModalVisible, setVariantModalVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [barcodeModalVisible, setBarcodeModalVisible] = useState(false);
+  const [quickRegisterModalVisible, setQuickRegisterModalVisible] = useState(false);
+  const [scannedBarcodeForRegister, setScannedBarcodeForRegister] = useState<string>("");
+  const [prefillProductData, setPrefillProductData] = useState<Partial<SupermarketProduct> | null>(null);
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [openBillModalVisible, setOpenBillModalVisible] = useState(false);
   const [itemDiscountModalVisible, setItemDiscountModalVisible] = useState(false);
@@ -338,71 +346,61 @@ export default function PosModalScreen() {
 
   const handleBarcodeScanned = async (scannedCode: string) => {
     try {
-      const matched = await getProductByBarcode(scannedCode);
+      const { raw, cleanNumbers, bpomNumber, gtin } = parseBarcodeIdentifier(scannedCode);
+
+      // 1. Check existing SQLite database first (exact barcode, clean numbers, or BPOM code)
+      let matched = await getProductByBarcode(scannedCode);
+      if (!matched && cleanNumbers) {
+        matched = await getProductByBarcode(cleanNumbers);
+      }
+      if (!matched && gtin) {
+        matched = await getProductByBarcode(gtin);
+      }
+      if (!matched && bpomNumber) {
+        matched = await getProductByBarcode(bpomNumber);
+      }
+
       if (matched) {
         handleProductPress(matched);
-        setNotificationBanner(`✓ ${matched.name} ditambahkan!`);
+        setNotificationBanner(`✓ ${matched.name} ditambahkan ke keranjang!`);
         setTimeout(() => setNotificationBanner(""), 3000);
         return;
       }
 
+      // 2. Check offline supermarket & pharma database
       const supermarketItem = lookupSupermarketBarcode(scannedCode);
       if (supermarketItem) {
-        const smartProduct = generateSmartSupermarketProduct(scannedCode);
-        const newProd = await createProduct({
-          name: smartProduct.name,
-          category: smartProduct.category,
-          harga_jual: smartProduct.harga_jual,
-          modal_hpp: smartProduct.modal_hpp,
-          stock: 100,
-          unit: smartProduct.unit,
-          barcode: smartProduct.barcode,
-          is_decimal: 0,
-          image_uri: smartProduct.image_uri,
-        });
-
-        await loadData();
-        handleProductPress(newProd);
-        setNotificationBanner(`✓ [Supermarket] ${newProd.name} terdeteksi & otomatis dibuat!`);
-        setTimeout(() => setNotificationBanner(""), 4000);
+        setScannedBarcodeForRegister(scannedCode);
+        setPrefillProductData(supermarketItem);
+        setQuickRegisterModalVisible(true);
         return;
       }
 
-      // If outside database & supermarket list, auto-create a smart versatile product and add to cart
-      const fallbackName = `Produk Scan ${scannedCode.slice(-4) || scannedCode}`;
-      Alert.alert(
-        "Barcode Terdeteksi",
-        `Barcode "${scannedCode}" belum ada di katalog toko.\n\nApakah Anda ingin mendaftarkan produk ini secara instan ke database SQLite dan langsung memasukkannya ke transaksi kasir?`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "+ Daftarkan & Masukkan Kasir",
-            onPress: async () => {
-              try {
-                const newProd = await createProduct({
-                  name: fallbackName,
-                  category: "Retail",
-                  harga_jual: 10000,
-                  modal_hpp: 8000,
-                  stock: 100,
-                  unit: "pcs",
-                  barcode: scannedCode,
-                  is_decimal: 0,
-                });
-                await loadData();
-                handleProductPress(newProd);
-                setNotificationBanner(`✓ ${newProd.name} otomatis didaftarkan & masuk keranjang!`);
-                setTimeout(() => setNotificationBanner(""), 4000);
-              } catch (e: any) {
-                Alert.alert("Gagal", e.message || "Gagal membuat produk baru.");
-              }
-            },
-          },
-        ]
-      );
+      // 3. Check fast online product database (timeout 2.5s)
+      const onlineItem = await fetchOnlineProductBarcode(scannedCode);
+      if (onlineItem) {
+        setScannedBarcodeForRegister(scannedCode);
+        setPrefillProductData(onlineItem);
+        setQuickRegisterModalVisible(true);
+        return;
+      }
+
+      // 4. Smart fallback for unknown barcode
+      const smartProduct = generateSmartSupermarketProduct(scannedCode);
+      setScannedBarcodeForRegister(scannedCode);
+      setPrefillProductData(smartProduct);
+      setQuickRegisterModalVisible(true);
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Gagal memproses barcode.");
     }
+  };
+
+  const handleQuickRegisterSave = async (data: ProductInput) => {
+    const newProd = await createProduct(data);
+    await loadData();
+    handleProductPress(newProd);
+    setNotificationBanner(`✓ ${newProd.name} berhasil didaftarkan & masuk keranjang!`);
+    setTimeout(() => setNotificationBanner(""), 4000);
   };
 
   const handleCheckoutSuccess = async (
@@ -1214,6 +1212,17 @@ export default function PosModalScreen() {
           setBarcodeModalVisible(false);
           handleBarcodeScanned(code);
         }}
+      />
+
+      <QuickProductRegisterModal
+        visible={quickRegisterModalVisible}
+        barcode={scannedBarcodeForRegister}
+        prefillData={prefillProductData}
+        onClose={() => {
+          setQuickRegisterModalVisible(false);
+          setPrefillProductData(null);
+        }}
+        onSave={handleQuickRegisterSave}
       />
 
       <CheckoutLandscapeModal

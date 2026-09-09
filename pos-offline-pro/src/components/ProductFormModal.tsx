@@ -29,7 +29,13 @@ import {
   Camera,
   ImageIcon,
   Upload,
+  Scan,
 } from "lucide-react-native";
+import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
+import {
+  lookupSupermarketBarcode,
+  fetchOnlineProductBarcode,
+} from "@/util/supermarketBarcodeDb";
 
 interface ProductFormModalProps {
   visible: boolean;
@@ -71,6 +77,7 @@ export function ProductFormModal({
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [barcodeScannerVisible, setBarcodeScannerVisible] = useState(false);
 
   // Load dynamic categories
   useEffect(() => {
@@ -145,6 +152,23 @@ export function ProductFormModal({
     setUnit(u);
     if (u === "kg" || u === "liter" || u === "gram") {
       setIsDecimal(true);
+    }
+  };
+
+  const handleBarcodeScannedInForm = async (code: string) => {
+    setBarcode(code);
+    setBarcodeScannerVisible(false);
+
+    // If name is empty or unset, auto-suggest from database
+    if (!name.trim()) {
+      const detected = lookupSupermarketBarcode(code) || (await fetchOnlineProductBarcode(code));
+      if (detected) {
+        if (detected.name) setName(detected.name);
+        if (detected.category) setCategory(detected.category);
+        if (detected.harga_jual) setHargaJual(detected.harga_jual.toString());
+        if (detected.modal_hpp) setModalHpp(detected.modal_hpp.toString());
+        if (detected.unit) setUnit(detected.unit);
+      }
     }
   };
 
@@ -731,9 +755,35 @@ export function ProductFormModal({
               </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
-                  Barcode / SKU
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46" }}>
+                    Barcode / SKU
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setBarcodeScannerVisible(true)}
+                    activeOpacity={0.7}
+                    style={{ flexDirection: "row", alignItems: "center" }}
+                  >
+                    <Scan size={12} color="#0097A7" />
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: "#0097A7",
+                        marginLeft: 3,
+                      }}
+                    >
+                      Scan Kamera
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   value={barcode}
                   onChangeText={setBarcode}
@@ -971,6 +1021,12 @@ export function ProductFormModal({
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
+
+      <BarcodeScannerModal
+        visible={barcodeScannerVisible}
+        onClose={() => setBarcodeScannerVisible(false)}
+        onScan={handleBarcodeScannedInForm}
+      />
     </Modal>
   );
 }
