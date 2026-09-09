@@ -15,6 +15,7 @@ export interface ProductInput {
   category: string;
   has_variants?: number;
   variants_json?: string | null;
+  hpp_breakdown_json?: string | null;
 }
 
 export async function getAllProducts(
@@ -92,14 +93,15 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       category: input.category?.trim() || "Umum",
       has_variants: input.has_variants ?? 0,
       variants_json: input.variants_json || null,
+      hpp_breakdown_json: input.hpp_breakdown_json || null,
     };
 
     await db.runAsync(
       `INSERT INTO products (
         id, name, harga_jual, modal_hpp, stock, 
         unit, is_decimal, barcode, image_uri, 
-        category, has_variants, variants_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        category, has_variants, variants_json, hpp_breakdown_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newProduct.id,
         newProduct.name,
@@ -113,6 +115,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
         newProduct.category,
         newProduct.has_variants,
         newProduct.variants_json ?? null,
+        newProduct.hpp_breakdown_json ?? null,
       ]
     );
 
@@ -146,13 +149,14 @@ export async function updateProduct(
       category: input.category !== undefined ? input.category.trim() : existing.category,
       has_variants: input.has_variants !== undefined ? input.has_variants : existing.has_variants,
       variants_json: input.variants_json !== undefined ? input.variants_json : existing.variants_json,
+      hpp_breakdown_json: input.hpp_breakdown_json !== undefined ? input.hpp_breakdown_json : existing.hpp_breakdown_json,
     };
 
     await db.runAsync(
       `UPDATE products 
        SET name = ?, harga_jual = ?, modal_hpp = ?, stock = ?, 
            unit = ?, is_decimal = ?, barcode = ?, image_uri = ?, 
-           category = ?, has_variants = ?, variants_json = ?
+           category = ?, has_variants = ?, variants_json = ?, hpp_breakdown_json = ?
        WHERE id = ?`,
       [
         updated.name,
@@ -166,6 +170,7 @@ export async function updateProduct(
         updated.category,
         updated.has_variants,
         updated.variants_json ?? null,
+        updated.hpp_breakdown_json ?? null,
         id,
       ]
     );

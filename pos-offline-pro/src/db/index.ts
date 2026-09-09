@@ -34,6 +34,12 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export interface CostItem {
+  id: string;
+  name: string;
+  amount: number;
+}
+
 export interface ProductVariant {
   id: string;
   name: string;
@@ -55,6 +61,7 @@ export interface Product {
   category: string;
   has_variants: number; // 0 or 1
   variants_json?: string | null; // JSON string array of ProductVariant
+  hpp_breakdown_json?: string | null; // JSON string array of CostItem (BOM / Rincian Biaya Modal)
   created_at?: string;
 }
 
@@ -270,7 +277,8 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       image_uri TEXT,
       category TEXT NOT NULL DEFAULT 'Umum',
       has_variants INTEGER NOT NULL DEFAULT 0,
-      variants_json TEXT
+      variants_json TEXT,
+      hpp_breakdown_json TEXT
     );
 
     CREATE TABLE IF NOT EXISTS promos (
@@ -386,6 +394,7 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await ensureColumnExists(db, "products", "category", "TEXT NOT NULL DEFAULT 'Umum'");
   await ensureColumnExists(db, "products", "has_variants", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumnExists(db, "products", "variants_json", "TEXT");
+  await ensureColumnExists(db, "products", "hpp_breakdown_json", "TEXT");
 
   await ensureColumnExists(db, "transaction_details", "product_name", "TEXT NOT NULL DEFAULT 'Produk'");
   await ensureColumnExists(db, "transaction_details", "variant_name", "TEXT");
@@ -411,6 +420,7 @@ async function setupDatabaseSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     feature_open_bill: "0",
     feature_barcode: "1",
     feature_variants: "1",
+    feature_hpp_breakdown: "1",
     feature_auto_print: "0",
     feature_ppn: "1",
     ppn_rate: "11",

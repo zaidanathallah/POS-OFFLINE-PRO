@@ -113,6 +113,7 @@ export default function SettingsScreen() {
   const [featureOpenBill, setFeatureOpenBill] = useState(false);
   const [featureBarcode, setFeatureBarcode] = useState(true);
   const [featureVariants, setFeatureVariants] = useState(true);
+  const [featureHppBreakdown, setFeatureHppBreakdown] = useState(true);
   const [featureAutoPrint, setFeatureAutoPrint] = useState(false);
   const [featurePpn, setFeaturePpn] = useState(true);
   const [ppnRate, setPpnRate] = useState("11");
@@ -200,6 +201,7 @@ export default function SettingsScreen() {
     const fOpenBill = await getSetting("feature_open_bill", "0");
     const fBarcode = await getSetting("feature_barcode", "1");
     const fVariants = await getSetting("feature_variants", "1");
+    const fHppBreakdown = await getSetting("feature_hpp_breakdown", "1");
     const fAutoPrint = await getSetting("feature_auto_print", "0");
     const fPpn = await getSetting("feature_ppn", "1");
     const pRate = await getSetting("ppn_rate", "11");
@@ -222,6 +224,7 @@ export default function SettingsScreen() {
     setFeatureOpenBill(fOpenBill === "1");
     setFeatureBarcode(fBarcode === "1");
     setFeatureVariants(fVariants === "1");
+    setFeatureHppBreakdown(fHppBreakdown === "1");
     setFeatureAutoPrint(fAutoPrint === "1");
     setFeaturePpn(fPpn === "1");
     setPpnRate(pRate);
@@ -2591,7 +2594,24 @@ export default function SettingsScreen() {
               />
             </View>
 
-            {/* 6. Cetak Struk Otomatis */}
+            {/* 6. Fitur Rincian Modal HPP (Bahan Baku / BOM) */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#f4f4f5" }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
+                  Rincian Modal HPP (Bahan Baku)
+                </Text>
+                <Text style={{ fontSize: 11, color: "#71717a", marginTop: 2, lineHeight: 16 }}>
+                  Hitung otomatis total modal HPP dari rincian bahan atau komponen biaya (cth: Terigu, Minyak, dll)
+                </Text>
+              </View>
+              <Switch
+                value={featureHppBreakdown}
+                onValueChange={(val) => handleToggleFeatureWithPin("feature_hpp_breakdown", val, setFeatureHppBreakdown)}
+                trackColor={{ false: "#e4e4e7", true: "#0097A7" }}
+              />
+            </View>
+
+            {/* 7. Cetak Struk Otomatis */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#f4f4f5" }}>
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: "#18181b" }}>
@@ -2608,7 +2628,7 @@ export default function SettingsScreen() {
               />
             </View>
 
-            {/* 7. Pajak PPN */}
+            {/* 8. Pajak PPN */}
             <View style={{ paddingVertical: 10 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View style={{ flex: 1, paddingRight: 12 }}>

@@ -13,9 +13,10 @@ import {
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { Product, ProductVariant, Category } from "@/db";
+import { Product, ProductVariant, CostItem, Category } from "@/db";
 import { ProductInput } from "@/db/productRepository";
 import { getAllCategories } from "@/db/categoryRepository";
+import { getSetting } from "@/db/settingsRepository";
 import { formatRupiah } from "@/util/formatters";
 import { compressAndConvertToBase64 } from "@/util/imageCompressor";
 import {
@@ -30,6 +31,7 @@ import {
   ImageIcon,
   Upload,
   Scan,
+  Calculator,
 } from "lucide-react-native";
 import { BarcodeScannerModal } from "@/components/pos/BarcodeScannerModal";
 import { lookupSupermarketBarcode } from "@/util/supermarketBarcodeDb";
@@ -68,6 +70,10 @@ export function ProductFormModal({
   const [barcode, setBarcode] = useState("");
   const [imageUri, setImageUri] = useState("");
 
+  // HPP Breakdown (BOM / Rincian Bahan Baku) state
+  const [featureHppBreakdown, setFeatureHppBreakdown] = useState(true);
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
+
   // Variants state
   const [hasVariants, setHasVariants] = useState(false);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -76,7 +82,7 @@ export function ProductFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [barcodeScannerVisible, setBarcodeScannerVisible] = useState(false);
 
-  // Load dynamic categories
+  // Load dynamic categories & feature settings
   useEffect(() => {
     if (visible) {
       (async () => {
@@ -85,8 +91,10 @@ export function ProductFormModal({
           if (catList.length > 0) {
             setCategories(catList.map((c) => c.name));
           }
+          const fHpp = await getSetting("feature_hpp_breakdown", "1");
+          setFeatureHppBreakdown(fHpp === "1");
         } catch (e) {
-          console.error("Gagal load categories in modal:", e);
+          console.error("Gagal load categories / settings in modal:", e);
         }
       })();
     }
@@ -114,6 +122,16 @@ export function ProductFormModal({
       } catch (e) {
         setVariants([]);
       }
+
+      try {
+        if (productToEdit.hpp_breakdown_json) {
+          setCostItems(JSON.parse(productToEdit.hpp_breakdown_json));
+        } else {
+          setCostItems([]);
+        }
+      } catch (e) {
+        setCostItems([]);
+      }
     } else {
       resetForm();
     }
@@ -132,6 +150,7 @@ export function ProductFormModal({
     setImageUri("");
     setHasVariants(false);
     setVariants([]);
+    setCostItems([]);
   };
 
   // Auto-activate decimal / scale mode when category is Buah
@@ -150,6 +169,45 @@ export function ProductFormModal({
     if (u === "kg" || u === "liter" || u === "gram") {
       setIsDecimal(true);
     }
+  };
+
+  // Cost items (HPP Breakdown) handlers
+  const handleAddCostItem = () => {
+    const newItem: CostItem = {
+      id: `COST-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: "",
+      amount: 0,
+    };
+    const updated = [...costItems, newItem];
+    setCostItems(updated);
+  };
+
+  const handleUpdateCostItem = (id: string, field: "name" | "amount", value: any) => {
+    setCostItems((prev) => {
+      const updated = prev.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            [field]: field === "amount" ? (parseFloat(value) || 0) : value,
+          };
+        }
+        return item;
+      });
+      const total = updated.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+      setModalHpp(total > 0 ? total.toString() : (modalHpp || "0"));
+      return updated;
+    });
+  };
+
+  const handleRemoveCostItem = (id: string) => {
+    setCostItems((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      const total = filtered.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+      if (filtered.length > 0) {
+        setModalHpp(total > 0 ? total.toString() : "0");
+      }
+      return filtered;
+    });
   };
 
   const handleBarcodeScannedInForm = async (code: string) => {
@@ -308,6 +366,12 @@ export function ProductFormModal({
 
     setIsSubmitting(true);
     try {
+      const validCostItems = costItems.filter(
+        (it) => it.name.trim().length > 0 || (Number(it.amount) || 0) > 0
+      );
+      const hppBreakdownJson =
+        validCostItems.length > 0 ? JSON.stringify(validCostItems) : null;
+
       await onSave(
         {
           name: name.trim(),
@@ -321,6 +385,7 @@ export function ProductFormModal({
           image_uri: imageUri.trim() || null,
           has_variants: hasVariants ? 1 : 0,
           variants_json: hasVariants && variants.length > 0 ? JSON.stringify(variants) : null,
+          hpp_breakdown_json: hppBreakdownJson,
         },
         productToEdit?.id
       );
@@ -638,57 +703,209 @@ export function ProductFormModal({
 
             {/* Pricing Section (Harga Jual & Modal HPP) */}
             {!hasVariants && (
-              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
-                    Harga Jual (Rp / {unit}) *
-                  </Text>
-                  <TextInput
-                    value={hargaJual}
-                    onChangeText={setHargaJual}
-                    keyboardType="numeric"
-                    placeholder="Contoh: 50000"
-                    placeholderTextColor="#a1a1aa"
-                    style={{
-                      backgroundColor: "#f9fafb",
-                      borderWidth: 1,
-                      borderColor: errors.hargaJual ? "#ef4444" : "#e5e7eb",
-                      borderRadius: 14,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      fontSize: 14,
-                      color: "#18181b",
-                    }}
-                  />
-                  {errors.hargaJual && (
-                    <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
-                      {errors.hargaJual}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: featureHppBreakdown ? 12 : 0 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
+                      Harga Jual (Rp / {unit}) *
                     </Text>
-                  )}
+                    <TextInput
+                      value={hargaJual}
+                      onChangeText={setHargaJual}
+                      keyboardType="numeric"
+                      placeholder="Contoh: 50000"
+                      placeholderTextColor="#a1a1aa"
+                      style={{
+                        backgroundColor: "#f9fafb",
+                        borderWidth: 1,
+                        borderColor: errors.hargaJual ? "#ef4444" : "#e5e7eb",
+                        borderRadius: 14,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        fontSize: 14,
+                        color: "#18181b",
+                      }}
+                    />
+                    {errors.hargaJual && (
+                      <Text style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                        {errors.hargaJual}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46" }}>
+                        Modal HPP (Rp)
+                      </Text>
+                      {costItems.length > 0 && (
+                        <Text style={{ fontSize: 10, color: "#0097A7", fontWeight: "700" }}>
+                          (Otomatis)
+                        </Text>
+                      )}
+                    </View>
+                    <TextInput
+                      value={modalHpp}
+                      onChangeText={setModalHpp}
+                      keyboardType="numeric"
+                      placeholder="Contoh: 35000"
+                      placeholderTextColor="#a1a1aa"
+                      style={{
+                        backgroundColor: "#f9fafb",
+                        borderWidth: 1,
+                        borderColor: costItems.length > 0 ? "#0097A7" : "#e5e7eb",
+                        borderRadius: 14,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        fontSize: 14,
+                        color: "#18181b",
+                      }}
+                    />
+                  </View>
                 </View>
 
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3f3f46", marginBottom: 6 }}>
-                    Modal HPP (Rp)
-                  </Text>
-                  <TextInput
-                    value={modalHpp}
-                    onChangeText={setModalHpp}
-                    keyboardType="numeric"
-                    placeholder="Contoh: 35000"
-                    placeholderTextColor="#a1a1aa"
+                {/* Rincian Modal HPP / Bahan Baku Card */}
+                {featureHppBreakdown && (
+                  <View
                     style={{
-                      backgroundColor: "#f9fafb",
+                      backgroundColor: costItems.length > 0 ? "#f0fdfa" : "#f9fafb",
                       borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      borderRadius: 14,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      fontSize: 14,
-                      color: "#18181b",
+                      borderColor: costItems.length > 0 ? "#99f6e4" : "#e5e7eb",
+                      borderRadius: 18,
+                      padding: 14,
                     }}
-                  />
-                </View>
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: costItems.length > 0 ? 12 : 0,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 }}>
+                        <Calculator size={16} color="#0097A7" />
+                        <View style={{ marginLeft: 8 }}>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#0f766e" }}>
+                            Rincian Modal HPP (Bahan Baku)
+                          </Text>
+                          <Text style={{ fontSize: 10, color: "#71717a", marginTop: 1 }}>
+                            {costItems.length > 0
+                              ? `${costItems.length} bahan/komponen biaya dihitung otomatis`
+                              : "Hitung total modal dari bahan (cth: Terigu, Minyak)"}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={handleAddCostItem}
+                        activeOpacity={0.8}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 10,
+                          backgroundColor: "#0097A7",
+                        }}
+                      >
+                        <Plus size={13} color="#ffffff" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 4 }}>
+                          + Tambah Biaya
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {costItems.length > 0 && (
+                      <View style={{ gap: 8 }}>
+                        {costItems.map((item, idx) => (
+                          <View
+                            key={item.id}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              backgroundColor: "#ffffff",
+                              padding: 8,
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: "#e5e7eb",
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: "#71717a", width: 18, textAlign: "center" }}>
+                              #{idx + 1}
+                            </Text>
+                            <TextInput
+                              value={item.name}
+                              onChangeText={(val) => handleUpdateCostItem(item.id, "name", val)}
+                              placeholder="Nama Bahan (cth: Terigu)"
+                              placeholderTextColor="#a1a1aa"
+                              style={{
+                                flex: 1.4,
+                                backgroundColor: "#f9fafb",
+                                borderWidth: 1,
+                                borderColor: "#e5e7eb",
+                                borderRadius: 8,
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                fontSize: 12,
+                                color: "#18181b",
+                              }}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <TextInput
+                                value={item.amount > 0 ? item.amount.toString() : ""}
+                                onChangeText={(val) => handleUpdateCostItem(item.id, "amount", val)}
+                                keyboardType="numeric"
+                                placeholder="Rp 0"
+                                placeholderTextColor="#a1a1aa"
+                                style={{
+                                  backgroundColor: "#f9fafb",
+                                  borderWidth: 1,
+                                  borderColor: "#e5e7eb",
+                                  borderRadius: 8,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 6,
+                                  fontSize: 12,
+                                  fontWeight: "600",
+                                  color: "#18181b",
+                                }}
+                              />
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleRemoveCostItem(item.id)}
+                              style={{
+                                padding: 6,
+                                borderRadius: 8,
+                                backgroundColor: "#fef2f2",
+                              }}
+                            >
+                              <Trash2 size={14} color="#ef4444" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            paddingTop: 8,
+                            borderTopWidth: 1,
+                            borderTopColor: "#ccfbf1",
+                            marginTop: 4,
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: "600", color: "#0f766e" }}>
+                            Total Modal Terhitung:
+                          </Text>
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: "#0f766e" }}>
+                            {formatRupiah(costItems.reduce((sum, it) => sum + (Number(it.amount) || 0), 0))}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
             )}
 

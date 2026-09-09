@@ -372,8 +372,8 @@ async function restoreJsonTables(tables: any): Promise<void> {
       for (const p of products) {
         await db.runAsync(
           `INSERT OR REPLACE INTO products (
-            id, name, harga_jual, modal_hpp, stock, unit, is_decimal, barcode, image_uri, category, has_variants, variants_json
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, name, harga_jual, modal_hpp, stock, unit, is_decimal, barcode, image_uri, category, has_variants, variants_json, hpp_breakdown_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           [
             p.id,
             p.name,
@@ -387,6 +387,7 @@ async function restoreJsonTables(tables: any): Promise<void> {
             p.category || "Umum",
             p.has_variants ? 1 : 0,
             p.variants_json || null,
+            p.hpp_breakdown_json || null,
           ]
         );
       }
