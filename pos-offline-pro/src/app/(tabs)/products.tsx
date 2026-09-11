@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { ProductFormModal } from "@/components/ProductFormModal";
+import { BulkProductFormModal } from "@/components/BulkProductFormModal";
+import { CsvProductImportModal } from "@/components/CsvProductImportModal";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
 import { StockAdjustmentModal } from "@/components/StockAdjustmentModal";
 import { PinPromptModal } from "@/components/PinPromptModal";
@@ -40,6 +42,7 @@ import {
   Tag,
   Settings,
   AlertTriangle,
+  FileSpreadsheet,
 } from "lucide-react-native";
 
 export default function ProductsScreen() {
@@ -60,6 +63,8 @@ export default function ProductsScreen() {
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
+  const [bulkModalVisible, setBulkModalVisible] = useState(false);
+  const [csvModalVisible, setCsvModalVisible] = useState(false);
   const [categoryManagerVisible, setCategoryManagerVisible] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [adjustmentModalVisible, setAdjustmentModalVisible] = useState(false);
@@ -114,6 +119,18 @@ export default function ProductsScreen() {
   const handleOpenCreateModal = () => {
     setProductToEdit(null);
     setModalVisible(true);
+  };
+
+  const handleOpenBulkModal = () => {
+    executeSecureAction(() => {
+      setBulkModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk menambah produk massal");
+  };
+
+  const handleOpenCsvModal = () => {
+    executeSecureAction(() => {
+      setCsvModalVisible(true);
+    }, "Masukkan PIN Supervisor untuk impor/ekspor Excel CSV");
   };
 
   const handleOpenEditModal = (product: Product) => {
@@ -175,7 +192,50 @@ export default function ProductsScreen() {
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+          {/* Button 1: Excel / CSV Import & Export */}
+          <TouchableOpacity
+            onPress={handleOpenCsvModal}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#f0fdf4",
+              borderWidth: 1,
+              borderColor: "#bbf7d0",
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              borderRadius: 14,
+            }}
+          >
+            <FileSpreadsheet size={15} color="#16a34a" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#15803d", marginLeft: 4 }}>
+              Excel/CSV
+            </Text>
+          </TouchableOpacity>
+
+          {/* Button 2: Tambah Massal Multi-Baris */}
+          <TouchableOpacity
+            onPress={handleOpenBulkModal}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#ecfeff",
+              borderWidth: 1,
+              borderColor: "#a5f3fc",
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              borderRadius: 14,
+            }}
+          >
+            <Layers size={15} color="#0097A7" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#0097A7", marginLeft: 4 }}>
+              + Massal
+            </Text>
+          </TouchableOpacity>
+
+          {/* Button 3: Tambah Satuan */}
           <TouchableOpacity
             onPress={handleOpenCreateModal}
             activeOpacity={0.8}
@@ -183,7 +243,7 @@ export default function ProductsScreen() {
               flexDirection: "row",
               alignItems: "center",
               backgroundColor: "#0097A7",
-              paddingHorizontal: 14,
+              paddingHorizontal: 12,
               paddingVertical: 8,
               borderRadius: 14,
               shadowColor: "#0097A7",
@@ -193,8 +253,8 @@ export default function ProductsScreen() {
               elevation: 2,
             }}
           >
-            <Plus size={16} color="#ffffff" />
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+            <Plus size={15} color="#ffffff" />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#ffffff", marginLeft: 4 }}>
               + Tambah
             </Text>
           </TouchableOpacity>
@@ -519,6 +579,27 @@ export default function ProductsScreen() {
         productToEdit={productToEdit}
         onClose={() => setModalVisible(false)}
         onSave={handleSaveProduct}
+      />
+
+      {/* Bulk Multi-Row Product Add Modal */}
+      <BulkProductFormModal
+        visible={bulkModalVisible}
+        onClose={() => setBulkModalVisible(false)}
+        onSuccess={async () => {
+          await loadCategories();
+          await loadProducts();
+        }}
+      />
+
+      {/* CSV / Excel Spreadsheet Import & Export Modal */}
+      <CsvProductImportModal
+        visible={csvModalVisible}
+        products={products}
+        onClose={() => setCsvModalVisible(false)}
+        onSuccess={async () => {
+          await loadCategories();
+          await loadProducts();
+        }}
       />
 
       {/* Category Manager Modal */}

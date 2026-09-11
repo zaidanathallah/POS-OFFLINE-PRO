@@ -284,3 +284,144 @@ export async function restockProduct(input: RestockProductInput): Promise<Produc
     };
   });
 }
+
+/**
+ * Batch insert or upsert multiple products into SQLite database
+ */
+export async function createBulkProducts(
+  inputs: ProductInput[],
+  mode: "append" | "upsert" = "append"
+): Promise<{ inserted: number; updated: number; products: Product[] }> {
+  return await runInDbQueue(async (db) => {
+    let inserted = 0;
+    let updated = 0;
+    const resultProducts: Product[] = [];
+
+    // Collect all categories and ensure they exist in categories table
+    const categoriesSet = new Set<string>();
+    for (const inp of inputs) {
+      if (inp.category && inp.category.trim()) {
+        categoriesSet.add(inp.category.trim());
+      }
+    }
+
+    for (const catName of categoriesSet) {
+      await db.runAsync(
+        "INSERT OR IGNORE INTO categories (id, name) VALUES (?, ?);",
+        [`CAT-${catName.toUpperCase()}`, catName]
+      );
+    }
+
+    for (const input of inputs) {
+      if (!input.name || !input.name.trim()) continue;
+
+      const trimmedName = input.name.trim();
+      const trimmedBarcode = input.barcode?.trim() || null;
+      const unit = input.unit?.trim() || "pcs";
+      const isDecimal =
+        input.is_decimal !== undefined
+          ? input.is_decimal
+          : unit === "kg" || unit === "liter" || unit === "gram" || input.category === "Buah"
+          ? 1
+          : 0;
+
+      let existing: Product | null = null;
+
+      if (mode === "upsert") {
+        if (trimmedBarcode) {
+          existing = await db.getFirstAsync<Product>(
+            "SELECT * FROM products WHERE barcode = ?",
+            [trimmedBarcode]
+          );
+        }
+        if (!existing) {
+          existing = await db.getFirstAsync<Product>(
+            "SELECT * FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+            [trimmedName]
+          );
+        }
+      }
+
+      if (existing) {
+        // Update existing product
+        const updatedProd: Product = {
+          ...existing,
+          name: trimmedName,
+          harga_jual: Number(input.harga_jual) || existing.harga_jual,
+          modal_hpp: input.modal_hpp !== undefined ? Number(input.modal_hpp) : existing.modal_hpp,
+          stock: input.stock !== undefined ? Number(input.stock) : existing.stock,
+          unit: unit || existing.unit,
+          is_decimal: isDecimal,
+          barcode: trimmedBarcode || existing.barcode,
+          category: input.category?.trim() || existing.category,
+        };
+
+        await db.runAsync(
+          `UPDATE products 
+           SET name = ?, harga_jual = ?, modal_hpp = ?, stock = ?, 
+               unit = ?, is_decimal = ?, barcode = ?, category = ?
+           WHERE id = ?`,
+          [
+            updatedProd.name,
+            updatedProd.harga_jual,
+            updatedProd.modal_hpp,
+            updatedProd.stock,
+            updatedProd.unit,
+            updatedProd.is_decimal,
+            updatedProd.barcode,
+            updatedProd.category,
+            existing.id,
+          ]
+        );
+        updated++;
+        resultProducts.push(updatedProd);
+      } else {
+        // Create new product
+        const id = `PRD-${Date.now()}-${Math.floor(Math.random() * 100000) + inserted}`;
+        const newProduct: Product = {
+          id,
+          name: trimmedName,
+          harga_jual: Number(input.harga_jual) || 0,
+          modal_hpp: Number(input.modal_hpp) || 0,
+          stock: Number(input.stock) || 0,
+          unit: unit,
+          is_decimal: isDecimal,
+          barcode: trimmedBarcode,
+          image_uri: input.image_uri || null,
+          category: input.category?.trim() || "Umum",
+          has_variants: input.has_variants ?? 0,
+          variants_json: input.variants_json || null,
+          hpp_breakdown_json: input.hpp_breakdown_json || null,
+        };
+
+        await db.runAsync(
+          `INSERT INTO products (
+            id, name, harga_jual, modal_hpp, stock, 
+            unit, is_decimal, barcode, image_uri, 
+            category, has_variants, variants_json, hpp_breakdown_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newProduct.id,
+            newProduct.name,
+            newProduct.harga_jual,
+            newProduct.modal_hpp,
+            newProduct.stock,
+            newProduct.unit,
+            newProduct.is_decimal,
+            newProduct.barcode ?? null,
+            newProduct.image_uri ?? null,
+            newProduct.category,
+            newProduct.has_variants,
+            newProduct.variants_json ?? null,
+            newProduct.hpp_breakdown_json ?? null,
+          ]
+        );
+        inserted++;
+        resultProducts.push(newProduct);
+      }
+    }
+
+    return { inserted, updated, products: resultProducts };
+  });
+}
+
