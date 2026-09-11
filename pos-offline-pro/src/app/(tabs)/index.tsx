@@ -107,7 +107,7 @@ export default function DashboardScreen() {
       const totalSold = topProds.reduce((acc, p) => acc + p.totalQty, 0);
       setTotalItemsSold(totalSold);
     } catch (err) {
-      console.error("Gagal load data dashboard:", err);
+      console.log("Dashboard load notice:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);

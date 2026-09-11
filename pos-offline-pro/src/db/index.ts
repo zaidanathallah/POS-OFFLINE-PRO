@@ -192,8 +192,8 @@ export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promi
     return await task(activeDbQueueContext);
   }
 
-  const db = await getDatabase();
   const execute = async () => {
+    const db = await getDatabase();
     activeDbQueueContext = db;
     try {
       return await task(db);
@@ -208,18 +208,23 @@ export async function runInDbQueue<T>(task: (db: SQLite.SQLiteDatabase) => Promi
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (dbInstance) {
+  if (Platform.OS !== "web" && dbInstance) {
     try {
       await dbInstance.closeAsync();
     } catch (e) {
       console.log("DB close notice:", e);
     }
-    dbInstance = null;
-    dbInitPromise = null;
   }
+  dbInstance = null;
+  dbInitPromise = null;
 }
 
 export async function reloadDatabase(): Promise<void> {
+  if (Platform.OS === "web") {
+    const db = await getDatabase();
+    await setupDatabaseSchema(db);
+    return;
+  }
   await closeDatabase();
   await initDatabase();
 }

@@ -221,7 +221,6 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
           }
 
           await restoreJsonTables(parsed.tables);
-          await reloadDatabase();
           resolve({ success: true, fileName: file.name });
         } catch (err: any) {
           resolve({ success: false, error: err.message || "Gagal memproses file import." });
@@ -270,7 +269,6 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
       }
 
       await restoreJsonTables(parsed.tables);
-      await reloadDatabase();
 
       return {
         success: true,
@@ -311,7 +309,6 @@ export async function importDatabaseBackup(): Promise<ImportResult> {
       const parsed = JSON.parse(content);
       if (parsed.tables) {
         await restoreJsonTables(parsed.tables);
-        await reloadDatabase();
         return {
           success: true,
           fileName: selectedFile.name,
@@ -558,7 +555,6 @@ export async function resetDatabaseToClean(): Promise<boolean> {
       }
     });
 
-    await reloadDatabase();
     return true;
   } catch (err) {
     console.error("resetDatabaseToClean error:", err);
