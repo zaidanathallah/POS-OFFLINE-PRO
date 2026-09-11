@@ -39,6 +39,7 @@ import { exportDatabaseBackup, importDatabaseBackup, resetDatabaseToClean } from
 import { exportReportToCSV } from "@/util/csvExportService";
 import { PrinterService, BluetoothDeviceItem } from "@/util/printerService";
 import { useSecureAction } from "@/hooks/useSecureAction";
+import { useCartStore } from "@/stores/useCartStore";
 import { PinPromptModal } from "@/components/PinPromptModal";
 import { TransactionFormModal } from "@/components/TransactionFormModal";
 import { TransactionDetailModal } from "@/components/TransactionDetailModal";
@@ -160,9 +161,11 @@ export default function SettingsScreen() {
   const [connectedPrinter, setConnectedPrinter] = useState<BluetoothDeviceItem | null>(null);
   const [isScanningBT, setIsScanningBT] = useState(false);
 
-  // Backup state
+  // Backup & Reset state
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
 
   // Secure Action Hook
   const {
@@ -497,42 +500,34 @@ export default function SettingsScreen() {
   };
 
   // Reset / Clear Database (Wipes mock/dirty data and starts fresh)
-  const [isResetting, setIsResetting] = useState(false);
   const handleResetDatabase = () => {
     executeSecureAction(() => {
-      Alert.alert(
-        "⚠️ Kosongkan / Reset Semua Data",
-        "Apakah Anda yakin ingin menghapus SELURUH data produk, promo, transaksi, riwayat kasir, dan pelanggan di perangkat ini?\n\nDatabase akan bersih total seperti aplikasi baru. Tindakan ini tidak dapat dibatalkan.",
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Hapus Semua (Reset)",
-            style: "destructive",
-            onPress: async () => {
-              setIsResetting(true);
-              try {
-                const ok = await resetDatabaseToClean();
-                if (ok) {
-                  await loadAllSettings();
-                  await loadPromosData();
-                  await loadReportData();
-                  Alert.alert(
-                    "Database Bersih Total!",
-                    "Seluruh data telah berhasil dikosongkan. Perangkat Anda sekarang bersih total dan siap digunakan atau diimpor data cadangan."
-                  );
-                } else {
-                  Alert.alert("Gagal Reset", "Terjadi kesalahan saat mengosongkan database.");
-                }
-              } catch (e: any) {
-                Alert.alert("Gagal Reset", e.message || "Terjadi kesalahan.");
-              } finally {
-                setIsResetting(false);
-              }
-            },
-          },
-        ]
-      );
+      setResetConfirmVisible(true);
     }, "Masukkan PIN Supervisor untuk mengosongkan database");
+  };
+
+  const performResetDatabase = async () => {
+    setIsResetting(true);
+    try {
+      const ok = await resetDatabaseToClean();
+      if (ok) {
+        useCartStore.getState().clearCart();
+        await loadAllSettings();
+        await loadPromosData();
+        await loadReportData();
+        setResetConfirmVisible(false);
+        Alert.alert(
+          "Database Bersih Total!",
+          "Seluruh data produk, kategori kustom, promo, transaksi, riwayat kasir, dan pelanggan telah berhasil dikosongkan. Perangkat Anda sekarang bersih total dan siap digunakan atau diimpor data cadangan."
+        );
+      } else {
+        Alert.alert("Gagal Reset", "Terjadi kesalahan saat mengosongkan database.");
+      }
+    } catch (e: any) {
+      Alert.alert("Gagal Reset", e.message || "Terjadi kesalahan.");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   // Save PIN
@@ -570,27 +565,41 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteLaporan = (trx: Transaction) => {
-    executeSecureAction(() => {
-      Alert.alert(
-        "Hapus Transaksi dari Laporan",
-        `Hapus transaksi ${trx.invoice_no || trx.id}? Omset laporan akan dikurangi dan stok dikembalikan.`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Hapus",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await deleteTransaction(trx.id, true);
-                await loadReportData();
-                Alert.alert("Sukses", "Transaksi berhasil dihapus dari laporan.");
-              } catch (e: any) {
-                Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
-              }
+    executeSecureAction(async () => {
+      if (Platform.OS === "web") {
+        const ok = window.confirm(
+          `Hapus transaksi ${trx.invoice_no || trx.id}? Omset laporan akan dikurangi dan stok dikembalikan.`
+        );
+        if (!ok) return;
+        try {
+          await deleteTransaction(trx.id, true);
+          await loadReportData();
+          Alert.alert("Sukses", "Transaksi berhasil dihapus dari laporan.");
+        } catch (e: any) {
+          Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+        }
+      } else {
+        Alert.alert(
+          "Hapus Transaksi dari Laporan",
+          `Hapus transaksi ${trx.invoice_no || trx.id}? Omset laporan akan dikurangi dan stok dikembalikan.`,
+          [
+            { text: "Batal", style: "cancel" },
+            {
+              text: "Hapus",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await deleteTransaction(trx.id, true);
+                  await loadReportData();
+                  Alert.alert("Sukses", "Transaksi berhasil dihapus dari laporan.");
+                } catch (e: any) {
+                  Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+                }
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      }
     }, "Masukkan PIN Supervisor untuk menghapus transaksi");
   };
 
@@ -617,27 +626,39 @@ export default function SettingsScreen() {
   };
 
   const handleDeletePromo = (promo: Promo) => {
-    executeSecureAction(() => {
-      Alert.alert(
-        "Hapus Promo",
-        `Hapus promo "${promo.name}"?`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Hapus",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await deletePromo(promo.id);
-                await loadPromosData();
-                Alert.alert("Sukses", "Promo berhasil dihapus.");
-              } catch (e: any) {
-                Alert.alert("Gagal", e.message || "Gagal menghapus promo.");
-              }
+    executeSecureAction(async () => {
+      if (Platform.OS === "web") {
+        const ok = window.confirm(`Hapus promo "${promo.name}"?`);
+        if (!ok) return;
+        try {
+          await deletePromo(promo.id);
+          await loadPromosData();
+          Alert.alert("Sukses", "Promo berhasil dihapus.");
+        } catch (e: any) {
+          Alert.alert("Gagal", e.message || "Gagal menghapus promo.");
+        }
+      } else {
+        Alert.alert(
+          "Hapus Promo",
+          `Hapus promo "${promo.name}"?`,
+          [
+            { text: "Batal", style: "cancel" },
+            {
+              text: "Hapus",
+              style: "destructive",
+              onPress: async () => {
+                try {
+                  await deletePromo(promo.id);
+                  await loadPromosData();
+                  Alert.alert("Sukses", "Promo berhasil dihapus.");
+                } catch (e: any) {
+                  Alert.alert("Gagal", e.message || "Gagal menghapus promo.");
+                }
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      }
     }, "Masukkan PIN Supervisor untuk menghapus promo");
   };
 
@@ -2888,6 +2909,143 @@ export default function SettingsScreen() {
         onClose={() => setPromoFormVisible(false)}
         onSave={handleSavePromo}
       />
+
+      {/* Dedicated Reset Confirmation Modal */}
+      <Modal
+        visible={resetConfirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isResetting) setResetConfirmVisible(false);
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              backgroundColor: "#ffffff",
+              borderRadius: 24,
+              padding: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.25,
+              shadowRadius: 20,
+              elevation: 10,
+            }}
+          >
+            {/* Header Icon */}
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: "#fef2f2",
+                alignItems: "center",
+                justifyContent: "center",
+                alignSelf: "center",
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: "#fee2e2",
+              }}
+            >
+              <AlertTriangle size={28} color="#dc2626" />
+            </View>
+
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "800",
+                color: "#991b1b",
+                textAlign: "center",
+                marginBottom: 8,
+              }}
+            >
+              Kosongkan / Reset Semua Data?
+            </Text>
+
+            <Text
+              style={{
+                fontSize: 13,
+                color: "#4b5563",
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: 20,
+              }}
+            >
+              Tindakan ini akan <Text style={{ fontWeight: "700", color: "#dc2626" }}>menghapus total seluruh data</Text> produk, kategori kustom, promo, transaksi, riwayat kasir, dan pelanggan di database SQLite perangkat ini.
+              {"\n\n"}
+              Aplikasi akan kembali bersih seperti baru dibuka. Tindakan ini <Text style={{ fontWeight: "700" }}>tidak dapat dibatalkan</Text>.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => setResetConfirmVisible(false)}
+                disabled={isResetting}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  backgroundColor: "#f3f4f6",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: "#e5e7eb",
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#4b5563" }}>
+                  Batal
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={performResetDatabase}
+                disabled={isResetting}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1.4,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  backgroundColor: "#dc2626",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  shadowColor: "#dc2626",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+              >
+                {isResetting ? (
+                  <>
+                    <ActivityIndicator size="small" color="#ffffff" />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 8 }}>
+                      Mereset...
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} color="#ffffff" />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", marginLeft: 6 }}>
+                      Ya, Kosongkan Data
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Secure PIN Prompt Modal */}
       <PinPromptModal

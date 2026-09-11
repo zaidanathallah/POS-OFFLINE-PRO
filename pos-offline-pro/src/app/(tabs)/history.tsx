@@ -158,27 +158,41 @@ export default function HistoryScreen() {
   // 3. Delete Transaction (PIN Protected)
   const handleDeleteTrx = (trx: Transaction) => {
     executeSecureAction(
-      () => {
-        Alert.alert(
-          "Hapus / Batalkan Transaksi",
-          `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`,
-          [
-            { text: "Batal", style: "cancel" },
-            {
-              text: "Hapus",
-              style: "destructive",
-              onPress: async () => {
-                try {
-                  await deleteTransaction(trx.id, true);
-                  await loadTransactions();
-                  Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
-                } catch (e: any) {
-                  Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
-                }
+      async () => {
+        if (Platform.OS === "web") {
+          const ok = window.confirm(
+            `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`
+          );
+          if (!ok) return;
+          try {
+            await deleteTransaction(trx.id, true);
+            await loadTransactions();
+            Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
+          } catch (e: any) {
+            Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+          }
+        } else {
+          Alert.alert(
+            "Hapus / Batalkan Transaksi",
+            `Apakah Anda yakin ingin menghapus transaksi ${trx.invoice_no || trx.id}? Stok produk akan dikembalikan otomatis.`,
+            [
+              { text: "Batal", style: "cancel" },
+              {
+                text: "Hapus",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    await deleteTransaction(trx.id, true);
+                    await loadTransactions();
+                    Alert.alert("Sukses", "Transaksi berhasil dihapus dan stok dikembalikan.");
+                  } catch (e: any) {
+                    Alert.alert("Gagal", e.message || "Gagal menghapus transaksi.");
+                  }
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+        }
       },
       "Hapus Transaksi",
       "Masukkan PIN Supervisor untuk menghapus transaksi"

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
 } from "react-native";
 import { Customer } from "@/db";
 import {
@@ -128,21 +129,29 @@ export function CustomerManagerModal({ visible, onClose }: CustomerManagerModalP
   };
 
   const handleDelete = (c: Customer) => {
-    Alert.alert(
-      "Hapus Pelanggan",
-      `Apakah Anda yakin ingin menghapus data pelanggan "${c.name}"?`,
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            await deleteCustomer(c.id);
-            await fetchCustomers();
+    const doDelete = async () => {
+      await deleteCustomer(c.id);
+      await fetchCustomers();
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Apakah Anda yakin ingin menghapus data pelanggan "${c.name}"?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Hapus Pelanggan",
+        `Apakah Anda yakin ingin menghapus data pelanggan "${c.name}"?`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: doDelete,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const openWhatsApp = (phoneStr: string) => {
