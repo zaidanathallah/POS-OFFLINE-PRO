@@ -353,7 +353,10 @@ export async function createBulkProducts(
           unit: unit || existing.unit,
           is_decimal: isDecimal,
           barcode: trimmedBarcode || existing.barcode,
+          image_uri: input.image_uri !== undefined ? input.image_uri : existing.image_uri,
           category: input.category?.trim() || existing.category,
+          has_variants: input.has_variants !== undefined ? input.has_variants : existing.has_variants,
+          variants_json: input.variants_json !== undefined ? input.variants_json : existing.variants_json,
           hpp_breakdown_json:
             input.hpp_breakdown_json !== undefined
               ? input.hpp_breakdown_json
@@ -363,7 +366,8 @@ export async function createBulkProducts(
         await db.runAsync(
           `UPDATE products 
            SET name = ?, harga_jual = ?, modal_hpp = ?, stock = ?, 
-               unit = ?, is_decimal = ?, barcode = ?, category = ?, hpp_breakdown_json = ?
+               unit = ?, is_decimal = ?, barcode = ?, image_uri = ?, 
+               category = ?, has_variants = ?, variants_json = ?, hpp_breakdown_json = ?
            WHERE id = ?`,
           [
             updatedProd.name,
@@ -373,7 +377,10 @@ export async function createBulkProducts(
             updatedProd.unit,
             updatedProd.is_decimal,
             updatedProd.barcode,
+            updatedProd.image_uri ?? null,
             updatedProd.category,
+            updatedProd.has_variants,
+            updatedProd.variants_json ?? null,
             updatedProd.hpp_breakdown_json ?? null,
             existing.id,
           ]
