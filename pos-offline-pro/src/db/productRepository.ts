@@ -354,12 +354,16 @@ export async function createBulkProducts(
           is_decimal: isDecimal,
           barcode: trimmedBarcode || existing.barcode,
           category: input.category?.trim() || existing.category,
+          hpp_breakdown_json:
+            input.hpp_breakdown_json !== undefined
+              ? input.hpp_breakdown_json
+              : existing.hpp_breakdown_json,
         };
 
         await db.runAsync(
           `UPDATE products 
            SET name = ?, harga_jual = ?, modal_hpp = ?, stock = ?, 
-               unit = ?, is_decimal = ?, barcode = ?, category = ?
+               unit = ?, is_decimal = ?, barcode = ?, category = ?, hpp_breakdown_json = ?
            WHERE id = ?`,
           [
             updatedProd.name,
@@ -370,6 +374,7 @@ export async function createBulkProducts(
             updatedProd.is_decimal,
             updatedProd.barcode,
             updatedProd.category,
+            updatedProd.hpp_breakdown_json ?? null,
             existing.id,
           ]
         );

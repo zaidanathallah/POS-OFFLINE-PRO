@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { ProductInput, createBulkProducts } from "@/db/productRepository";
 import { getAllCategories } from "@/db/categoryRepository";
+import { getSetting } from "@/db/settingsRepository";
 import { formatRupiah } from "@/util/formatters";
 import {
   X,
@@ -24,7 +25,14 @@ import {
   Sparkles,
   Package,
   RotateCcw,
+  Calculator,
 } from "lucide-react-native";
+
+export interface BulkRowCostItem {
+  id: string;
+  name: string;
+  amount: string;
+}
 
 interface BulkRowItem {
   id: string;
@@ -35,6 +43,8 @@ interface BulkRowItem {
   modal_hpp: string;
   stock: string;
   barcode: string;
+  cost_items: BulkRowCostItem[];
+  show_cost_breakdown?: boolean;
 }
 
 interface BulkProductFormModalProps {
@@ -59,8 +69,10 @@ export function BulkProductFormModal({
     "Lainnya",
   ]);
 
+  const [featureHppBreakdown, setFeatureHppBreakdown] = useState(true);
+
   const createEmptyRow = (defaultCat: string = "Makanan"): BulkRowItem => ({
-    id: `ROW-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    id: `ROW-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
     name: "",
     category: defaultCat,
     unit: "pcs",
@@ -68,6 +80,8 @@ export function BulkProductFormModal({
     modal_hpp: "",
     stock: "50",
     barcode: "",
+    cost_items: [],
+    show_cost_breakdown: false,
   });
 
   const [rows, setRows] = useState<BulkRowItem[]>([
@@ -86,8 +100,10 @@ export function BulkProductFormModal({
           if (list.length > 0) {
             setCategories(list.map((c) => c.name));
           }
+          const fHpp = await getSetting("feature_hpp_breakdown", "1");
+          setFeatureHppBreakdown(fHpp === "1");
         } catch (e) {
-          console.error("Gagal load categories in bulk modal:", e);
+          console.error("Gagal load categories / settings in bulk modal:", e);
         }
       })();
     }
@@ -111,9 +127,14 @@ export function BulkProductFormModal({
     const target = rows[index];
     const duplicated: BulkRowItem = {
       ...target,
-      id: `ROW-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      id: `ROW-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       name: target.name ? `${target.name} (Copy)` : "",
       barcode: "",
+      cost_items: (target.cost_items || []).map((ci) => ({
+        ...ci,
+        id: `COST-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      })),
+      show_cost_breakdown: target.show_cost_breakdown,
     };
     const nextRows = [...rows];
     nextRows.splice(index + 1, 0, duplicated);
@@ -133,13 +154,115 @@ export function BulkProductFormModal({
       prev.map((r) => {
         if (r.id === id) {
           const updated = { ...r, [field]: value };
-          if (field === "unit" && (value === "kg" || value === "liter" || value === "gram")) {
-            // auto adjust
-          }
           if (field === "category" && value === "Buah" && r.unit === "pcs") {
             updated.unit = "kg";
           }
           return updated;
+        }
+        return r;
+      })
+    );
+  };
+
+  // Cost items (HPP Breakdown / BOM) per row
+  const handleToggleRowCostBreakdown = (rowId: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id === rowId) {
+          const nextShow = !r.show_cost_breakdown;
+          let items = r.cost_items || [];
+          if (nextShow && items.length === 0) {
+            items = [
+              {
+                id: `COST-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+                name: "",
+                amount: "",
+              },
+            ];
+          }
+          return {
+            ...r,
+            show_cost_breakdown: nextShow,
+            cost_items: items,
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  const handleAddRowCostItem = (rowId: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id === rowId) {
+          const newItem: BulkRowCostItem = {
+            id: `COST-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+            name: "",
+            amount: "",
+          };
+          return {
+            ...r,
+            show_cost_breakdown: true,
+            cost_items: [...(r.cost_items || []), newItem],
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  const handleUpdateRowCostItem = (
+    rowId: string,
+    costItemId: string,
+    field: keyof BulkRowCostItem,
+    value: string
+  ) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id === rowId) {
+          const nextCostItems = (r.cost_items || []).map((ci) => {
+            if (ci.id === costItemId) {
+              return { ...ci, [field]: value };
+            }
+            return ci;
+          });
+
+          // Compute total cost items sum
+          const totalCost = nextCostItems.reduce(
+            (sum, it) => sum + (parseFloat(it.amount) || 0),
+            0
+          );
+
+          return {
+            ...r,
+            cost_items: nextCostItems,
+            modal_hpp: totalCost > 0 ? totalCost.toString() : r.modal_hpp,
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  const handleRemoveRowCostItem = (rowId: string, costItemId: string) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id === rowId) {
+          const nextCostItems = (r.cost_items || []).filter((ci) => ci.id !== costItemId);
+          const totalCost = nextCostItems.reduce(
+            (sum, it) => sum + (parseFloat(it.amount) || 0),
+            0
+          );
+          return {
+            ...r,
+            cost_items: nextCostItems,
+            modal_hpp:
+              nextCostItems.length > 0
+                ? totalCost > 0
+                  ? totalCost.toString()
+                  : "0"
+                : r.modal_hpp,
+          };
         }
         return r;
       })
@@ -160,7 +283,6 @@ export function BulkProductFormModal({
 
   // Valid entries calculation
   const validRows = rows.filter((r) => r.name.trim().length > 0 && parseFloat(r.harga_jual) > 0);
-  const totalStock = validRows.reduce((acc, r) => acc + (parseFloat(r.stock) || 0), 0);
   const totalEstSales = validRows.reduce(
     (acc, r) => acc + (parseFloat(r.harga_jual) || 0) * (parseFloat(r.stock) || 0),
     0
@@ -182,6 +304,18 @@ export function BulkProductFormModal({
           r.unit === "kg" || r.unit === "liter" || r.unit === "gram" || r.category === "Buah"
             ? 1
             : 0;
+
+        const validCostItems = (r.cost_items || [])
+          .filter((it) => it.name.trim().length > 0 || (parseFloat(it.amount) || 0) > 0)
+          .map((it) => ({
+            id: it.id,
+            name: it.name.trim(),
+            amount: parseFloat(it.amount) || 0,
+          }));
+
+        const hppBreakdownJson =
+          validCostItems.length > 0 ? JSON.stringify(validCostItems) : null;
+
         return {
           name: r.name.trim(),
           category: r.category.trim() || "Makanan",
@@ -192,6 +326,7 @@ export function BulkProductFormModal({
           stock: parseFloat(r.stock) || 0,
           barcode: r.barcode.trim() || null,
           has_variants: 0,
+          hpp_breakdown_json: hppBreakdownJson,
         };
       });
 
@@ -355,6 +490,8 @@ export function BulkProductFormModal({
           >
             {rows.map((row, index) => {
               const isValid = row.name.trim().length > 0 && parseFloat(row.harga_jual) > 0;
+              const hasCostItems = (row.cost_items || []).length > 0;
+
               return (
                 <View
                   key={row.id}
@@ -505,9 +642,49 @@ export function BulkProductFormModal({
                     </View>
 
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#64748b", marginBottom: 3 }}>
-                        Modal HPP (Rp)
-                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 3,
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: "#64748b" }}>
+                          Modal HPP (Rp)
+                        </Text>
+                        {featureHppBreakdown && (
+                          <TouchableOpacity
+                            onPress={() => handleToggleRowCostBreakdown(row.id)}
+                            activeOpacity={0.8}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              paddingHorizontal: 5,
+                              paddingVertical: 1,
+                              borderRadius: 5,
+                              backgroundColor: hasCostItems ? "#0097A7" : "#ecfeff",
+                              borderWidth: 1,
+                              borderColor: hasCostItems ? "#0097A7" : "#a5f3fc",
+                            }}
+                          >
+                            <Calculator
+                              size={10}
+                              color={hasCostItems ? "#ffffff" : "#0097A7"}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 9,
+                                fontWeight: "700",
+                                color: hasCostItems ? "#ffffff" : "#0097A7",
+                                marginLeft: 2,
+                              }}
+                            >
+                              {hasCostItems ? `${row.cost_items.length} Bahan` : "+ Bahan"}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       <TextInput
                         value={row.modal_hpp}
                         onChangeText={(val) => handleUpdateRow(row.id, "modal_hpp", val)}
@@ -517,12 +694,13 @@ export function BulkProductFormModal({
                         style={{
                           backgroundColor: "#f8fafc",
                           borderWidth: 1,
-                          borderColor: "#e2e8f0",
+                          borderColor: hasCostItems ? "#0097A7" : "#e2e8f0",
                           borderRadius: 8,
                           paddingHorizontal: 8,
                           paddingVertical: 6,
                           fontSize: 12,
                           color: "#0f172a",
+                          fontWeight: hasCostItems ? "700" : "400",
                         }}
                       />
                     </View>
@@ -550,6 +728,191 @@ export function BulkProductFormModal({
                       />
                     </View>
                   </View>
+
+                  {/* Expandable HPP Breakdown (BOM / Rincian Bahan Baku) for this row */}
+                  {featureHppBreakdown && row.show_cost_breakdown && (
+                    <View
+                      style={{
+                        backgroundColor: "#f0fdfa",
+                        borderWidth: 1,
+                        borderColor: "#99f6e4",
+                        borderRadius: 12,
+                        padding: 10,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Calculator size={13} color="#0097A7" />
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: "700",
+                              color: "#0f766e",
+                              marginLeft: 5,
+                            }}
+                          >
+                            Rincian Bahan Baku #{index + 1}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleAddRowCostItem(row.id)}
+                          activeOpacity={0.8}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 8,
+                            backgroundColor: "#0097A7",
+                          }}
+                        >
+                          <Plus size={11} color="#ffffff" />
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontWeight: "700",
+                              color: "#ffffff",
+                              marginLeft: 3,
+                            }}
+                          >
+                            + Tambah Biaya
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {(!row.cost_items || row.cost_items.length === 0) ? (
+                        <TouchableOpacity
+                          onPress={() => handleAddRowCostItem(row.id)}
+                          style={{
+                            paddingVertical: 8,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderStyle: "dashed",
+                            borderWidth: 1,
+                            borderColor: "#5eead4",
+                            borderRadius: 8,
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, color: "#0f766e", fontWeight: "600" }}>
+                            + Klik di sini untuk menambah bahan (cth: Terigu 10.000, Minyak 10.000)
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={{ gap: 6 }}>
+                          {row.cost_items.map((item, itemIdx) => (
+                            <View
+                              key={item.id}
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                backgroundColor: "#ffffff",
+                                padding: 6,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: "#e2e8f0",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: "700",
+                                  color: "#64748b",
+                                  width: 16,
+                                  textAlign: "center",
+                                }}
+                              >
+                                #{itemIdx + 1}
+                              </Text>
+                              <TextInput
+                                value={item.name}
+                                onChangeText={(val) =>
+                                  handleUpdateRowCostItem(row.id, item.id, "name", val)
+                                }
+                                placeholder="Nama Bahan (cth: Terigu)"
+                                placeholderTextColor="#94a3b8"
+                                style={{
+                                  flex: 1.3,
+                                  backgroundColor: "#f8fafc",
+                                  borderWidth: 1,
+                                  borderColor: "#e2e8f0",
+                                  borderRadius: 6,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                  fontSize: 11,
+                                  color: "#0f172a",
+                                }}
+                              />
+                              <TextInput
+                                value={item.amount}
+                                onChangeText={(val) =>
+                                  handleUpdateRowCostItem(row.id, item.id, "amount", val)
+                                }
+                                keyboardType="numeric"
+                                placeholder="Rp 0"
+                                placeholderTextColor="#94a3b8"
+                                style={{
+                                  flex: 1,
+                                  backgroundColor: "#f8fafc",
+                                  borderWidth: 1,
+                                  borderColor: "#e2e8f0",
+                                  borderRadius: 6,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                  fontSize: 11,
+                                  fontWeight: "600",
+                                  color: "#0f172a",
+                                }}
+                              />
+                              <TouchableOpacity
+                                onPress={() => handleRemoveRowCostItem(row.id, item.id)}
+                                style={{
+                                  padding: 4,
+                                  borderRadius: 6,
+                                  backgroundColor: "#fee2e2",
+                                }}
+                              >
+                                <Trash2 size={12} color="#ef4444" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              paddingTop: 6,
+                              borderTopWidth: 1,
+                              borderTopColor: "#ccfbf1",
+                              marginTop: 2,
+                            }}
+                          >
+                            <Text style={{ fontSize: 10, fontWeight: "600", color: "#0f766e" }}>
+                              Total Modal Otomatis:
+                            </Text>
+                            <Text style={{ fontSize: 11, fontWeight: "800", color: "#0f766e" }}>
+                              {formatRupiah(
+                                row.cost_items.reduce(
+                                  (sum, it) => sum + (parseFloat(it.amount) || 0),
+                                  0
+                                )
+                              )}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   {/* Satuan & Barcode Row */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
