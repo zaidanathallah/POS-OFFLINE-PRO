@@ -8,7 +8,12 @@
     "scheme": "posofflinepro",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.paditechsolutions.posofflinepro",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Izinkan POS Offline PRO mengakses kamera untuk scan barcode dan QR produk.",
+        "NSPhotoLibraryUsageDescription": "Izinkan POS Offline PRO mengakses galeri untuk memilih logo toko atau gambar produk."
+      }
     },
     "android": {
       "package": "com.paditechsolutions.posofflinepro",
