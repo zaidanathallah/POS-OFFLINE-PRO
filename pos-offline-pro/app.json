@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.paditechsolutions.posofflinepro",
       "supportsTablet": true,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Izinkan POS Offline PRO mengakses kamera untuk scan barcode dan QR produk.",
         "NSPhotoLibraryUsageDescription": "Izinkan POS Offline PRO mengakses galeri untuk memilih logo toko atau gambar produk."
       }
