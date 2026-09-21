@@ -38,19 +38,21 @@ jobs:
           pod install
           ls -la
 
-      - name: 🔨 Compile iOS App Archive
+      - name: 🔨 Compile iOS App (.app)
         working-directory: pos-offline-pro/ios
         run: |
-          WORKSPACE_FILE=$(ls -d *.xcworkspace | head -n 1)
-          SCHEME_NAME=$(xcodebuild -list -workspace "$WORKSPACE_FILE" -json | jq -r '.workspace.schemes[0]')
-          echo "Building Workspace: $WORKSPACE_FILE with Scheme: $SCHEME_NAME"
+          PROJECT_FILE=$(ls -d *.xcodeproj | head -n 1)
+          APP_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
+          WORKSPACE_FILE="${APP_NAME}.xcworkspace"
           
-          xcodebuild archive \
+          echo "Compiling App: $APP_NAME using Workspace: $WORKSPACE_FILE"
+          
+          xcodebuild \
             -workspace "$WORKSPACE_FILE" \
-            -scheme "$SCHEME_NAME" \
+            -scheme "$APP_NAME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath "build/POSOfflinePRO.xcarchive" \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -59,8 +61,10 @@ jobs:
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
         run: |
+          APP_BUNDLE=$(find ios/build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 -type d | head -n 1)
+          echo "Packaging App Bundle: $APP_BUNDLE into POSOfflinePRO.ipa"
           mkdir -p Payload
-          cp -r ios/build/POSOfflinePRO.xcarchive/Products/Applications/*.app Payload/
+          cp -r "$APP_BUNDLE" Payload/
           zip -r POSOfflinePRO.ipa Payload
           ls -lh POSOfflinePRO.ipa
 
