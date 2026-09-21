@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+env:
+  NODE_VERSION: 22
+
 jobs:
   build-ios:
     name: Build iOS IPA (.ipa)
@@ -19,7 +22,7 @@ jobs:
         with:
           xcode-version: '16.2'
 
-      - name: ⚙️ Setup Node.js
+      - name: ⚙️ Setup Node.js (Node 22 LTS)
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -65,9 +68,11 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: 📦 Package into .ipa
