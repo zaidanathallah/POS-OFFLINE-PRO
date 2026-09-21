@@ -22,6 +22,11 @@ jobs:
         with:
           xcode-version: '16.2'
 
+      - name: 🔍 Verify Apple Toolchain
+        run: |
+          xcodebuild -version
+          xcrun swift --version
+
       - name: ⚙️ Setup Node.js (Node 22 LTS)
         uses: actions/setup-node@v4
         with:
@@ -39,9 +44,9 @@ jobs:
           sudo ln -sf "$NODE_PATH" /opt/homebrew/bin/node
           echo "NODE_BINARY=$NODE_PATH" >> $GITHUB_ENV
 
-      - name: 📦 Install Dependencies
+      - name: 📦 Install Dependencies (Deterministic Lockfile)
         working-directory: pos-offline-pro
-        run: npm install
+        run: npm ci
 
       - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
@@ -61,6 +66,7 @@ jobs:
           
           echo "Compiling App: $APP_NAME using Workspace: $WORKSPACE_FILE"
           
+          set -o pipefail
           xcodebuild \
             -workspace "$WORKSPACE_FILE" \
             -scheme "$APP_NAME" \
@@ -73,7 +79,11 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             EXPANDED_CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            COMPILER_INDEX_STORE_ENABLE=NO
+            COMPILER_INDEX_STORE_ENABLE=NO 2>&1 | tee xcodebuild.log || {
+              echo "❌ BUILD FAILED. Extracting exact errors from log:"
+              grep -E "error:|FAILED|\*\* BUILD FAILED \*\*" xcodebuild.log || tail -n 100 xcodebuild.log
+              exit 1
+            }
 
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
