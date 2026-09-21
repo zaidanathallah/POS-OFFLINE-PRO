@@ -25,22 +25,27 @@ jobs:
         working-directory: pos-offline-pro
         run: npm install
 
-      - name: 📱 Generate Native iOS Project (Expo Prebuild)
-        working-directory: pos-offline-pro
-        run: npx expo prebuild --platform ios --clean
-
-      - name: 🔨 Compile iOS App (.app for physical device)
+      - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
         run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -n 1)
-          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json | jq -r '.workspace.schemes[0]')
-          echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
+          npx expo prebuild --platform ios --clean
+          cd ios
+          pod install
+          ls -la
+
+      - name: 🔨 Compile iOS App Archive
+        working-directory: pos-offline-pro/ios
+        run: |
+          WORKSPACE_FILE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME_NAME=$(xcodebuild -list -workspace "$WORKSPACE_FILE" -json | jq -r '.workspace.schemes[0]')
+          echo "Building Workspace: $WORKSPACE_FILE with Scheme: $SCHEME_NAME"
           
-          xcodebuild -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+          xcodebuild archive \
+            -workspace "$WORKSPACE_FILE" \
+            -scheme "$SCHEME_NAME" \
             -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
+            -destination "generic/platform=iOS" \
+            -archivePath "build/POSOfflinePRO.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -49,11 +54,10 @@ jobs:
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
         run: |
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 -type d | head -n 1)
-          echo "Packaging $APP_PATH into POSOfflinePRO.ipa"
           mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
+          cp -r ios/build/POSOfflinePRO.xcarchive/Products/Applications/*.app Payload/
           zip -r POSOfflinePRO.ipa Payload
+          ls -lh POSOfflinePRO.ipa
 
       - name: 🚀 Upload IPA Artifact
         uses: actions/upload-artifact@v4
