@@ -1,0 +1,63 @@
+name: Build iOS IPA (Free Sideload)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    name: Build iOS IPA (.ipa)
+    runs-on: macos-14
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: pos-offline-pro/package-lock.json
+
+      - name: 📦 Install Dependencies
+        working-directory: pos-offline-pro
+        run: npm install
+
+      - name: 📱 Generate Native iOS Project (Expo Prebuild)
+        working-directory: pos-offline-pro
+        run: npx expo prebuild --platform ios --clean
+
+      - name: 🔨 Compile iOS App (.app for physical device)
+        working-directory: pos-offline-pro
+        run: |
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -n 1)
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" -json | jq -r '.workspace.schemes[0]')
+          echo "Building Workspace: $WORKSPACE with Scheme: $SCHEME"
+          
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
+
+      - name: 📦 Package into .ipa
+        working-directory: pos-offline-pro
+        run: |
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 -type d | head -n 1)
+          echo "Packaging $APP_PATH into POSOfflinePRO.ipa"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r POSOfflinePRO.ipa Payload
+
+      - name: 🚀 Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: POSOfflinePRO-iOS
+          path: pos-offline-pro/POSOfflinePRO.ipa
+          retention-days: 7
