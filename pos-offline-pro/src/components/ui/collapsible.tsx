@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { PropsWithChildren, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -18,13 +18,11 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
         style={({ pressed }) => [styles.heading, pressed && styles.pressedHeading]}
         onPress={() => setIsOpen((value) => !value)}>
         <ThemedView type="backgroundElement" style={styles.button}>
-          <SymbolView
-            name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-            size={14}
-            weight="bold"
-            tintColor={theme.text}
-            style={{ transform: [{ rotate: isOpen ? '-90deg' : '90deg' }] }}
-          />
+          {isOpen ? (
+            <ChevronDown size={14} color={theme.text} />
+          ) : (
+            <ChevronRight size={14} color={theme.text} />
+          )}
         </ThemedView>
 
         <ThemedText type="small">{title}</ThemedText>
