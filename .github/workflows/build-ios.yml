@@ -20,10 +20,11 @@ jobs:
       - name: 🛠️ Setup Xcode 16.2
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 'latest-stable'
+          xcode-version: '16.2'
 
       - name: 🔍 Verify Apple Toolchain
         run: |
+          set -euxo pipefail
           xcodebuild -version
           xcrun swift --version
 
