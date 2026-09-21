@@ -26,6 +26,16 @@ jobs:
           cache: npm
           cache-dependency-path: pos-offline-pro/package-lock.json
 
+      - name: 🔗 Link Node.js binary for Xcode
+        run: |
+          NODE_PATH=$(which node)
+          echo "Node.js found at: $NODE_PATH"
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$NODE_PATH" /usr/local/bin/node
+          sudo mkdir -p /opt/homebrew/bin
+          sudo ln -sf "$NODE_PATH" /opt/homebrew/bin/node
+          echo "NODE_BINARY=$NODE_PATH" >> $GITHUB_ENV
+
       - name: 📦 Install Dependencies
         working-directory: pos-offline-pro
         run: npm install
@@ -35,6 +45,7 @@ jobs:
         run: |
           npx expo prebuild --platform ios --clean
           cd ios
+          echo "export NODE_BINARY=$(which node)" > .xcode.env.local
           pod install
           ls -la
 
@@ -51,12 +62,13 @@ jobs:
             -workspace "$WORKSPACE_FILE" \
             -scheme "$APP_NAME" \
             -configuration Release \
+            -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE_SPECIFIER=""
+            CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
