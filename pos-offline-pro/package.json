@@ -52,8 +52,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint",
-    "postinstall": "node ./scripts/patch-swift.js"
+    "lint": "expo lint"
   },
   "private": true
 }

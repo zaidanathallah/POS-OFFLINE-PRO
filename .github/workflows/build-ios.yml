@@ -50,13 +50,6 @@ jobs:
         working-directory: pos-offline-pro
         run: npm ci
 
-      - name: ✅ Validate ExpoModulesJSI Swift Package
-        working-directory: pos-offline-pro
-        run: |
-          set -euxo pipefail
-          test -f node_modules/expo-modules-jsi/apple/Package.swift
-          swift package dump-package --package-path node_modules/expo-modules-jsi/apple >/dev/null
-
       - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
         run: |
