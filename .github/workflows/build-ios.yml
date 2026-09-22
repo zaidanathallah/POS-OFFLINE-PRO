@@ -54,7 +54,7 @@ jobs:
         working-directory: pos-offline-pro
         run: |
           set -euxo pipefail
-          find node_modules -name "Package.swift" -exec sed -i '' 's/swift-tools-version: 6.2/swift-tools-version: 6.0/g' {} + || true
+          node ./scripts/patch-swift-packages.js
 
       - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
