@@ -37,43 +37,46 @@ jobs:
 
       - name: 🔗 Link Node.js binary for Xcode
         run: |
+          set -euxo pipefail
           NODE_PATH=$(which node)
           echo "Node.js found at: $NODE_PATH"
           sudo mkdir -p /usr/local/bin
           sudo ln -sf "$NODE_PATH" /usr/local/bin/node
           sudo mkdir -p /opt/homebrew/bin
           sudo ln -sf "$NODE_PATH" /opt/homebrew/bin/node
-          echo "NODE_BINARY=$NODE_PATH" >> $GITHUB_ENV
+          echo "NODE_BINARY=$NODE_PATH" >> "$GITHUB_ENV"
 
       - name: 📦 Install Dependencies (Deterministic Lockfile)
         working-directory: pos-offline-pro
         run: npm ci
 
-      - name: 🩹 Patch Expo Swift Package manifests for Xcode 16.2 compatibility
+      - name: ✅ Validate ExpoModulesJSI Swift Package
         working-directory: pos-offline-pro
         run: |
-          find node_modules -name "Package.swift" -exec sed -i '' 's/swift-tools-version: 6.2/swift-tools-version: 6.0/g' {} + || true
-          find node_modules -name "Package.swift" -exec sed -i '' 's/602.0.0-latest/600.0.0/g' {} + || true
+          set -euxo pipefail
+          test -f node_modules/expo-modules-jsi/apple/Package.swift
+          swift package dump-package --package-path node_modules/expo-modules-jsi/apple >/dev/null
 
       - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
         run: |
+          set -euxo pipefail
           npx expo prebuild --platform ios --clean
           cd ios
           echo "export NODE_BINARY=$(which node)" > .xcode.env.local
-          pod install
+          pod install --repo-update
           ls -la
 
       - name: 🔨 Compile iOS App (.app)
         working-directory: pos-offline-pro/ios
         run: |
-          PROJECT_FILE=$(ls -d *.xcodeproj | head -n 1)
+          set -o pipefail
+          PROJECT_FILE=$(find . -maxdepth 1 -type d -name '*.xcodeproj' -print -quit)
           APP_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           WORKSPACE_FILE="${APP_NAME}.xcworkspace"
-          
+
           echo "Compiling App: $APP_NAME using Workspace: $WORKSPACE_FILE"
-          
-          set -o pipefail
+
           xcodebuild \
             -workspace "$WORKSPACE_FILE" \
             -scheme "$APP_NAME" \
@@ -95,7 +98,8 @@ jobs:
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
         run: |
-          APP_BUNDLE=$(find ios/build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' | head -n 1)
+          set -euxo pipefail
+          APP_BUNDLE=$(find ios/build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)
           if [ -z "$APP_BUNDLE" ]; then
             echo "❌ Release .app was not produced."
             exit 1
@@ -105,6 +109,7 @@ jobs:
           mkdir -p Payload
           cp -R "$APP_BUNDLE" Payload/
           ditto -c -k --sequesterRsrc --keepParent Payload POSOfflinePRO.ipa
+          test -s POSOfflinePRO.ipa
           ls -lh POSOfflinePRO.ipa
 
       - name: 🚀 Upload IPA Artifact
@@ -112,4 +117,5 @@ jobs:
         with:
           name: POSOfflinePRO-iOS
           path: pos-offline-pro/POSOfflinePRO.ipa
+          if-no-files-found: error
           retention-days: 7
