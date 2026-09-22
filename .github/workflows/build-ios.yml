@@ -49,6 +49,12 @@ jobs:
         working-directory: pos-offline-pro
         run: npm ci
 
+      - name: 🩹 Patch Expo Swift Package manifests for Xcode 16.2 compatibility
+        working-directory: pos-offline-pro
+        run: |
+          find node_modules -name "Package.swift" -exec sed -i '' 's/swift-tools-version: 6.2/swift-tools-version: 6.0/g' {} + || true
+          find node_modules -name "Package.swift" -exec sed -i '' 's/602.0.0-latest/600.0.0/g' {} + || true
+
       - name: 📱 Generate Native iOS Project & Pods
         working-directory: pos-offline-pro
         run: |
