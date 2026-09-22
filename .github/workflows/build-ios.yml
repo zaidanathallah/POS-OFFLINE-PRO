@@ -89,11 +89,16 @@ jobs:
       - name: 📦 Package into .ipa
         working-directory: pos-offline-pro
         run: |
-          APP_BUNDLE=$(find ios/build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 -type d | head -n 1)
+          APP_BUNDLE=$(find ios/build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' | head -n 1)
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "❌ Release .app was not produced."
+            exit 1
+          fi
           echo "Packaging App Bundle: $APP_BUNDLE into POSOfflinePRO.ipa"
+          rm -rf Payload POSOfflinePRO.ipa
           mkdir -p Payload
-          cp -r "$APP_BUNDLE" Payload/
-          zip -r POSOfflinePRO.ipa Payload
+          cp -R "$APP_BUNDLE" Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload POSOfflinePRO.ipa
           ls -lh POSOfflinePRO.ipa
 
       - name: 🚀 Upload IPA Artifact
